@@ -23,6 +23,27 @@ dependencies. Happy presolving!
 ## Installation
 ---
 ## API
+The public C API is defined in the header file `PSLP_API.h`, which contains all public data structures and function declarations.
+After installing PSLP, you can include it in your project with:
+```c
+#include <PSLP_API.h>
+```
+The API consists of three main operations:
+
+1. **Initialization** — performed using `new_presolver()`, which creates and
+   initializes internal data structures used by the presolver.  
+
+2. **Presolve** — performed using `run_presolver()`, which executes the presolve
+   routines to reduce the LP. The reduced LP is available in the struct
+   `reduced_problem` of the presolver object.
+
+4. **Postsolve** — performed using `postsolve()`, which recovers a primal-dual
+   solution to the original LP from a primal-dual solution to the reduced problem.
+   (The exact convention we use for the dual variables can be found in our XXX.)
+
+Detailed descriptions of each function and all associated data structures are
+documented in `PSLP_API.h`. A video tutorial is available at XXX.
+
 ---
 ## Citation
 A paper is under preparation. If you wish to cite this software, you may use the following bibtex. 
