@@ -4,6 +4,8 @@
 [![Build and Test Status](https://img.shields.io/github/actions/workflow/status/dance858/PSLP/cmake.yml?branch=main)](https://github.com/dance858/PSLP/actions)
 [![Language: C](https://img.shields.io/badge/Language-C-blue.svg)](https://en.wikipedia.org/wiki/C_(programming_language))
 [![Coverage Status](https://coveralls.io/repos/github/XXX/badge.svg?branch=master)](https://coveralls.io/github/XXXbranch=master)
+[![Coverage Status](https://coveralls.io/repos/github/dance858/PSLP/badge.svg?branch=main)](https://coveralls.io/github/dance858/PSLP?branch=main)
+
 
 **PSLP** is a fast, dependency-free presolver for linear programs (LPs) of the form
 
