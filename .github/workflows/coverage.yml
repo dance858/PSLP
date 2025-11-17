@@ -17,7 +17,7 @@ jobs:
 
     # ---- BUILD ----
     - name: Configure
-      run: cmake -DCOVERAGE=ON -DCMAKE_BUILD_TYPE=Debug .
+      run: cmake -DCOVERAGE=ON -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON .
 
     - name: Build
       run: make -j
@@ -28,7 +28,7 @@ jobs:
         if [ -f "CTestTestfile.cmake" ]; then
           ctest --output-on-failure
         else
-          ./tests             # replace with your test binary
+          bin/all_tests          
         fi
 
     # ---- GENERATE COVERAGE ----
