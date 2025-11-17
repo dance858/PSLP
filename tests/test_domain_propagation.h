@@ -75,8 +75,8 @@ static char *test_1_domain()
     double Ax_correct[] = {1, 3, 3, -1, -2, 2, 2, -3};
     int Ai_correct[] = {0, 1, 0, 1, 0, 1, 0, 1};
     int Ap_correct[] = {0, 2, 4, 6, 8};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 8));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 8));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check that new variable bounds are correct
@@ -88,8 +88,8 @@ static char *test_1_domain()
     // check that lhs and rhs are correct
     double lhs_correct[] = {3, -INF, 6, 0};
     double rhs_correct[] = {INF, 5, INF, INF};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 4));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 4));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 4));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 4));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -139,8 +139,8 @@ static char *test_2_domain()
     double Ax_correct[] = {1, 3, 3, -1, -2, 2};
     int Ai_correct[] = {0, 1, 0, 1, 0, 1};
     int Ap_correct[] = {0, 2, 4, 6};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 6));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 6));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check that new variable bounds are correct
@@ -155,8 +155,8 @@ static char *test_2_domain()
     // check that lhs and rhs are correct
     double lhs_correct[] = {4 - 1 / 9 - 1 / 3, -INF, 6 - 2 / 3};
     double rhs_correct[] = {INF, 5 - 1 / 3 - 4 / 7, INF};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 3));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 3));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 3));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 3));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -205,8 +205,8 @@ static char *test_3_domain()
     double Ax_correct[] = {1, 3, 3, -1, -2, 2};
     int Ai_correct[] = {0, 1, 0, 1, 0, 1};
     int Ap_correct[] = {0, 2, 4, 6};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 6));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 6));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check that new variable bounds are correct
@@ -221,8 +221,8 @@ static char *test_3_domain()
     // check that lhs and rhs are correct
     double lhs_correct[] = {3, -INF, 6};
     double rhs_correct[] = {INF, 5, INF};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 3));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 3));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 3));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 3));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -272,8 +272,8 @@ static char *test_4_domain()
     double Ax_correct[] = {1, 3, 3, -1, -2, 2};
     int Ai_correct[] = {0, 1, 0, 1, 0, 1};
     int Ap_correct[] = {0, 2, 4, 6};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 6));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 6));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check that new variable bounds are correct
@@ -288,8 +288,8 @@ static char *test_4_domain()
     // check that lhs and rhs are correct
     double lhs_correct[] = {4 - 1 / 9 - 1 / 3, -INF, 6 - 2 / 3};
     double rhs_correct[] = {INF, 5 - 1 / 3 - 4 / 7, INF};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 3));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 3));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 3));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 3));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -338,8 +338,8 @@ static char *test_5_domain()
     double Ax_correct[] = {1, -1, 3, -1, -2, 2};
     int Ai_correct[] = {0, 0, 1, 2, 1, 2};
     int Ap_correct[] = {0, 1, 4, 6};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 6));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 6));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check that new variable bounds are correct
@@ -354,8 +354,8 @@ static char *test_5_domain()
     // check that lhs and rhs are correct
     double lhs_correct[] = {-INF, -INF, -2};
     double rhs_correct[] = {0, 1, INF};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 3));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 3));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 3));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 3));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -405,8 +405,8 @@ static char *test_6_domain()
     double Ax_correct[] = {-1, -1, 3, -1, -2, 2};
     int Ai_correct[] = {0, 0, 1, 2, 1, 2};
     int Ap_correct[] = {0, 1, 4, 6};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 6));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 6));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check that new variable bounds are correct
@@ -421,8 +421,8 @@ static char *test_6_domain()
     // check that lhs and rhs are correct
     double lhs_correct[] = {-1, -INF, -4};
     double rhs_correct[] = {INF, 2, INF};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 3));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 3));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 3));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 3));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -471,8 +471,8 @@ static char *test_7_domain()
     double Ax_correct[] = {1, 1, 3, -1, -2, 2};
     int Ai_correct[] = {0, 0, 1, 2, 1, 2};
     int Ap_correct[] = {0, 1, 4, 6};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 6));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 6));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check that new variable bounds are correct
@@ -487,8 +487,8 @@ static char *test_7_domain()
     // check that lhs and rhs are correct
     double lhs_correct[] = {2, -INF, -2};
     double rhs_correct[] = {INF, 3, INF};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 3));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 3));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 3));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 3));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -537,8 +537,8 @@ static char *test_8_domain()
     double Ax_correct[] = {-1, -1, 3, -1, -2, 2};
     int Ai_correct[] = {0, 0, 1, 2, 1, 2};
     int Ap_correct[] = {0, 1, 4, 6};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 6));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 6));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check that new variable bounds are correct
@@ -553,8 +553,8 @@ static char *test_8_domain()
     // check that lhs and rhs are correct
     double lhs_correct[] = {-1, -INF, -4};
     double rhs_correct[] = {INF, 2, INF};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 3));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 3));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 3));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 3));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));

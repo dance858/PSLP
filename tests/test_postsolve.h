@@ -1,9 +1,9 @@
 #ifndef TEST_POSTSOLVE_H
 #define TEST_POSTSOLVE_H
 
-#include "API.h"
 #include "CoreTransformations.h"
 #include "Numerics.h"
+#include "PSLP_API.h"
 
 #include "SimpleReductions.h"
 #include "minunit.h"
@@ -45,7 +45,7 @@ static char *test_0_postsolve()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
 
-    presolver_run(presolver);
+    run_presolver(presolver);
 
     Mapping *maps = prob->constraints->state->work->mappings;
     int *rows_map = maps->rows;
@@ -108,7 +108,7 @@ static char *test_1_postsolve()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
 
-    presolver_run(presolver);
+    run_presolver(presolver);
 
     Mapping *maps = prob->constraints->state->work->mappings;
     int *rows_map = maps->rows;
@@ -162,7 +162,7 @@ static char *test_singleton_eq()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
 
-    presolver_run(presolver);
+    run_presolver(presolver);
 
     Mapping *maps = prob->constraints->state->work->mappings;
     int *rows_map = maps->rows;
@@ -223,7 +223,7 @@ static char *test_1_postsolve_implied_bound_active()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
 
-    presolver_run(presolver);
+    run_presolver(presolver);
 
     Mapping *maps = prob->constraints->state->work->mappings;
     int *rows_map = maps->rows;
@@ -276,7 +276,7 @@ static char *test_singleton_ineq_row()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
 
-    presolver_run(presolver);
+    run_presolver(presolver);
 
     Mapping *maps = prob->constraints->state->work->mappings;
     int *rows_map = maps->rows;
@@ -338,7 +338,7 @@ static char *test_2_postsolve()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
 
-    presolver_run(presolver);
+    run_presolver(presolver);
 
     // construct optimal primal solution to reduced problem (computed offline)
     double x[] = {0.33333333, 0.0, 0.33333333};
@@ -389,7 +389,7 @@ static char *test_implied_free_col_ston_in_inequality_postsolve()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
 
-    presolver_run(presolver);
+    run_presolver(presolver);
 
     // construct optimal primal solution to reduced problem (computed offline)
     double x[] = {0., 1., 0.};
@@ -441,7 +441,7 @@ static char *test_col_ston_dual_fix()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
 
-    presolver_run(presolver);
+    run_presolver(presolver);
 
     // construct optimal primal solution to reduced problem (computed offline)
     double x[] = {0., 1.66666667, 0.};
@@ -496,7 +496,7 @@ static char *test_3_postsolve()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
 
-    presolver_run(presolver);
+    run_presolver(presolver);
 
     // construct optimal primal solution to reduced problem (computed offline)
     double x[] = {1., 0., 0., 4., 0., 6., 0., -10.};
@@ -555,7 +555,7 @@ static char *test_4_postsolve()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
 
-    presolver_run(presolver);
+    run_presolver(presolver);
 
     // construct optimal primal solution to reduced problem (computed offline)
     double x[] = {-10, 10, -6.75, -10};
@@ -627,7 +627,7 @@ static char *test_6_postsolve()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
 
-    presolver_run(presolver);
+    run_presolver(presolver);
 
     // construct optimal primal solution to reduced problem (computed offline).
     // on linux vs mac the parallel column kept is different, leading to
@@ -693,7 +693,7 @@ static char *test_7_postsolve()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
 
-    presolver_run(presolver);
+    run_presolver(presolver);
 
     // construct optimal primal solution to reduced problem (computed offline)
 #ifdef __linux__
@@ -764,7 +764,7 @@ static char *test_8_postsolve()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
 
-    presolver_run(presolver);
+    run_presolver(presolver);
 
     Mapping *maps = prob->constraints->state->work->mappings;
     int *rows_map = maps->rows;
@@ -824,7 +824,7 @@ static char *test_9_postsolve()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
 
-    presolver_run(presolver);
+    run_presolver(presolver);
 
     Mapping *maps = prob->constraints->state->work->mappings;
     int *rows_map = maps->rows;
@@ -878,7 +878,7 @@ static char *test_pathological_ston_one()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
 
-    presolver_run(presolver);
+    run_presolver(presolver);
 
     Mapping *maps = prob->constraints->state->work->mappings;
     int *rows_map = maps->rows;
@@ -932,7 +932,7 @@ static char *test_pathological_ston_two()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
 
-    presolver_run(presolver);
+    run_presolver(presolver);
 
     Mapping *maps = prob->constraints->state->work->mappings;
     int *rows_map = maps->rows;

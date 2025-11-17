@@ -1,7 +1,7 @@
 #CMakeLists.txt file for cvx_presolver
 cmake_minimum_required(VERSION 3.20)
 project(PSLP
-  LANGUAGES C
+  LANGUAGES C CXX
   VERSION 0.1.0
   DESCRIPTION "PSLP — A Lightweight C Presolver for Linear Programs"
 )
@@ -56,7 +56,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
-#Add uninstall target
+# Add uninstall target
 include(AddUninstallTarget)
 
 #Specify the C standard
@@ -71,7 +71,7 @@ file(GLOB CORE_SOURCES CONFIGURE_DEPENDS
 
 # distinguish between public and private headers
 set(PUBLIC_HEADERS
-  include/PSLP/"API.h"
+  include/PSLP/API.h
  
 )
 
@@ -157,6 +157,9 @@ if(BUILD_TESTING)
 else()
   message(STATUS "Testing disabled")
 endif()
+
+add_executable(test_cpp EXCLUDE_FROM_ALL tests/test_cpp.cpp)
+target_link_libraries(test_cpp PRIVATE PSLP)
 
 # Installation and export
 install(TARGETS PSLP

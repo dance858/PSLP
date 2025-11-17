@@ -1,9 +1,9 @@
 #ifndef TEST_PARALLEL_COLS_H
 #define TEST_PARALLEL_COLS_H
 
-#include "API.h"
 #include "Debugger.h"
 #include "Matrix.h"
+#include "PSLP_API.h"
 #include "Parallel_cols.h"
 
 #include "Problem.h"
@@ -44,8 +44,8 @@ static char *test_1_parallel_cols()
     double Ax_correct[] = {-1, -1};
     int Ai_correct[] = {0, 1};
     int Ap_correct[] = {0, 2};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 2));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 2));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check that new variable bounds are correct
@@ -56,7 +56,7 @@ static char *test_1_parallel_cols()
 
     // check that the objective function is correct
     double obj_correct[] = {2, 1};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 2));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 2));
     mu_assert("error offset", prob->obj->offset == 0);
 
     PS_FREE(stgs);
@@ -99,8 +99,8 @@ static char *test_2_parallel_cols()
     double Ax_correct[] = {-1, -1};
     int Ai_correct[] = {0, 1};
     int Ap_correct[] = {0, 2};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 2));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 2));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check that new variable bounds are correct
@@ -111,7 +111,7 @@ static char *test_2_parallel_cols()
 
     // check that the objective function is correct
     double obj_correct[] = {2, 1};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 2));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 2));
     mu_assert("error offset", prob->obj->offset == 0);
 
     PS_FREE(stgs);
@@ -154,8 +154,8 @@ static char *test_3_parallel_cols()
     double Ax_correct[] = {-1, -1};
     int Ai_correct[] = {0, 1};
     int Ap_correct[] = {0, 2};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 2));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 2));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check that new variable bounds are correct
@@ -166,7 +166,7 @@ static char *test_3_parallel_cols()
 
     // check that the objective function is correct
     double obj_correct[] = {2, 1};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 2));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 2));
     mu_assert("error offset", prob->obj->offset == 0);
 
     PS_FREE(stgs);
@@ -209,8 +209,8 @@ static char *test_4_parallel_cols()
     double Ax_correct[] = {-1, -1};
     int Ai_correct[] = {0, 1};
     int Ap_correct[] = {0, 2};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 2));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 2));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check that new variable bounds are correct
@@ -221,7 +221,7 @@ static char *test_4_parallel_cols()
 
     // check that the objective function is correct
     double obj_correct[] = {2, 1};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 2));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 2));
     mu_assert("error offset", prob->obj->offset == 0);
 
     PS_FREE(stgs);
@@ -264,8 +264,8 @@ static char *test_5_parallel_cols()
     double Ax_correct[] = {-1, -1};
     int Ai_correct[] = {0, 1};
     int Ap_correct[] = {0, 2};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 2));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 2));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check that new variable bounds are correct
@@ -276,7 +276,7 @@ static char *test_5_parallel_cols()
 
     // check that the objective function is correct
     double obj_correct[] = {2, 1};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 2));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 2));
     mu_assert("error offset", prob->obj->offset == 0);
 
     PS_FREE(stgs);
@@ -319,8 +319,8 @@ static char *test_6_parallel_cols()
     double Ax_correct[] = {-1};
     int Ai_correct[] = {0};
     int Ap_correct[] = {0, 1};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 1));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 1));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 1));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 1));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check that new variable bounds are correct
@@ -331,7 +331,7 @@ static char *test_6_parallel_cols()
 
     // check that the objective function is correct
     double obj_correct[] = {2};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 1));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 1));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -373,8 +373,8 @@ static char *test_5_negated_parallel_cols()
     double Ax_correct[] = {-1, -1};
     int Ai_correct[] = {0, 1};
     int Ap_correct[] = {0, 2};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 2));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 2));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check that new variable bounds are correct
@@ -385,7 +385,7 @@ static char *test_5_negated_parallel_cols()
 
     // check that the objective function is correct
     double obj_correct[] = {-2, 1};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 2));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 2));
     mu_assert("error offset", prob->obj->offset == 0);
 
     PS_FREE(stgs);
@@ -428,8 +428,8 @@ static char *test_6_negated_parallel_cols()
     double Ax_correct[] = {-1, -1};
     int Ai_correct[] = {0, 1};
     int Ap_correct[] = {0, 2};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 2));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 2));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check that new variable bounds are correct
@@ -440,7 +440,7 @@ static char *test_6_negated_parallel_cols()
 
     // check that the objective function is correct
     double obj_correct[] = {-2, 1};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 2));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 2));
     mu_assert("error offset", prob->obj->offset == 0);
 
     PS_FREE(stgs);
@@ -552,8 +552,8 @@ static char *test_8_parallel_cols()
 // on mac the order of the columns is different, so we only run this test on
 // linux
 #ifdef __linux__
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, A->nnz));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, A->nnz));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, A->nnz));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, A->nnz));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check that new variable bounds are correct
@@ -564,7 +564,7 @@ static char *test_8_parallel_cols()
 
     // check that the objective function is correct
     double obj_correct[] = {3, -4, -3, 6, 3, 1};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 6));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 6));
     mu_assert("error offset", prob->obj->offset == 0);
 #endif // __linux__
 

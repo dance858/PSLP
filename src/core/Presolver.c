@@ -16,7 +16,6 @@
  * limitations under the License.
  */
 
-#include "API.h"
 #include "Activity.h"
 #include "Constraints.h"
 #include "CoreTransformations.h"
@@ -26,6 +25,7 @@
 #include "Matrix.h"
 #include "Memory_wrapper.h"
 #include "Numerics.h"
+#include "PSLP_API.h"
 #include "Parallel_cols.h"
 #include "Parallel_rows.h"
 #include "Postsolver.h"
@@ -64,6 +64,11 @@ PresolveStats *init_stats(int n_rows, int n_cols, int nnz)
     stats->n_cols_original = n_cols;
     stats->nnz_original = nnz;
     return stats;
+}
+
+void free_settings(Settings *stgs)
+{
+    PS_FREE(stgs);
 }
 
 Settings *default_settings()
@@ -532,7 +537,7 @@ static inline void print_end_message(const Matrix *A, const PresolveStats *stats
            stats->presolve_total_time);
 }
 
-PresolveStatus presolver_run(Presolver *presolver)
+PresolveStatus run_presolver(Presolver *presolver)
 {
     Timer inner_timer, outer_timer;
     int nnz_before_cycle, nnz_after_cycle;

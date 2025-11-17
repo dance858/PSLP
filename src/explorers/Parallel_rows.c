@@ -204,7 +204,7 @@ void VERIFY_PARALLEL_ROWS(const Matrix *A, const RowTag *rows_tags,
         {
             assert(len1 ==
                    A->p[parallel_rows[j]].end - A->p[parallel_rows[j]].start);
-            ARRAYS_EQUAL(cols1, A->i + A->p[parallel_rows[j]].start, len1);
+            ARRAYS_EQUAL_INT(cols1, A->i + A->p[parallel_rows[j]].start, len1);
         }
 
         // check that all rows have same normalized coefficients

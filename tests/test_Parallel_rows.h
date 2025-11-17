@@ -1,9 +1,9 @@
 #ifndef TEST_PARALLEL_ROWS_H
 #define TEST_PARALLEL_ROWS_H
 
-#include "API.h"
 #include "Debugger.h"
 #include "Matrix.h"
+#include "PSLP_API.h"
 #include "Parallel_rows.h"
 
 #include "math.h"
@@ -107,9 +107,9 @@ static char *test_3_parallel_rows()
     int parallel_rows_correct[] = {4, 0, 3, 1};
     int group_start_correct[] = {0, 2, 4};
 
-    mu_assert("error", ARRAYS_EQUAL(parallel_rows_correct, parallel_rows, 4));
+    mu_assert("error", ARRAYS_EQUAL_INT(parallel_rows_correct, parallel_rows, 4));
     mu_assert("error", group_start->len == 3);
-    mu_assert("error", ARRAYS_EQUAL(group_start_correct, group_start->data, 3));
+    mu_assert("error", ARRAYS_EQUAL_INT(group_start_correct, group_start->data, 3));
 
     free_matrix(A);
     iVec_free(group_start);
@@ -207,7 +207,7 @@ static char *test_4_parallel_rows()
     mu_assert("error group_starts len", group_start->len == 4);
     int group_start_correct[] = {0, 8, 16, 24};
     mu_assert("error group_starts data",
-              ARRAYS_EQUAL(group_start_correct, group_start->data, 4));
+              ARRAYS_EQUAL_INT(group_start_correct, group_start->data, 4));
 
     // Below we verify that the answer is correct. We need to sort and do some
     // hacking because the rows appears in a different order on mac compared to
@@ -228,17 +228,19 @@ static char *test_4_parallel_rows()
 
     if (sorted[0] == 0)
     {
-        mu_assert("error first group", ARRAYS_EQUAL(sorted, first_group_correct, 8));
+        mu_assert("error first group",
+                  ARRAYS_EQUAL_INT(sorted, first_group_correct, 8));
     }
     else if (sorted[0] == 10)
     {
         mu_assert("error first group",
-                  ARRAYS_EQUAL(sorted, second_group_correct, 8));
+                  ARRAYS_EQUAL_INT(sorted, second_group_correct, 8));
     }
     else
     {
         assert(sorted[0] == 20);
-        mu_assert("error first group", ARRAYS_EQUAL(sorted, third_group_correct, 8));
+        mu_assert("error first group",
+                  ARRAYS_EQUAL_INT(sorted, third_group_correct, 8));
     }
 
     // check that next 8 entries of parallell rows corresponds to one of the
@@ -251,17 +253,19 @@ static char *test_4_parallel_rows()
 
     if (sorted[0] == 0)
     {
-        mu_assert("error first group", ARRAYS_EQUAL(sorted, first_group_correct, 8));
+        mu_assert("error first group",
+                  ARRAYS_EQUAL_INT(sorted, first_group_correct, 8));
     }
     else if (sorted[0] == 10)
     {
         mu_assert("error first group",
-                  ARRAYS_EQUAL(sorted, second_group_correct, 8));
+                  ARRAYS_EQUAL_INT(sorted, second_group_correct, 8));
     }
     else
     {
         assert(sorted[0] == 20);
-        mu_assert("error first group", ARRAYS_EQUAL(sorted, third_group_correct, 8));
+        mu_assert("error first group",
+                  ARRAYS_EQUAL_INT(sorted, third_group_correct, 8));
     }
 
     // check that next 8 entries of parallell rows corresponds to one of the
@@ -274,17 +278,19 @@ static char *test_4_parallel_rows()
 
     if (sorted[0] == 0)
     {
-        mu_assert("error first group", ARRAYS_EQUAL(sorted, first_group_correct, 8));
+        mu_assert("error first group",
+                  ARRAYS_EQUAL_INT(sorted, first_group_correct, 8));
     }
     else if (sorted[0] == 10)
     {
         mu_assert("error first group",
-                  ARRAYS_EQUAL(sorted, second_group_correct, 8));
+                  ARRAYS_EQUAL_INT(sorted, second_group_correct, 8));
     }
     else
     {
         assert(sorted[0] == 20);
-        mu_assert("error first group", ARRAYS_EQUAL(sorted, third_group_correct, 8));
+        mu_assert("error first group",
+                  ARRAYS_EQUAL_INT(sorted, third_group_correct, 8));
     }
 
     free_matrix(A);
@@ -372,7 +378,7 @@ static char *test_5_parallel_rows()
     mu_assert("error group_starts len", group_start->len == 4);
     // int group_start_correct[] = {0, 8, 14, 20};
     // mu_assert("error group_starts data",
-    //           ARRAYS_EQUAL(group_start_correct, group_start->data, 4));
+    //           ARRAYS_EQUAL_INT(group_start_correct, group_start->data, 4));
 
     int first_group_correct[] = {10, 60, 110, 160, 210, 260};
     int second_group_correct[] = {20, 70, 120, 170, 220, 270, 320, 370};
@@ -395,17 +401,19 @@ static char *test_5_parallel_rows()
 
     if (sorted[0] == 10)
     {
-        mu_assert("error first group", ARRAYS_EQUAL(sorted, first_group_correct, 6));
+        mu_assert("error first group",
+                  ARRAYS_EQUAL_INT(sorted, first_group_correct, 6));
     }
     else if (sorted[0] == 20)
     {
         mu_assert("error first group",
-                  ARRAYS_EQUAL(sorted, second_group_correct, 8));
+                  ARRAYS_EQUAL_INT(sorted, second_group_correct, 8));
     }
     else
     {
         assert(sorted[0] == 50);
-        mu_assert("error first group", ARRAYS_EQUAL(sorted, third_group_correct, 6));
+        mu_assert("error first group",
+                  ARRAYS_EQUAL_INT(sorted, third_group_correct, 6));
     }
 
     // check that next entries of parallell rows corresponds to one of the
@@ -418,17 +426,19 @@ static char *test_5_parallel_rows()
 
     if (sorted[0] == 10)
     {
-        mu_assert("error first group", ARRAYS_EQUAL(sorted, first_group_correct, 6));
+        mu_assert("error first group",
+                  ARRAYS_EQUAL_INT(sorted, first_group_correct, 6));
     }
     else if (sorted[0] == 20)
     {
         mu_assert("error first group",
-                  ARRAYS_EQUAL(sorted, second_group_correct, 8));
+                  ARRAYS_EQUAL_INT(sorted, second_group_correct, 8));
     }
     else
     {
         assert(sorted[0] == 50);
-        mu_assert("error first group", ARRAYS_EQUAL(sorted, third_group_correct, 6));
+        mu_assert("error first group",
+                  ARRAYS_EQUAL_INT(sorted, third_group_correct, 6));
     }
 
     // check that next entries of parallell rows corresponds to one of the
@@ -441,17 +451,19 @@ static char *test_5_parallel_rows()
 
     if (sorted[0] == 10)
     {
-        mu_assert("error first group", ARRAYS_EQUAL(sorted, first_group_correct, 6));
+        mu_assert("error first group",
+                  ARRAYS_EQUAL_INT(sorted, first_group_correct, 6));
     }
     else if (sorted[0] == 20)
     {
         mu_assert("error first group",
-                  ARRAYS_EQUAL(sorted, second_group_correct, 8));
+                  ARRAYS_EQUAL_INT(sorted, second_group_correct, 8));
     }
     else
     {
         assert(sorted[0] == 50);
-        mu_assert("error first group", ARRAYS_EQUAL(sorted, third_group_correct, 6));
+        mu_assert("error first group",
+                  ARRAYS_EQUAL_INT(sorted, third_group_correct, 6));
     }
 
     free_matrix(A);
@@ -491,8 +503,8 @@ static char *test_6_parallel_rows()
     mu_assert("error", status == INFEASIBLE);
     problem_clean(prob, true);
 
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax, A->x, nnz));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai, A->i, nnz));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
     CHECK_ROW_STARTS(A, Ap);
 
     PS_FREE(stgs);
@@ -533,8 +545,8 @@ static char *test_7_parallel_rows()
     mu_assert("error", status == INFEASIBLE);
     problem_clean(prob, true);
 
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax, A->x, nnz));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai, A->i, nnz));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
     CHECK_ROW_STARTS(A, Ap);
 
     PS_FREE(stgs);
@@ -575,8 +587,8 @@ static char *test_8_parallel_rows()
     mu_assert("error", status == INFEASIBLE);
     problem_clean(prob, true);
 
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax, A->x, nnz));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai, A->i, nnz));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
     CHECK_ROW_STARTS(A, Ap);
 
     PS_FREE(stgs);
@@ -617,8 +629,8 @@ static char *test_9_parallel_rows()
     mu_assert("error", status == INFEASIBLE);
     problem_clean(prob, true);
 
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax, A->x, nnz));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai, A->i, nnz));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
     CHECK_ROW_STARTS(A, Ap);
 
     PS_FREE(stgs);
@@ -659,8 +671,8 @@ static char *test_10_parallel_rows()
     mu_assert("error", status == INFEASIBLE);
     problem_clean(prob, true);
 
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax, A->x, nnz));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai, A->i, nnz));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
     CHECK_ROW_STARTS(A, Ap);
 
     PS_FREE(stgs);
@@ -701,8 +713,8 @@ static char *test_11_parallel_rows()
     mu_assert("error", status == INFEASIBLE);
     problem_clean(prob, true);
 
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax, A->x, nnz));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai, A->i, nnz));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
     CHECK_ROW_STARTS(A, Ap);
 
     PS_FREE(stgs);
@@ -743,8 +755,8 @@ static char *test_12_parallel_rows()
     mu_assert("error", status == INFEASIBLE);
     problem_clean(prob, true);
 
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax, A->x, nnz));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai, A->i, nnz));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
     CHECK_ROW_STARTS(A, Ap);
 
     PS_FREE(stgs);
@@ -785,8 +797,8 @@ static char *test_13_parallel_rows()
     mu_assert("error", status == INFEASIBLE);
     problem_clean(prob, true);
 
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax, A->x, nnz));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai, A->i, nnz));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
     CHECK_ROW_STARTS(A, Ap);
 
     PS_FREE(stgs);
@@ -918,25 +930,25 @@ static char *test_14_parallel_rows()
                            row0_vals[4], ax[0],        ax[1],        ax[2],
                            row5_vals[0], row5_vals[1], row5_vals[2], row5_vals[3]};
 
-    double Ai_correct[] = {row0_cols[0], row0_cols[1], row0_cols[2], row0_cols[3],
-                           row0_cols[4], ai[0],        ai[1],        ai[2],
-                           row5_cols[0], row5_cols[1], row5_cols[2], row5_cols[3]};
-    double Ap_correct[] = {0, 5, 8, 12};
+    int Ai_correct[] = {row0_cols[0], row0_cols[1], row0_cols[2], row0_cols[3],
+                        row0_cols[4], ai[0],        ai[1],        ai[2],
+                        row5_cols[0], row5_cols[1], row5_cols[2], row5_cols[3]};
+    int Ap_correct[] = {0, 5, 8, 12};
 
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 12));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 12));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 12));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 12));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check row tags
     RowTag row_tags_correct[] = {R_TAG_NONE, R_TAG_EQ, R_TAG_LHS_INF};
     mu_assert("error row tags",
-              ARRAYS_EQUAL(row_tags_correct, constraints->row_tags, 3));
+              ARRAYS_EQUAL_ROWTAG(row_tags_correct, constraints->row_tags, 3));
 
     // check lhs and rhs
     double lhs_correct[] = {-2.1, b1, -INF};
     double rhs_correct[] = {3.1, b1, 5};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 3));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 3));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 3));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 3));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -1070,26 +1082,26 @@ static char *test_15_parallel_rows()
                            2 * ax[0],    2 * ax[1],    2 * ax[2],    row5_vals[0],
                            row5_vals[1], row5_vals[2], row5_vals[3]};
 
-    double Ai_correct[] = {row0_cols[0], row0_cols[1], row0_cols[2], row0_cols[3],
-                           row0_cols[4], row1_cols[0], row1_cols[1], row1_cols[2],
-                           ai[0],        ai[1],        ai[2],        row5_cols[0],
-                           row5_cols[1], row5_cols[2], row5_cols[3]};
-    double Ap_correct[] = {0, 5, 8, 11, 15};
+    int Ai_correct[] = {row0_cols[0], row0_cols[1], row0_cols[2], row0_cols[3],
+                        row0_cols[4], row1_cols[0], row1_cols[1], row1_cols[2],
+                        ai[0],        ai[1],        ai[2],        row5_cols[0],
+                        row5_cols[1], row5_cols[2], row5_cols[3]};
+    int Ap_correct[] = {0, 5, 8, 11, 15};
 
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 15));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 15));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 15));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 15));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check row tags
     RowTag row_tags_correct[] = {R_TAG_NONE, R_TAG_NONE, R_TAG_NONE, R_TAG_LHS_INF};
     mu_assert("error row tags",
-              ARRAYS_EQUAL(row_tags_correct, constraints->row_tags, 4));
+              ARRAYS_EQUAL_ROWTAG(row_tags_correct, constraints->row_tags, 4));
 
     // check lhs and rhs
     double lhs_correct[] = {-2.1, -1, 3, -INF};
     double rhs_correct[] = {3.1, 3, 18, 5};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 4));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 4));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 4));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 4));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -1219,26 +1231,26 @@ static char *test_16_parallel_rows()
                            -2 * ax[0],   -2 * ax[1],   -2 * ax[2],   row5_vals[0],
                            row5_vals[1], row5_vals[2], row5_vals[3]};
 
-    double Ai_correct[] = {row0_cols[0], row0_cols[1], row0_cols[2], row0_cols[3],
-                           row0_cols[4], row1_cols[0], row1_cols[1], row1_cols[2],
-                           ai[0],        ai[1],        ai[2],        row5_cols[0],
-                           row5_cols[1], row5_cols[2], row5_cols[3]};
-    double Ap_correct[] = {0, 5, 8, 11, 15};
+    int Ai_correct[] = {row0_cols[0], row0_cols[1], row0_cols[2], row0_cols[3],
+                        row0_cols[4], row1_cols[0], row1_cols[1], row1_cols[2],
+                        ai[0],        ai[1],        ai[2],        row5_cols[0],
+                        row5_cols[1], row5_cols[2], row5_cols[3]};
+    int Ap_correct[] = {0, 5, 8, 11, 15};
 
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 15));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 15));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 15));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 15));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check row tags
     RowTag row_tags_correct[] = {R_TAG_NONE, R_TAG_NONE, R_TAG_NONE, R_TAG_LHS_INF};
     mu_assert("error row tags",
-              ARRAYS_EQUAL(row_tags_correct, constraints->row_tags, 4));
+              ARRAYS_EQUAL_ROWTAG(row_tags_correct, constraints->row_tags, 4));
 
     // check lhs and rhs
     double lhs_correct[] = {-2.1, -1, -18, -INF};
     double rhs_correct[] = {3.1, 3, -3, 5};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 4));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 4));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 4));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 4));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
