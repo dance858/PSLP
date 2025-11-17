@@ -1,9 +1,9 @@
 #ifndef TEST_PARALLEL_ROWS_H
 #define TEST_PARALLEL_ROWS_H
 
-#include "API.h"
 #include "Debugger.h"
 #include "Matrix.h"
+#include "PSLP_API.h"
 #include "Parallel_rows.h"
 
 #include "math.h"

@@ -19,6 +19,10 @@
 #ifndef GLB_H_GUARD
 #define GLB_H_GUARD
 
+#include "PSLP_infs.h"
+
+#define INF PSLP_INF
+
 #ifdef TESTING
 #define EXTRA_ROW_SPACE 2
 #define EXTRA_MEMORY_RATIO 1
@@ -38,12 +42,6 @@
 #define SIZE_INACTIVE_ROW -1
 #define SIZE_INACTIVE_COL -1
 #define MAX_RATIO_PIVOT 1e3
-
-#define INF 1e20
-#define IS_POS_INF(x) ((x) >= INF)
-#define IS_NEG_INF(x) ((x) <= -INF)
-#define IS_ABS_INF(x) (IS_POS_INF(x) || IS_NEG_INF(x))
-
 #define CVX_PRESOLVE_VERSION "0.0.1"
 
 #endif

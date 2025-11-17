@@ -17,10 +17,10 @@
  */
 
 #include "State.h"
-#include "API.h"
 #include "Activity.h"
 #include "Locks.h"
 #include "Numerics.h"
+#include "PSLP_API.h"
 
 #include "Workspace.h"
 #include "utils.h"

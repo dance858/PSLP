@@ -1,9 +1,9 @@
 #ifndef TEST_DTON_H
 #define TEST_DTON_H
 
-#include "API.h"
 #include "DTonsEq.h"
 #include "Debugger.h"
+#include "PSLP_API.h"
 
 #include "Problem.h"
 #include "Workspace.h"

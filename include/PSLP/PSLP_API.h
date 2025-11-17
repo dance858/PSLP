@@ -87,6 +87,7 @@ extern "C"
     /* The user is responsible for freeing the settings struct using standard free.
      */
     Settings *default_settings();
+    void free_settings(Settings *stgs);
     void set_settings_true(Settings *stgs);
     void set_settings_false(Settings *stgs);
 
@@ -104,7 +105,7 @@ extern "C"
 
     /* Runs the presolver. At completion, the 'problem' field of the presolver
        contains the presolved problem. */
-    PresolveStatus presolver_run(Presolver *presolver);
+    PresolveStatus run_presolver(Presolver *presolver);
 
     /* Postsolve the problem given the primal-dual solution (x, y, z) of the
        reduced problem. The optimal value of the reduced problem is 'obj'.

@@ -1,8 +1,8 @@
 #ifndef TEST_SIMPLEREDUCTIONS_H
 #define TEST_SIMPLEREDUCTIONS_H
 
-#include "API.h"
 #include "Debugger.h"
+#include "PSLP_API.h"
 
 #include "minunit.h"
 #include "test_SimpleReductions.h"
