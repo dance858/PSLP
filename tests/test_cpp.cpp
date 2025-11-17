@@ -1,11 +1,12 @@
 #include "PSLP_API.h"
-#include "PSLP_infs.h"
+#include "PSLP_inf.h"
 #include <cassert>
 #include <iostream>
 
 // run affiro presolver test in C++
 int main()
 {
+    double CSR = true;
     double Ax[] = {
         -1.,   1.,    1.,    -1.06, 1.,    1.,    -1.,   1.4,   -1.,   -1.,   -1.,
         -1.,   1.,    1.,    -1.06, -1.06, -0.96, -0.86, 1.,    1.,    -1.,   1.,
@@ -46,10 +47,10 @@ int main()
 
     Settings *stgs = default_settings();
     Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+                                         lbs, ubs, c, stgs, CSR);
     assert(presolver != nullptr && "Presolver initialization failed");
 
-    run_presolver(presolver);
+    PresolveStatus status = run_presolver(presolver);
 
     free_settings(stgs);
     free_presolver(presolver);

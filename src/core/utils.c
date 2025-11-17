@@ -21,12 +21,10 @@
 
 void dPtr_shrink(double *ptr, const int *map, int len)
 {
-    int new_len = 0;
     for (int i = 0; i < len; ++i)
     {
         if (map[i] != -1)
         {
-            new_len++;
             ptr[map[i]] = ptr[i];
         }
     }
@@ -34,12 +32,10 @@ void dPtr_shrink(double *ptr, const int *map, int len)
 
 void iPtr_shrink(int *ptr, const int *map, int len)
 {
-    int new_len = 0;
     for (int i = 0; i < len; ++i)
     {
         if (map[i] != -1)
         {
-            new_len++;
             ptr[map[i]] = ptr[i];
         }
     }
@@ -47,12 +43,10 @@ void iPtr_shrink(int *ptr, const int *map, int len)
 
 void rowTagPtr_shrink(RowTag *ptr, const int *map, int len)
 {
-    int new_len = 0;
     for (int i = 0; i < len; ++i)
     {
         if (map[i] != -1)
         {
-            new_len++;
             ptr[map[i]] = ptr[i];
         }
     }
@@ -60,12 +54,10 @@ void rowTagPtr_shrink(RowTag *ptr, const int *map, int len)
 
 void colTagPtr_shrink(ColTag *ptr, const int *map, int len)
 {
-    int new_len = 0;
     for (int i = 0; i < len; ++i)
     {
         if (map[i] != -1)
         {
-            new_len++;
             ptr[map[i]] = ptr[i];
         }
     }

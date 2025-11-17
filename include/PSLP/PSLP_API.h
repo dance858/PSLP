@@ -81,6 +81,7 @@ extern "C"
         struct PresolveStats *stats;
         const Settings *stgs;
         struct Problem *prob;
+        PresolvedProblem *reduced_prob;
         Solution *sol;
     } Presolver;
 

@@ -168,12 +168,10 @@ void free_state(State *data)
 
 static void shrink_locks(Lock *ptr, const int *map, int len)
 {
-    int new_len = 0;
     for (int i = 0; i < len; ++i)
     {
         if (map[i] != -1)
         {
-            new_len++;
             ptr[map[i]] = ptr[i];
         }
     }
@@ -181,12 +179,10 @@ static void shrink_locks(Lock *ptr, const int *map, int len)
 
 static void shrink_activities(Activity *ptr, const int *map, int len)
 {
-    int new_len = 0;
     for (int i = 0; i < len; ++i)
     {
         if (map[i] != -1)
         {
-            new_len++;
             ptr[map[i]] = ptr[i];
         }
     }
