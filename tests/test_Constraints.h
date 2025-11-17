@@ -57,8 +57,8 @@ static char *test_1_constraints()
     // test for correctness
     int correct_col_sizes[] = {2, 1, 1, 2};
     int correct_row_sizes[] = {SIZE_INACTIVE_ROW, 2, 4};
-    mu_assert("error col_sizes", ARRAYS_EQUAL(col_sizes, correct_col_sizes, 4));
-    mu_assert("error row_sizes", ARRAYS_EQUAL(row_sizes, correct_row_sizes, 3));
+    mu_assert("error col_sizes", ARRAYS_EQUAL_INT(col_sizes, correct_col_sizes, 4));
+    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes, correct_row_sizes, 3));
 
     int work_map[4] = {0};
     remove_extra_space(A, row_sizes, col_sizes, true, work_map);
@@ -67,15 +67,15 @@ static char *test_1_constraints()
     double A_vals_correct[] = {2, -1, 1, 1, 1, 1};
     int A_cols_correct[] = {0, 3, 0, 1, 2, 3};
     int A_row_starts_correct[] = {0, 2, 6};
-    mu_assert("error A", ARRAYS_EQUAL(A->x, A_vals_correct, 6));
-    mu_assert("error A", ARRAYS_EQUAL(A->i, A_cols_correct, 6));
+    mu_assert("error A", ARRAYS_EQUAL_DOUBLE(A->x, A_vals_correct, 6));
+    mu_assert("error A", ARRAYS_EQUAL_INT(A->i, A_cols_correct, 6));
     CHECK_ROW_STARTS(A, A_row_starts_correct);
 
     double AT_vals_correct[] = {2, 1, 1, 1, -1, 1};
     int AT_cols_correct[] = {0, 1, 1, 1, 0, 1};
     int AT_row_starts_correct[] = {0, 2, 3, 4, 6};
-    mu_assert("error AT_vals", ARRAYS_EQUAL(AT->x, AT_vals_correct, 6));
-    mu_assert("error AT_cols", ARRAYS_EQUAL(AT->i, AT_cols_correct, 6));
+    mu_assert("error AT_vals", ARRAYS_EQUAL_DOUBLE(AT->x, AT_vals_correct, 6));
+    mu_assert("error AT_cols", ARRAYS_EQUAL_INT(AT->i, AT_cols_correct, 6));
     CHECK_ROW_STARTS(AT, AT_row_starts_correct);
 
     int correct_up_locks[] = {2, 1, 1, 2};
@@ -130,7 +130,7 @@ static char *test_2_constraints()
         constraints_new(A, AT, lhs, rhs, bounds, data, row_tags, col_tags);
 
     // remove rows 1, 3, 5
-    iVec_append_array(data->rows_to_delete, (int[]) {1, 3, 5}, 3);
+    iVec_append_array(data->rows_to_delete, (int[]){1, 3, 5}, 3);
     delete_inactive_rows(constraints);
 
     // test for correctness
@@ -138,8 +138,8 @@ static char *test_2_constraints()
     int correct_row_sizes[] = {
         4, SIZE_INACTIVE_ROW, 5, SIZE_INACTIVE_ROW, 4, SIZE_INACTIVE_ROW, 3, 5, 4,
         4};
-    mu_assert("error col_sizes", ARRAYS_EQUAL(col_sizes, correct_col_sizes, 10));
-    mu_assert("error row_sizes", ARRAYS_EQUAL(row_sizes, correct_row_sizes, 10));
+    mu_assert("error col_sizes", ARRAYS_EQUAL_INT(col_sizes, correct_col_sizes, 10));
+    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes, correct_row_sizes, 10));
 
     int work_map[10] = {0};
     remove_extra_space(A, row_sizes, col_sizes, true, work_map);
@@ -153,8 +153,8 @@ static char *test_2_constraints()
                             9, 1, 4, 6, 7, 8, 1, 3, 5, 7, 1, 2, 4, 8};
     int A_row_starts_correct[] = {0, 4, 9, 13, 16, 21, 25, 29};
 
-    mu_assert("error A_vals", ARRAYS_EQUAL(A->x, A_vals_correct, 29));
-    mu_assert("error A_cols", ARRAYS_EQUAL(A->i, A_cols_correct, 29));
+    mu_assert("error A_vals", ARRAYS_EQUAL_DOUBLE(A->x, A_vals_correct, 29));
+    mu_assert("error A_cols", ARRAYS_EQUAL_INT(A->i, A_cols_correct, 29));
     CHECK_ROW_STARTS(A, A_row_starts_correct);
 
     double AT_vals_correct[] = {1.3,   -1.46, 0.17, 0.55,  -0.22, 1.31, -2.37, -1.4,
@@ -164,8 +164,8 @@ static char *test_2_constraints()
     int AT_cols_correct[] = {0, 2, 4, 5, 6, 1, 2, 6, 0, 1, 2, 5, 0, 3, 4,
                              6, 1, 2, 5, 1, 3, 4, 4, 5, 1, 4, 6, 0, 3};
     int AT_row_starts_correct[] = {0, 1, 5, 8, 12, 16, 19, 22, 24, 27, 29};
-    mu_assert("error AT_vals", ARRAYS_EQUAL(AT->x, AT_vals_correct, 27));
-    mu_assert("error AT_cols", ARRAYS_EQUAL(AT->i, AT_cols_correct, 27));
+    mu_assert("error AT_vals", ARRAYS_EQUAL_DOUBLE(AT->x, AT_vals_correct, 27));
+    mu_assert("error AT_cols", ARRAYS_EQUAL_INT(AT->i, AT_cols_correct, 27));
     CHECK_ROW_STARTS(AT, AT_row_starts_correct);
 
     // deallocate memory
@@ -217,8 +217,8 @@ static char *test_3_constraints()
     // test for correctness
     int correct_col_sizes[] = {3, SIZE_INACTIVE_COL, 2, 2};
     int correct_row_sizes[] = {2, 2, 3};
-    mu_assert("error col_sizes", ARRAYS_EQUAL(col_sizes, correct_col_sizes, 4));
-    mu_assert("error row_sizes", ARRAYS_EQUAL(row_sizes, correct_row_sizes, 3));
+    mu_assert("error col_sizes", ARRAYS_EQUAL_INT(col_sizes, correct_col_sizes, 4));
+    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes, correct_row_sizes, 3));
 
     int work_map[4] = {0};
     remove_extra_space(A, row_sizes, col_sizes, true, work_map);
@@ -227,15 +227,15 @@ static char *test_3_constraints()
     double A_vals_correct[] = {1, 1, 2, -1, 1, 1, 1};
     int A_cols_correct[] = {0, 1, 0, 2, 0, 1, 2};
     int A_row_starts_correct[] = {0, 2, 4, 7};
-    mu_assert("error A", ARRAYS_EQUAL(A->x, A_vals_correct, 7));
-    mu_assert("error A", ARRAYS_EQUAL(A->i, A_cols_correct, 7));
+    mu_assert("error A", ARRAYS_EQUAL_DOUBLE(A->x, A_vals_correct, 7));
+    mu_assert("error A", ARRAYS_EQUAL_INT(A->i, A_cols_correct, 7));
     CHECK_ROW_STARTS(A, A_row_starts_correct);
 
     double AT_vals_correct[] = {1, 2, 1, 1, 1, -1, 1};
     int AT_cols_correct[] = {0, 1, 2, 0, 2, 1, 2};
     int AT_row_starts_correct[] = {0, 3, 5, 7};
-    mu_assert("error AT_vals", ARRAYS_EQUAL(AT->x, AT_vals_correct, 7));
-    mu_assert("error AT_cols", ARRAYS_EQUAL(AT->i, AT_cols_correct, 7));
+    mu_assert("error AT_vals", ARRAYS_EQUAL_DOUBLE(AT->x, AT_vals_correct, 7));
+    mu_assert("error AT_cols", ARRAYS_EQUAL_INT(AT->i, AT_cols_correct, 7));
     CHECK_ROW_STARTS(AT, AT_row_starts_correct);
 
     // deallocate memory
@@ -286,7 +286,7 @@ static char *test_4_constraints()
         constraints_new(A, AT, lhs, rhs, bounds, data, row_tags, col_tags);
 
     // remove cols 1, 3, 5
-    iVec_append_array(data->fixed_cols_to_delete, (int[]) {1, 3, 5}, 3);
+    iVec_append_array(data->fixed_cols_to_delete, (int[]){1, 3, 5}, 3);
     delete_inactive_cols_from_A_and_AT(constraints);
 
     // test for correctness
@@ -294,8 +294,8 @@ static char *test_4_constraints()
         2, SIZE_INACTIVE_COL, 4, SIZE_INACTIVE_COL, 4, SIZE_INACTIVE_COL, 6, 4, 3,
         6};
     int correct_row_sizes[] = {2, 1, 4, 3, 1, 1, 5, 4, 4, 4};
-    mu_assert("error col_sizes", ARRAYS_EQUAL(col_sizes, correct_col_sizes, 10));
-    mu_assert("error row_sizes", ARRAYS_EQUAL(row_sizes, correct_row_sizes, 10));
+    mu_assert("error col_sizes", ARRAYS_EQUAL_INT(col_sizes, correct_col_sizes, 10));
+    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes, correct_row_sizes, 10));
 
     int work_map[10] = {0};
     remove_extra_space(A, row_sizes, col_sizes, true, work_map);
@@ -309,8 +309,8 @@ static char *test_4_constraints()
                             3, 4, 1, 3, 5, 6, 1, 3, 5, 6, 1, 3, 4, 6};
     int A_row_starts_correct[] = {0, 2, 3, 7, 10, 11, 12, 17, 21, 25, 29};
 
-    mu_assert("error A_vals", ARRAYS_EQUAL(A->x, A_vals_correct, 29));
-    mu_assert("error A_cols", ARRAYS_EQUAL(A->i, A_cols_correct, 29));
+    mu_assert("error A_vals", ARRAYS_EQUAL_DOUBLE(A->x, A_vals_correct, 29));
+    mu_assert("error A_cols", ARRAYS_EQUAL_INT(A->i, A_cols_correct, 29));
     CHECK_ROW_STARTS(A, A_row_starts_correct);
 
     double AT_vals_correct[] = {
@@ -320,8 +320,8 @@ static char *test_4_constraints()
     int AT_cols_correct[] = {0, 6, 6, 7, 8, 9, 0, 2, 3, 6, 2, 3, 6, 7, 8,
                              9, 2, 5, 6, 9, 2, 7, 8, 1, 3, 4, 7, 8, 9};
     int AT_row_starts_correct[] = {0, 2, 6, 10, 16, 20, 23, 29};
-    mu_assert("error AT_vals", ARRAYS_EQUAL(AT->x, AT_vals_correct, 29));
-    mu_assert("error AT_cols", ARRAYS_EQUAL(AT->i, AT_cols_correct, 29));
+    mu_assert("error AT_vals", ARRAYS_EQUAL_DOUBLE(AT->x, AT_vals_correct, 29));
+    mu_assert("error AT_cols", ARRAYS_EQUAL_INT(AT->i, AT_cols_correct, 29));
     CHECK_ROW_STARTS(AT, AT_row_starts_correct);
 
     // deallocate memory

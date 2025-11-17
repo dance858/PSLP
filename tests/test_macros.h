@@ -24,7 +24,7 @@
             row_starts[i] = A->p[i].start;                                          \
         }                                                                           \
         mu_assert("error, row_starts not equal",                                    \
-                  ARRAYS_EQUAL(row_starts, row_starts_correct, A->m + 1));          \
+                  ARRAYS_EQUAL_INT(row_starts, row_starts_correct, A->m + 1));      \
     } while (0)
 
 #define CHECK_ROW_ENDS(A, row_ends_correct)                                         \
@@ -36,7 +36,7 @@
             row_ends[i] = A->p[i].end;                                              \
         }                                                                           \
         mu_assert("error, row_starts not equal",                                    \
-                  ARRAYS_EQUAL(row_ends, row_ends_correct, A->m + 1));              \
+                  ARRAYS_EQUAL_INT(row_ends, row_ends_correct, A->m + 1));          \
     } while (0)
 
 #define CHECK_LOCKS(locks, correct_up, correct_down, size)                          \

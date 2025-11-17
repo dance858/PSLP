@@ -24,4 +24,4 @@ jobs:
       run: cmake --build build_cpp --target test_cpp --config ${{ matrix.build_type }}
 
     - name: Run C++ test
-      run: cd build_cpp && ./test_cpp
+      run: cd build_cpp && ./bin/test_cpp

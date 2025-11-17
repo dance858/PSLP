@@ -19,6 +19,7 @@
 #ifndef DEBUG_MACROS_H
 #define DEBUG_MACROS_H
 
+#include "Tags.h"
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -49,19 +50,41 @@
     } while (0)
 #endif
 
-#define ARRAYS_EQUAL(arr1, arr2, size)                                              \
-    ({                                                                              \
-        bool arrays_equal = true;                                                   \
-        for (size_t i = 0; i < (size); i++)                                         \
-        {                                                                           \
-            if ((arr1)[i] != (arr2)[i])                                             \
-            {                                                                       \
-                arrays_equal = false;                                               \
-                break;                                                              \
-            }                                                                       \
-        }                                                                           \
-        arrays_equal;                                                               \
-    })
+static inline bool ARRAYS_EQUAL_INT(int *arr1, int *arr2, int size)
+{
+    for (int i = 0; i < size; i++)
+    {
+        if (arr1[i] != arr2[i]) return false;
+    }
+    return true;
+}
+
+static inline bool ARRAYS_EQUAL_DOUBLE(double *arr1, double *arr2, int size)
+{
+    for (int i = 0; i < size; i++)
+    {
+        if (arr1[i] != arr2[i]) return false;
+    }
+    return true;
+}
+
+static inline bool ARRAYS_EQUAL_ROWTAG(RowTag *arr1, const RowTag *arr2, int size)
+{
+    for (int i = 0; i < size; i++)
+    {
+        if (arr1[i] != arr2[i]) return false;
+    }
+    return true;
+}
+
+static inline bool ARRAYS_EQUAL_COLTAG(ColTag *arr1, const ColTag *arr2, int size)
+{
+    for (int i = 0; i < size; i++)
+    {
+        if (arr1[i] != arr2[i]) return false;
+    }
+    return true;
+}
 
 #define ASSERT_NO_INACTIVE_ROWS(rows, row_tags, len)                                \
     do                                                                              \

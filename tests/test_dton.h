@@ -41,7 +41,7 @@ static char *test_00_dton()
 
     // check that new row sizes are correct
     int row_sizes_correct[] = {3, 3, 2};
-    mu_assert("error row_sizes", ARRAYS_EQUAL(row_sizes_correct, row_sizes, 3));
+    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes_correct, row_sizes, 3));
 
     int col_sizes[] = {SIZE_INACTIVE_COL, 2, 3, 3};
     int map[4] = {0};
@@ -51,8 +51,8 @@ static char *test_00_dton()
     double Ax_correct[] = {-2, 1, 1, -1, 1, 1, 1, 1};
     int Ai_correct[] = {0, 1, 2, 0, 1, 2, 1, 2};
     int Ap_correct[] = {0, 3, 6, 8};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 8));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 8));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
     CHECK_ROW_STARTS(A, Ap_correct);
     mu_assert("wrong nnz", A->nnz == 8);
 
@@ -90,7 +90,7 @@ static char *test_01_dton()
 
     // check that new row sizes are correct
     int row_sizes_correct[] = {5, 5, 4};
-    mu_assert("error row_sizes", ARRAYS_EQUAL(row_sizes_correct, row_sizes, 3));
+    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes_correct, row_sizes, 3));
 
     int col_sizes[] = {3, 3, SIZE_INACTIVE_COL, 2, 3, 3};
     int map[6] = {0};
@@ -100,8 +100,8 @@ static char *test_01_dton()
     double Ax_correct[] = {1, 2, -2, 1, 1, 1, 1, -1, 1, 1, 1, 1, 1, 1};
     int Ai_correct[] = {0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 3, 4};
     int Ap_correct[] = {0, 5, 10, 14};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 14));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 14));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 14));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 14));
     CHECK_ROW_STARTS(A, Ap_correct);
     mu_assert("wrong nnz", A->nnz == 14);
 
@@ -139,7 +139,7 @@ static char *test_02_dton()
 
     // check that new row sizes are correct
     int row_sizes_correct[] = {5, 5, 4};
-    mu_assert("error row_sizes", ARRAYS_EQUAL(row_sizes_correct, row_sizes, 3));
+    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes_correct, row_sizes, 3));
 
     int col_sizes[] = {3, 3, 3, 3, SIZE_INACTIVE_COL, 2};
     int map[6] = {0};
@@ -149,8 +149,8 @@ static char *test_02_dton()
     double Ax_correct[] = {1, 2, 1, 1, -2, 1, 1, 1, 1, -1, 1, 1, 1, 1};
     int Ai_correct[] = {0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3};
     int Ap_correct[] = {0, 5, 10, 14};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 14));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 14));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 14));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 14));
     CHECK_ROW_STARTS(A, Ap_correct);
     mu_assert("wrong nnz", A->nnz == 14);
 
@@ -187,7 +187,7 @@ static char *test_03_dton()
 
     // check that new row sizes are correct
     int row_sizes_correct[] = {3, 3, 2};
-    mu_assert("error row_sizes", ARRAYS_EQUAL(row_sizes_correct, row_sizes, 3));
+    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes_correct, row_sizes, 3));
 
     int col_sizes[] = {2, SIZE_INACTIVE_COL, 3, 3};
     int map[4] = {0};
@@ -197,8 +197,8 @@ static char *test_03_dton()
     double Ax_correct[] = {1, 1, 1, 0.5, 1, 1, 1, 1};
     int Ai_correct[] = {0, 1, 2, 0, 1, 2, 1, 2};
     int Ap_correct[] = {0, 3, 6, 8};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 8));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 8));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
     CHECK_ROW_STARTS(A, Ap_correct);
     mu_assert("wrong nnz", A->nnz == 8);
 
@@ -235,7 +235,7 @@ static char *test_04_dton()
 
     // check that new row sizes are correct
     int row_sizes_correct[] = {5, 5, 4};
-    mu_assert("error row_sizes", ARRAYS_EQUAL(row_sizes_correct, row_sizes, 3));
+    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes_correct, row_sizes, 3));
 
     int col_sizes[] = {3, 3, 2, SIZE_INACTIVE_COL, 3, 3};
     int map[6] = {0};
@@ -245,8 +245,8 @@ static char *test_04_dton()
     double Ax_correct[] = {1, 2, 1, 1, 1, 1, 1, 0.5, 1, 1, 1, 1, 1, 1};
     int Ai_correct[] = {0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 3, 4};
     int Ap_correct[] = {0, 5, 10, 14};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 14));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 14));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 14));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 14));
     CHECK_ROW_STARTS(A, Ap_correct);
     mu_assert("wrong nnz", A->nnz == 14);
 
@@ -283,7 +283,7 @@ static char *test_05_dton()
 
     // check that new row sizes are correct
     int row_sizes_correct[] = {5, 5, 4};
-    mu_assert("error row_sizes", ARRAYS_EQUAL(row_sizes_correct, row_sizes, 3));
+    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes_correct, row_sizes, 3));
 
     int col_sizes[] = {3, 3, 3, 3, 2, SIZE_INACTIVE_COL};
     int map[6] = {0};
@@ -293,8 +293,8 @@ static char *test_05_dton()
     double Ax_correct[] = {1, 2, 1, 1, 1, 1, 1, 1, 1, 0.5, 1, 1, 1, 1};
     int Ai_correct[] = {0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3};
     int Ap_correct[] = {0, 5, 10, 14};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 14));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 14));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 14));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 14));
     CHECK_ROW_STARTS(A, Ap_correct);
     mu_assert("wrong nnz", A->nnz == 14);
 
@@ -335,7 +335,7 @@ static char *test_06_dton()
 
     // check that new row sizes are correct
     int row_sizes_correct[] = {3, 3, 2};
-    mu_assert("error row_sizes", ARRAYS_EQUAL(row_sizes_correct, row_sizes, 3));
+    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes_correct, row_sizes, 3));
 
     int col_sizes_new[] = {SIZE_INACTIVE_COL, 2, 3, 3};
     remove_extra_space(A, row_sizes, col_sizes_new, true, map);
@@ -344,8 +344,8 @@ static char *test_06_dton()
     double Ax_correct[] = {-2, 1, 1, -1, 1, 1, 1, 1};
     int Ai_correct[] = {0, 1, 2, 0, 1, 2, 1, 2};
     int Ap_correct[] = {0, 3, 6, 8};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 8));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 8));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
     CHECK_ROW_STARTS(A, Ap_correct);
     mu_assert("wrong nnz", A->nnz == 8);
 
@@ -397,8 +397,8 @@ static char *test_1_dton()
     double Ax_correct[] = {5, -1, 3, 2, 6, 3, 1};
     int Ai_correct[] = {0, 1, 2, 3, 0, 2, 3};
     int Ap_correct[] = {0, 4, 7};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 7));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 7));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 7));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 7));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -408,7 +408,7 @@ static char *test_1_dton()
     ColTag col_tags_correct[] = {C_TAG_NONE, C_TAG_UB_INF, C_TAG_UB_INF,
                                  C_TAG_UB_INF};
     mu_assert("error col_tags",
-              ARRAYS_EQUAL(col_tags_correct, constraints->col_tags, 4));
+              ARRAYS_EQUAL_COLTAG(col_tags_correct, constraints->col_tags, 4));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0.7, 0, 0, 0};
@@ -418,14 +418,14 @@ static char *test_1_dton()
 
     // check that the objective function is correct
     double obj_correct[] = {3, -1, 3, 2};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 4));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
     mu_assert("error obj", prob->obj->offset == -2.0);
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {4, 5};
     double rhs_correct[] = {4, 5};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 2));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 2));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 2));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 2));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -483,8 +483,8 @@ static char *test_2_dton()
     double Ax_correct[] = {5, -1, 3, 2, 1, 3, 1};
     int Ai_correct[] = {0, 1, 2, 3, 1, 2, 3};
     int Ap_correct[] = {0, 4, 7};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 7));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 7));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 7));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 7));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -498,14 +498,14 @@ static char *test_2_dton()
 
     // check that the objective function is correct
     double obj_correct[] = {3, -1, 3, 2};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 4));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
     mu_assert("error obj", prob->obj->offset == -2.0);
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {4, 5};
     double rhs_correct[] = {4, 5};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 2));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 2));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 2));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 2));
 
     */
     // PS_FREE(stgs);
@@ -559,8 +559,8 @@ static char *test_3_dton()
     double Ax_correct[] = {-1, 3, 2, 1, 3, 1};
     int Ai_correct[] = {1, 2, 3, 1, 2, 3};
     int Ap_correct[] = {0, 3, 6};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 6));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 6));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -574,14 +574,14 @@ static char *test_3_dton()
 
     // check that the objective function is correct
     double obj_correct[] = {3, -1, 3, 2};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 4));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
     mu_assert("error offset", prob->obj->offset == -2);
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {4, 5};
     double rhs_correct[] = {4, 5};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 2));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 2));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 2));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 2));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -635,8 +635,8 @@ static char *test_004_dton()
     double Ax_correct[] = {-1, -1, 3, 2, 1, 3, 1};
     int Ai_correct[] = {0, 1, 2, 3, 1, 2, 3};
     int Ap_correct[] = {0, 4, 7, 7};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 7));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 7));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 7));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 7));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -650,14 +650,14 @@ static char *test_004_dton()
 
     // check that the objective function is correct
     double obj_correct[] = {3, -1, 3, 2};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 4));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
     mu_assert("error offset", prob->obj->offset == -2);
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {4, 5, 0};
     double rhs_correct[] = {4, 5, 0};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 3));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 3));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 3));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 3));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -711,8 +711,8 @@ static char *test_4_dton()
     double Ax_correct[] = {-1, 3, 2, 1, 3, 1};
     int Ai_correct[] = {1, 2, 3, 1, 2, 3};
     int Ap_correct[] = {0, 3, 6, 6};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 6));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 6));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -726,14 +726,14 @@ static char *test_4_dton()
 
     // check that the objective function is correct
     double obj_correct[] = {3, -1, 3, 2};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 4));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
     mu_assert("error obj", prob->obj->offset == -2);
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {4, 5, 0, 0};
     double rhs_correct[] = {4, 5, 0, 0};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 4));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 4));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 4));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 4));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -827,8 +827,8 @@ static char *test_6_dton()
     double Ax_correct[] = {-4, -2, 8, 1, 1};
     int Ai_correct[] = {1, 0, 1, 0, 1};
     int Ap_correct[] = {0, 1, 3, 5};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 5));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 5));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 5));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 5));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -842,14 +842,14 @@ static char *test_6_dton()
 
     // check that the objective function is correct
     double obj_correct[] = {-1, -2};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 2));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 2));
     mu_assert("error offset", prob->obj->offset == 4);
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {-INF, -INF, -INF};
     double rhs_correct[] = {2, 5, 7};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 2));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 2));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 2));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 2));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -903,8 +903,8 @@ static char *test_7_dton()
     double Ax_correct[] = {-1, 3, 2, -2, 1, 3, 1, 1};
     int Ai_correct[] = {1, 2, 3, 0, 1, 2, 3, 0};
     int Ap_correct[] = {0, 3, 7, 8};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 8));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 8));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -918,14 +918,14 @@ static char *test_7_dton()
 
     // check that the objective function is correct
     double obj_correct[] = {3, -1, 3, 2};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 4));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
     mu_assert("error offset", prob->obj->offset == -2);
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {4, 4, 2};
     double rhs_correct[] = {4, 4, 2};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 2));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 2));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 2));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 2));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -983,8 +983,8 @@ static char *test_8_dton()
     double Ax_correct[] = {1, 2, 1, 2, -1, 4, -1, 2, 2, 1, 1, 2, 1, 3, 1, 4, 1};
     int Ai_correct[] = {0, 1, 2, 0, 2, 0, 2, 0, 1, 0, 2, 0, 2, 0, 2, 0, 2};
     int Ap_correct[] = {0, 3, 5, 7, 9, 11, 13, 15, 17};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 17));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 17));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 17));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 17));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -999,8 +999,8 @@ static char *test_8_dton()
     // check that lhs and rhs are correct
     double lhs_correct[] = {2, -INF, -INF, -INF, -INF, -INF, -INF, -INF};
     double rhs_correct[] = {2, 2, 3, 7, 9, 10, 13, 14};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 8));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 8));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 8));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 8));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -1057,8 +1057,8 @@ static char *test_9_dton()
     double Ax_correct[] = {1, 2, 1, 2, -1, 4, -1, 2, 2, -1, 1, 1, 2, 1, 3, 1, 4, 1};
     int Ai_correct[] = {0, 1, 2, 0, 2, 0, 2, 0, 1, 2, 0, 2, 0, 2, 0, 2, 0, 2};
     int Ap_correct[] = {0, 3, 5, 7, 10, 12, 14, 16, 18};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 18));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 18));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 18));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 18));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -1073,8 +1073,8 @@ static char *test_9_dton()
     // check that lhs and rhs are correct
     double lhs_correct[] = {2, -INF, -INF, -INF, -INF, -INF, -INF, -INF};
     double rhs_correct[] = {2, 2, 3, 4, 9, 10, 13, 14};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 8));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 8));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 8));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 8));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -1133,8 +1133,8 @@ static char *test_10_dton()
     double Ax_correct[] = {1, 2, 1, 2, -1, 4, -1, 2, 2, -1, 1, 1, 2, 1, 3, 1, 4, 1};
     int Ai_correct[] = {0, 1, 2, 0, 2, 0, 2, 0, 1, 2, 0, 2, 0, 2, 0, 2, 0, 2};
     int Ap_correct[] = {0, 3, 5, 7, 10, 12, 14, 16, 18};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 18));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 18));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 18));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 18));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -1149,8 +1149,8 @@ static char *test_10_dton()
     // check that lhs and rhs are correct
     double lhs_correct[] = {2, -INF, -INF, -INF, -INF, -INF, -INF, -INF};
     double rhs_correct[] = {2, 2, 3, 4, 9, 10, 13, 14};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 8));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 8));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 8));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 8));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -1209,8 +1209,8 @@ static char *test_11_dton()
     // print_matrix(A);
 
     // check that new A is correct
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax, A->x, nnz));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai, A->i, nnz));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
     CHECK_ROW_STARTS(A, Ap);
 
     PS_FREE(stgs);
@@ -1326,8 +1326,8 @@ static char *test_13_dton()
     int Ai_correct[] = {0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2,
                         0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2};
     int Ap_correct[] = {0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 30));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 30));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 30));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 30));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     PS_FREE(stgs);
@@ -1383,8 +1383,8 @@ static char *test_14_dton()
     int Ai_correct[] = {0, 1, 0, 2, 3, 0, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2,
                         3, 0, 2, 3, 0, 2, 3, 0, 2, 3, 0, 2, 3, 0, 2, 3};
     int Ap_correct[] = {0, 2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 32));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 32));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 32));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 32));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -1441,8 +1441,8 @@ static char *test_15_dton()
     int Ai_correct[] = {0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2,
                         0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2};
     int Ap_correct[] = {0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 30));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 30));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 30));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 30));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -1498,8 +1498,8 @@ static char *test_16_dton()
     int Ai_correct[] = {0, 1, 0, 2, 3, 0, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2,
                         3, 0, 2, 3, 0, 2, 3, 0, 2, 3, 0, 2, 3, 0, 2, 3};
     int Ap_correct[] = {0, 2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 32));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 32));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 32));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 32));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     PS_FREE(stgs); // check new AT
@@ -1557,8 +1557,8 @@ static char *test_17_dton()
     double Ax_correct[] = {-2, 1, 3, 4, 1, 3, 1, 3, 1, 1};
     int Ai_correct[] = {0, 1, 2, 0, 1, 2, 3, 0, 2, 3};
     int Ap_correct[] = {0, 3, 7, 10};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 10));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 10));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 10));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 10));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     PS_FREE(stgs);
@@ -1616,8 +1616,8 @@ static char *test_18_dton()
     double Ax_correct[] = {-2, 1, 3, 3, 1, 1};
     int Ai_correct[] = {0, 1, 2, 0, 2, 3};
     int Ap_correct[] = {0, 3, 6};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 6));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 6));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     PS_FREE(stgs);

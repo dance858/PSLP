@@ -61,8 +61,9 @@ static char *test_1_matrix()
     int AT_cols_correct[] = {0, 3, 0, 1, 3, 0, 1, 4, 5, 1, 2};
     int AT_row_starts_correct[] = {0, 2, 5, 8, 9, 11};
 
-    mu_assert("error, vals not equal", ARRAYS_EQUAL(AT_vals_correct, AT->x, 11));
-    mu_assert("error, cols not equal", ARRAYS_EQUAL(AT_cols_correct, AT->i, 11));
+    mu_assert("error, vals not equal",
+              ARRAYS_EQUAL_DOUBLE(AT_vals_correct, AT->x, 11));
+    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(AT_cols_correct, AT->i, 11));
     CHECK_ROW_STARTS(AT, AT_row_starts_correct);
 
     free_matrix(A);
@@ -118,7 +119,7 @@ static char *test_3_matrix()
     // correct answer
     double vals_correct[] = {1, 2, 3, 0, 0, 4, 4, 5, 6, 0, 7, 8, 0, 0, 9, 10, 0, 0};
 
-    mu_assert("error, vals not equal", ARRAYS_EQUAL(vals_correct, A->x, 18));
+    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
     free_matrix(A);
 
     return 0;
@@ -146,7 +147,7 @@ static char *test_4_matrix()
     // correct answer
     double vals_correct[] = {1, 2, 3, 0, 0, 4, 5, 6, 4, 5, 6, 7, 8, 0, 9, 10, 0, 0};
 
-    mu_assert("error, vals not equal", ARRAYS_EQUAL(vals_correct, A->x, 18));
+    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
 
     int row_starts_correct[] = {0, 8, 11, 14, 18};
     int row_ends_correct[] = {3, 11, 13, 16, 18};
@@ -203,10 +204,10 @@ static char *test_6_matrix()
 
     // correct answer
     double vals_correct[] = {1, 2, 3, 0, 0, 4, 5, 6, 0, 7, 8, 9, 10, 0, 9, 10, 0, 0};
-    double cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0, 2, 0, 2, 0, 0, 2, 0, 0};
+    int cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0, 2, 0, 2, 0, 0, 2, 0, 0};
 
-    mu_assert("error, vals not equal", ARRAYS_EQUAL(vals_correct, A->x, 18));
-    mu_assert("error, cols not equal", ARRAYS_EQUAL(cols_correct, A->i, 18));
+    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
+    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, 18));
 
     int row_starts_correct[] = {0, 5, 9, 11, 18};
     int row_ends_correct[] = {3, 8, 11, 13, 18};
@@ -242,11 +243,11 @@ static char *test_7_matrix()
     // correct answer
     double vals_correct[] = {1, 2, 3, 0, 0, 4, 5, 6, 0,  0,
                              7, 8, 0, 0, 9, 0, 0, 9, 10, 0};
-    double cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0,
-                             0, 2, 0, 0, 0, 0, 0, 0, 0, 0};
+    int cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0,
+                          0, 2, 0, 0, 0, 0, 0, 0, 0, 0};
 
-    mu_assert("error, vals not equal", ARRAYS_EQUAL(vals_correct, A->x, 18));
-    mu_assert("error, cols not equal", ARRAYS_EQUAL(cols_correct, A->i, 18));
+    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
+    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, 18));
 
     int row_starts_correct[] = {0, 5, 10, 17, 18, 20};
     int row_ends_correct[] = {3, 8, 12, 18, 19, 20};
@@ -282,11 +283,11 @@ static char *test_8_matrix()
     // correct answer
     double vals_correct[] = {1, 2, 3, 0, 0, 4, 5, 6,  0, 7,
                              8, 8, 0, 0, 9, 0, 0, 10, 9, 10};
-    double cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0,
-                             2, 2, 0, 0, 0, 0, 0, 0, 0, 0};
+    int cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0,
+                          2, 2, 0, 0, 0, 0, 0, 0, 0, 0};
 
-    mu_assert("error, vals not equal", ARRAYS_EQUAL(vals_correct, A->x, 18));
-    mu_assert("error, cols not equal", ARRAYS_EQUAL(cols_correct, A->i, 18));
+    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
+    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, 18));
 
     int row_starts_correct[] = {0, 5, 9, 18, 19, 20};
     int row_ends_correct[] = {3, 8, 11, 19, 20, 20};
@@ -326,12 +327,12 @@ static char *test_9_matrix()
                              7, 8, 0, 0, 9, 0, 0, 10, 0,
 
                              10};
-    double cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+    int cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
 
-                             0};
+                          0};
 
-    mu_assert("error, vals not equal", ARRAYS_EQUAL(vals_correct, A->x, 18));
-    mu_assert("error, cols not equal", ARRAYS_EQUAL(cols_correct, A->i, 18));
+    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
+    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, 18));
 
     int row_starts_correct[] = {0, 5, 10, 19, 19, 20};
     int row_ends_correct[] = {3, 8, 12, 19, 20, 20};
@@ -373,11 +374,11 @@ static char *test_10_matrix()
     // correct answer
     double vals_correct[] = {1, 2, 3,  0,  0, 4, 5,  6,  0,  0, 7, 8,  0,  0, 9,
                              0, 0, 10, 11, 0, 0, 12, 13, 14, 0, 0, 15, 16, 0, 0};
-    double cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0, 0, 2, 0, 0, 0,
-                             0, 0, 0, 1, 0, 0, 0, 1, 2, 0, 0, 1, 3, 0, 0};
+    int cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0, 0, 2, 0, 0, 0,
+                          0, 0, 0, 1, 0, 0, 0, 1, 2, 0, 0, 1, 3, 0, 0};
 
-    mu_assert("error, vals not equal", ARRAYS_EQUAL(vals_correct, A->x, 18));
-    mu_assert("error, cols not equal", ARRAYS_EQUAL(cols_correct, A->i, 18));
+    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
+    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, 18));
 
     int row_starts_correct[] = {0, 5, 10, 23, 23, 23, 26, 30};
     int row_ends_correct[] = {3, 8, 12, 23, 23, 23, 28, 30};
@@ -419,11 +420,11 @@ static char *test_11_matrix()
     // correct answer
     double vals_correct[] = {1, 2, 3,  0, 0, 4,  5,  6, 0, 0,  9,  10, 0,
                              0, 9, 10, 0, 0, 11, 12, 0, 0, 13, 14, 0,  0};
-    double cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0, 0, 2, 0,
-                             0, 0, 2, 0, 0, 0, 1, 0, 0, 1, 2, 0, 0};
+    int cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0, 0, 2, 0,
+                          0, 0, 2, 0, 0, 0, 1, 0, 0, 1, 2, 0, 0};
 
-    mu_assert("error, vals not equal", ARRAYS_EQUAL(vals_correct, A->x, 18));
-    mu_assert("error, cols not equal", ARRAYS_EQUAL(cols_correct, A->i, 18));
+    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
+    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, 18));
 
     int row_starts_correct[] = {0, 5, 10, 10, 26, 26, 26};
     int row_ends_correct[] = {3, 5, 10, 12, 26, 26, 26};
@@ -461,11 +462,11 @@ static char *test_12_matrix()
     // correct answer
     double vals_correct[] = {1, 2, 3, 4, 7, 8, 0,  0,  7, 8, 0,
                              0, 9, 5, 6, 0, 0, 10, 11, 0, 0};
-    double cols_correct[] = {0, 1, 2, 0, 0, 2, 0, 0, 0, 2, 0,
-                             0, 0, 2, 3, 0, 0, 0, 2, 0, 0};
+    int cols_correct[] = {0, 1, 2, 0, 0, 2, 0, 0, 0, 2, 0,
+                          0, 0, 2, 3, 0, 0, 0, 2, 0, 0};
 
-    mu_assert("error, vals not equal", ARRAYS_EQUAL(vals_correct, A->x, 18));
-    mu_assert("error, cols not equal", ARRAYS_EQUAL(cols_correct, A->i, 18));
+    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
+    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, 18));
 
     int row_starts_correct[] = {0, 3, 4, 12, 17, 21};
     int row_ends_correct[] = {0, 4, 6, 15, 19, 21};
@@ -503,11 +504,11 @@ static char *test_13_matrix()
     // correct answer
     double vals_correct[] = {1, 2, 3, 0, 0, 4, 5,  6, 0, 0, 7,
                              8, 0, 0, 9, 0, 0, 10, 9, 0, 0};
-    double cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0, 0,
-                             2, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    int cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0, 0,
+                          2, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-    mu_assert("error, vals not equal", ARRAYS_EQUAL(vals_correct, A->x, 18));
-    mu_assert("error, cols not equal", ARRAYS_EQUAL(cols_correct, A->i, 18));
+    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
+    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, 18));
 
     int row_starts_correct[] = {0, 5, 10, 18, 19, 20};
     int row_ends_correct[] = {3, 8, 12, 19, 19, 20};
@@ -566,7 +567,7 @@ static char *test_14_matrix()
 
                              20, 0,  0,  21, 22, 0, 0};
 
-    mu_assert("error, vals not equal", ARRAYS_EQUAL(vals_correct, A->x, 18));
+    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
 
     int row_starts_correct[] = {0, 5, 10, 32, 34, 34, 37, 37, 39, 39, 42, 46};
     int row_ends_correct[] = {5, 10, 11, 34, 34, 37, 37, 39, 39, 39, 44, 46};
@@ -622,10 +623,11 @@ static char *test_15_matrix()
 
     // correct answer
     double vals_correct[] = {9, 8, 1, 2, 9, 7, 3, 4, 1, 1};
-    double cols_correct[] = {0, 1, 2, 0, 2, 0, 2, 1, 2, 3};
-    mu_assert("error, vals not equal", ARRAYS_EQUAL(vals_correct, A->x, A->nnz));
+    int cols_correct[] = {0, 1, 2, 0, 2, 0, 2, 1, 2, 3};
+    mu_assert("error, vals not equal",
+              ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, A->nnz));
 
-    mu_assert("error, cols not equal", ARRAYS_EQUAL(cols_correct, A->i, A->nnz));
+    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, A->nnz));
 
     int row_starts_correct[] = {0, 3, 5, 7, 10};
     int row_ends_correct[] = {3, 5, 7, 10, 10};
@@ -667,10 +669,11 @@ static char *test_16_matrix()
 
     // correct answer
     double vals_correct[] = {9, 5, 4, 3, 7, 5, 1, 1, 1};
-    double cols_correct[] = {0, 1, 2, 0, 1, 2, 0, 2, 3};
-    mu_assert("error, vals not equal", ARRAYS_EQUAL(vals_correct, A->x, A->nnz));
+    int cols_correct[] = {0, 1, 2, 0, 1, 2, 0, 2, 3};
+    mu_assert("error, vals not equal",
+              ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, A->nnz));
 
-    mu_assert("error, cols not equal", ARRAYS_EQUAL(cols_correct, A->i, A->nnz));
+    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, A->nnz));
 
     int row_starts_correct[] = {0, 3, 6, 7, 9};
     int row_ends_correct[] = {3, 6, 7, 9, 9};
@@ -709,10 +712,11 @@ static char *test_17_matrix()
     remove_extra_space(A, row_sizes, col_sizes, true, map);
 
     double vals_correct[] = {1, 2, 3, 4, 5, 3, 1};
-    double cols_correct[] = {0, 2, 3, 0, 1, 0, 3};
-    mu_assert("error, vals not equal", ARRAYS_EQUAL(vals_correct, A->x, A->nnz));
+    int cols_correct[] = {0, 2, 3, 0, 1, 0, 3};
+    mu_assert("error, vals not equal",
+              ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, A->nnz));
 
-    mu_assert("error, cols not equal", ARRAYS_EQUAL(cols_correct, A->i, A->nnz));
+    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, A->nnz));
 
     int row_starts_correct[] = {0, 3, 5, 7};
     int row_ends_correct[] = {3, 5, 7, 7};
@@ -754,9 +758,9 @@ static char *test_18_matrix()
     int map[4];
     remove_extra_space(A, row_sizes, col_sizes, true, map);
 
-    mu_assert("error, vals not equal", ARRAYS_EQUAL(vals, A->x, A->nnz));
+    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals, A->x, A->nnz));
 
-    mu_assert("error, cols not equal", ARRAYS_EQUAL(cols, A->i, A->nnz));
+    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols, A->i, A->nnz));
 
     int row_ends_correct[] = {3, 6, 8, 8};
 

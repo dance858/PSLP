@@ -80,8 +80,8 @@ static char *test_01_ston()
     double Ax_correct[] = {2, 1, 1, 1, 4, 3, 2, 1};
     int Ai_correct[] = {0, 1, 2, 0, 1, 2, 0, 3};
     int Ap_correct[] = {0, 3, 6, 8};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 8));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 8));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -90,14 +90,14 @@ static char *test_01_ston()
     // check new rowtags
     RowTag rowtags_correct[] = {R_TAG_EQ, R_TAG_EQ, R_TAG_RHS_INF};
     mu_assert("error rowtags",
-              ARRAYS_EQUAL(rowtags_correct, constraints->row_tags, 3));
+              ARRAYS_EQUAL_ROWTAG(rowtags_correct, constraints->row_tags, 3));
 
     // check new coltags
     ColTag coltags_correct[] = {C_TAG_UB_INF, C_TAG_UB_INF,
                                 C_TAG_UB_INF | C_TAG_LB_INF, C_TAG_UB_INF};
 
     mu_assert("error coltags",
-              ARRAYS_EQUAL(coltags_correct, constraints->col_tags, 4));
+              ARRAYS_EQUAL_COLTAG(coltags_correct, constraints->col_tags, 4));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0, -INF, 0};
@@ -107,14 +107,14 @@ static char *test_01_ston()
 
     // check that the objective function is correct
     double obj_correct[] = {0.5, -1, 0, -2};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 4));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
     mu_assert("error obj", prob->obj->offset == 0.5);
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {2, 4, 6};
     double rhs_correct[] = {2, 4, INF};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 3));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 3));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 3));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 3));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -165,8 +165,8 @@ static char *test_02_ston()
     double Ax_correct[] = {2, 1, 1, 1, 1, 4, 3, 1};
     int Ai_correct[] = {0, 1, 2, 3, 0, 1, 2, 3};
     int Ap_correct[] = {0, 4, 8};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 8));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 8));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -175,13 +175,13 @@ static char *test_02_ston()
     // check new rowtags
     RowTag rowtags_correct[] = {R_TAG_EQ, R_TAG_EQ};
     mu_assert("error rowtags",
-              ARRAYS_EQUAL(rowtags_correct, constraints->row_tags, 2));
+              ARRAYS_EQUAL_ROWTAG(rowtags_correct, constraints->row_tags, 2));
 
     // check new coltags
     ColTag coltags_correct[] = {C_TAG_UB_INF, C_TAG_UB_INF, C_TAG_UB_INF,
                                 C_TAG_UB_INF};
     mu_assert("error coltags",
-              ARRAYS_EQUAL(coltags_correct, constraints->col_tags, 4));
+              ARRAYS_EQUAL_COLTAG(coltags_correct, constraints->col_tags, 4));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0, 0, 0};
@@ -191,14 +191,14 @@ static char *test_02_ston()
 
     // check that the objective function is correct
     double obj_correct[] = {0.5, -1, 0, -2};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 4));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
     mu_assert("error obj", prob->obj->offset == 0);
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {2, 4};
     double rhs_correct[] = {2, 4};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 2));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 2));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 2));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 2));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -251,8 +251,8 @@ static char *test_03_ston()
     double Ax_correct[] = {8, 9, 10, 11, 12, 13};
     int Ai_correct[] = {0, 1, 2, 0, 1, 2};
     int Ap_correct[] = {0, 3, 6};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 6));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 6));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -261,12 +261,12 @@ static char *test_03_ston()
     // check new rowtags
     RowTag rowtags_correct[] = {R_TAG_EQ, R_TAG_EQ};
     mu_assert("error rowtags",
-              ARRAYS_EQUAL(rowtags_correct, constraints->row_tags, 2));
+              ARRAYS_EQUAL_ROWTAG(rowtags_correct, constraints->row_tags, 2));
 
     // check new coltags
     ColTag coltags_correct[] = {C_TAG_UB_INF, C_TAG_UB_INF, C_TAG_UB_INF};
     mu_assert("error coltags",
-              ARRAYS_EQUAL(coltags_correct, constraints->col_tags, 3));
+              ARRAYS_EQUAL_COLTAG(coltags_correct, constraints->col_tags, 3));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0, 0};
@@ -276,14 +276,14 @@ static char *test_03_ston()
 
     // check that the objective function is correct
     double obj_correct[] = {6, 12, 13};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 3));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 3));
     mu_assert("error obj", prob->obj->offset == -6);
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {6, 8};
     double rhs_correct[] = {6, 8};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 2));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 2));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 2));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 2));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -338,8 +338,8 @@ static char *test_04_ston()
     double Ax_correct[] = {5, 6, 7, 8, 9, 10, 11, 12, 13};
     int Ai_correct[] = {1, 2, 3, 1, 2, 3, 1, 2, 3};
     int Ap_correct[] = {0, 3, 6, 9};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 9));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 9));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 9));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 9));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -348,13 +348,13 @@ static char *test_04_ston()
     // check new rowtags
     RowTag rowtags_correct[] = {R_TAG_EQ, R_TAG_EQ, R_TAG_EQ};
     mu_assert("error rowtags",
-              ARRAYS_EQUAL(rowtags_correct, constraints->row_tags, 3));
+              ARRAYS_EQUAL_ROWTAG(rowtags_correct, constraints->row_tags, 3));
 
     // check new coltags
     ColTag coltags_correct[] = {C_TAG_NONE, C_TAG_UB_INF, C_TAG_UB_INF,
                                 C_TAG_UB_INF};
     mu_assert("error coltags",
-              ARRAYS_EQUAL(coltags_correct, constraints->col_tags, 4));
+              ARRAYS_EQUAL_COLTAG(coltags_correct, constraints->col_tags, 4));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {-1, 0, 0, 0};
@@ -364,14 +364,14 @@ static char *test_04_ston()
 
     // check that the objective function is correct
     double obj_correct[] = {1, 1, 6, 6};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 4));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
     mu_assert("error obj", prob->obj->offset == -2);
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {4, 6, 8};
     double rhs_correct[] = {4, 6, 8};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 3));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 3));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 3));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 3));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -425,8 +425,8 @@ static char *test_05_ston()
     double Ax_correct[] = {2, 1, 1, 1, 4, 6, 8, 1, 4, 3, 1, 2, 1};
     int Ai_correct[] = {0, 1, 2, 0, 1, 2, 3, 0, 1, 2, 3, 0, 3};
     int Ap_correct[] = {0, 3, 7, 11, 13};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 13));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 13));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 13));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 13));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -435,13 +435,13 @@ static char *test_05_ston()
     // check new rowtags
     RowTag rowtags_correct[] = {R_TAG_EQ, R_TAG_LHS_INF, R_TAG_EQ, R_TAG_RHS_INF};
     mu_assert("error rowtags",
-              ARRAYS_EQUAL(rowtags_correct, constraints->row_tags, 4));
+              ARRAYS_EQUAL_ROWTAG(rowtags_correct, constraints->row_tags, 4));
 
     // check new coltags
     ColTag coltags_correct[] = {C_TAG_UB_INF, C_TAG_UB_INF, C_TAG_UB_INF,
                                 C_TAG_UB_INF};
     mu_assert("error coltags",
-              ARRAYS_EQUAL(coltags_correct, constraints->col_tags, 4));
+              ARRAYS_EQUAL_COLTAG(coltags_correct, constraints->col_tags, 4));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0, 0, 0};
@@ -451,14 +451,14 @@ static char *test_05_ston()
 
     // check that the objective function is correct
     double obj_correct[] = {0.5, -1, 0, -2};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 4));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
     mu_assert("error obj", prob->obj->offset == 0.5);
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {2, -INF, 4, 6};
     double rhs_correct[] = {2, 9, 4, INF};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 4));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 4));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 4));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 4));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -512,8 +512,8 @@ static char *test_06_ston()
     double Ax_correct[] = {2, 1, 1, 1, 4, 6, 8, 1, 4, 3, 1, 2, 1};
     int Ai_correct[] = {0, 1, 2, 0, 1, 2, 3, 0, 1, 2, 3, 0, 3};
     int Ap_correct[] = {0, 3, 7, 11, 13};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 13));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 13));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 13));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 13));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -522,13 +522,13 @@ static char *test_06_ston()
     // check new rowtags
     RowTag rowtags_correct[] = {R_TAG_EQ, R_TAG_RHS_INF, R_TAG_EQ, R_TAG_RHS_INF};
     mu_assert("error rowtags",
-              ARRAYS_EQUAL(rowtags_correct, constraints->row_tags, 4));
+              ARRAYS_EQUAL_ROWTAG(rowtags_correct, constraints->row_tags, 4));
 
     // check new coltags
     ColTag coltags_correct[] = {C_TAG_UB_INF, C_TAG_UB_INF, C_TAG_UB_INF,
                                 C_TAG_UB_INF};
     mu_assert("error coltags",
-              ARRAYS_EQUAL(coltags_correct, constraints->col_tags, 4));
+              ARRAYS_EQUAL_COLTAG(coltags_correct, constraints->col_tags, 4));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0, 0, 0};
@@ -538,14 +538,14 @@ static char *test_06_ston()
 
     // check that the objective function is correct
     double obj_correct[] = {0.5, -1, 0, -2};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 4));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
     mu_assert("error obj", prob->obj->offset == 0.5);
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {2, 9, 4, 6};
     double rhs_correct[] = {2, INF, 4, INF};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 4));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 4));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 4));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 4));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -600,8 +600,8 @@ static char *test_07_ston()
     double Ax_correct[] = {2, 1, 1, 1, 4, 6, 8, 1, 4, 3, 1, 2, 1};
     int Ai_correct[] = {0, 1, 2, 0, 1, 2, 3, 0, 1, 2, 3, 0, 3};
     int Ap_correct[] = {0, 3, 7, 11, 13};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 13));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 13));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 13));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 13));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -610,13 +610,13 @@ static char *test_07_ston()
     // check new rowtags
     RowTag rowtags_correct[] = {R_TAG_EQ, R_TAG_RHS_INF, R_TAG_EQ, R_TAG_RHS_INF};
     mu_assert("error rowtags",
-              ARRAYS_EQUAL(rowtags_correct, constraints->row_tags, 4));
+              ARRAYS_EQUAL_ROWTAG(rowtags_correct, constraints->row_tags, 4));
 
     // check new coltags
     ColTag coltags_correct[] = {C_TAG_UB_INF, C_TAG_UB_INF, C_TAG_UB_INF,
                                 C_TAG_UB_INF};
     mu_assert("error coltags",
-              ARRAYS_EQUAL(coltags_correct, constraints->col_tags, 4));
+              ARRAYS_EQUAL_COLTAG(coltags_correct, constraints->col_tags, 4));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0, 0, -10};
@@ -626,14 +626,14 @@ static char *test_07_ston()
 
     // check that the objective function is correct
     double obj_correct[] = {1.5, 3, 6, 6};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 4));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
     mu_assert("error obj", prob->obj->offset == -0.5);
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {2, -7, 4, 6};
     double rhs_correct[] = {2, INF, 4, INF};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 4));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 4));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 4));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 4));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -687,8 +687,8 @@ static char *test_08_ston()
     double Ax_correct[] = {2, 1, 1, 1, 4, 6, -8, 1, 4, 3, 1, 2, 1};
     int Ai_correct[] = {0, 1, 2, 0, 1, 2, 3, 0, 1, 2, 3, 0, 3};
     int Ap_correct[] = {0, 3, 7, 11, 13};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 13));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 13));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 13));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 13));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -697,13 +697,13 @@ static char *test_08_ston()
     // check new rowtags
     RowTag rowtags_correct[] = {R_TAG_EQ, R_TAG_LHS_INF, R_TAG_EQ, R_TAG_RHS_INF};
     mu_assert("error rowtags",
-              ARRAYS_EQUAL(rowtags_correct, constraints->row_tags, 4));
+              ARRAYS_EQUAL_ROWTAG(rowtags_correct, constraints->row_tags, 4));
 
     // check new coltags
     ColTag coltags_correct[] = {C_TAG_UB_INF, C_TAG_UB_INF, C_TAG_UB_INF,
                                 C_TAG_UB_INF};
     mu_assert("error coltags",
-              ARRAYS_EQUAL(coltags_correct, constraints->col_tags, 4));
+              ARRAYS_EQUAL_COLTAG(coltags_correct, constraints->col_tags, 4));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0, 0, 0};
@@ -713,7 +713,7 @@ static char *test_08_ston()
 
     // check that the objective function is correct
     double obj_correct[] = {1.5, 3, 6, -2};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 4));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
     mu_assert("error obj", prob->obj->offset == -0.5);
 
     PS_FREE(stgs);
@@ -775,8 +775,8 @@ static char *test_09_ston()
     double Ax_correct[] = {1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1};
     int Ai_correct[] = {0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7};
     int Ap_correct[] = {0, 8, 16};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 16));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 16));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 16));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 16));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -785,13 +785,13 @@ static char *test_09_ston()
     // check new rowtags
     RowTag rowtags_correct[] = {R_TAG_EQ, R_TAG_EQ};
     mu_assert("error rowtags",
-              ARRAYS_EQUAL(rowtags_correct, constraints->row_tags, 2));
+              ARRAYS_EQUAL_ROWTAG(rowtags_correct, constraints->row_tags, 2));
 
     // check new coltags
     ColTag coltags_correct[] = {C_TAG_NONE, C_TAG_NONE, C_TAG_NONE, C_TAG_NONE,
                                 C_TAG_NONE, C_TAG_NONE, C_TAG_NONE, C_TAG_LB_INF};
     mu_assert("error coltags",
-              ARRAYS_EQUAL(coltags_correct, constraints->col_tags, 8));
+              ARRAYS_EQUAL_COLTAG(coltags_correct, constraints->col_tags, 8));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0, 0, 0, 0, 0, 0, -INF};
@@ -801,14 +801,14 @@ static char *test_09_ston()
 
     // check that the objective function is correct
     double obj_correct[] = {-6, -6, -6, -6, -6, -6, -6, -6};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 8));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 8));
     mu_assert("error obj", prob->obj->offset == 70);
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {20, 10};
     double rhs_correct[] = {20, 10};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 2));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 2));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 2));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 2));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -859,8 +859,8 @@ static char *test_10_ston()
     double Ax_correct[] = {3, 5, 2, -2, -2, 1};
     int Ai_correct[] = {0, 1, 2, 0, 1, 2};
     int Ap_correct[] = {0, 3, 6};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 6));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 6));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -869,12 +869,12 @@ static char *test_10_ston()
     // check new rowtags
     RowTag rowtags_correct[] = {R_TAG_LHS_INF, R_TAG_RHS_INF};
     mu_assert("error rowtags",
-              ARRAYS_EQUAL(rowtags_correct, constraints->row_tags, 2));
+              ARRAYS_EQUAL_ROWTAG(rowtags_correct, constraints->row_tags, 2));
 
     // check new coltags
     ColTag coltags_correct[] = {C_TAG_UB_INF, C_TAG_UB_INF, C_TAG_UB_INF};
     mu_assert("error coltags",
-              ARRAYS_EQUAL(coltags_correct, constraints->col_tags, 3));
+              ARRAYS_EQUAL_COLTAG(coltags_correct, constraints->col_tags, 3));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0, 0};
@@ -884,14 +884,14 @@ static char *test_10_ston()
 
     // check that the objective function is correct
     double obj_correct[] = {3, -4, 3};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 3));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 3));
     mu_assert("error obj", prob->obj->offset == 16);
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {-INF, 6};
     double rhs_correct[] = {5, INF};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 2));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 2));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 2));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 2));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -942,8 +942,8 @@ static char *test_12_ston()
     double Ax_correct[] = {3, -1, -6, 3, 5, -1, 4, 3, 4};
     int Ai_correct[] = {0, 1, 2, 0, 1, 2, 0, 1, 2};
     int Ap_correct[] = {0, 3, 6, 9};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 9));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 9));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 9));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 9));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -952,12 +952,12 @@ static char *test_12_ston()
     // check new rowtags
     RowTag rowtags_correct[] = {R_TAG_LHS_INF, R_TAG_RHS_INF, R_TAG_LHS_INF};
     mu_assert("error rowtags",
-              ARRAYS_EQUAL(rowtags_correct, constraints->row_tags, 3));
+              ARRAYS_EQUAL_ROWTAG(rowtags_correct, constraints->row_tags, 3));
 
     // check new coltags
     ColTag coltags_correct[] = {C_TAG_UB_INF, C_TAG_UB_INF, C_TAG_UB_INF};
     mu_assert("error coltags",
-              ARRAYS_EQUAL(coltags_correct, constraints->col_tags, 3));
+              ARRAYS_EQUAL_COLTAG(coltags_correct, constraints->col_tags, 3));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0, 0};
@@ -967,14 +967,14 @@ static char *test_12_ston()
 
     // check that the objective function is correct
     double obj_correct[] = {4, -2, 7};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 3));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 3));
     mu_assert("error obj", prob->obj->offset == 1);
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {-INF, 2, -INF};
     double rhs_correct[] = {0, INF, 5};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 3));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 3));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 3));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 3));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -1025,8 +1025,8 @@ static char *test_13_ston()
     double Ax_correct[] = {3, -1, -6, -3, 5, -1, 4, 3, 4};
     int Ai_correct[] = {0, 1, 2, 0, 1, 2, 0, 1, 2};
     int Ap_correct[] = {0, 3, 6, 9};
-    mu_assert("error Ax", ARRAYS_EQUAL(Ax_correct, A->x, 9));
-    mu_assert("error Ai", ARRAYS_EQUAL(Ai_correct, A->i, 9));
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 9));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 9));
     CHECK_ROW_STARTS(A, Ap_correct);
 
     // check new AT
@@ -1035,12 +1035,12 @@ static char *test_13_ston()
     // check new rowtags
     RowTag rowtags_correct[] = {R_TAG_LHS_INF, R_TAG_LHS_INF, R_TAG_LHS_INF};
     mu_assert("error rowtags",
-              ARRAYS_EQUAL(rowtags_correct, constraints->row_tags, 3));
+              ARRAYS_EQUAL_ROWTAG(rowtags_correct, constraints->row_tags, 3));
 
     // check new coltags
     ColTag coltags_correct[] = {C_TAG_UB_INF, C_TAG_UB_INF, C_TAG_UB_INF};
     mu_assert("error coltags",
-              ARRAYS_EQUAL(coltags_correct, constraints->col_tags, 3));
+              ARRAYS_EQUAL_COLTAG(coltags_correct, constraints->col_tags, 3));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0, 0};
@@ -1050,14 +1050,14 @@ static char *test_13_ston()
 
     // check that the objective function is correct
     double obj_correct[] = {4, -2, 7};
-    mu_assert("error obj", ARRAYS_EQUAL(obj_correct, prob->obj->c, 3));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 3));
     mu_assert("error obj", prob->obj->offset == -5);
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {-INF, -INF, -INF};
     double rhs_correct[] = {0, 10, 5};
-    mu_assert("error lhs", ARRAYS_EQUAL(lhs_correct, constraints->lhs, 3));
-    mu_assert("error rhs", ARRAYS_EQUAL(rhs_correct, constraints->rhs, 3));
+    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 3));
+    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 3));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
