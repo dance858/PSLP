@@ -1,0 +1,44 @@
+# .clang-format for C project with Allman style braces
+BasedOnStyle: LLVM
+
+# Indentation
+IndentWidth: 4
+UseTab: Never
+TabWidth: 4
+
+# Line length
+ColumnLimit: 85
+BinPackParameters: true
+BinPackArguments: true
+
+# Braces style
+BreakBeforeBraces: Allman   # Allman style: brace on next line
+BraceWrapping:
+  AfterFunction: true
+  AfterControlStatement: true
+  AfterStruct: true
+  AfterClass: true
+  AfterNamespace: false
+  IndentBraces: false
+
+# Pointers
+PointerAlignment: Right      
+
+# Spaces
+SpaceAfterCStyleCast: true
+SpaceAfterLogicalNot: false
+SpacesInParentheses: false
+SpacesInContainerLiterals: false
+SpaceBeforeParens: ControlStatements
+
+# Allow single-line short statements if simple
+AllowShortIfStatementsOnASingleLine: true
+AllowShortLoopsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: Inline
+AllowAllParametersOfDeclarationOnNextLine: true
+
+
+# Other
+ReflowComments: true
+IndentCaseLabels: true
+AlignOperands: true

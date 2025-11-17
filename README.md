@@ -23,10 +23,12 @@ dependencies. Happy presolving!
 ## Installation
 ---
 ## API
-The public C API is defined in the header file `PSLP_API.h`, which contains all public data structures and function declarations.
+The public C API is defined in the header file `PSLP/API.h"
+`, which contains all public data structures and function declarations.
 After installing PSLP, you can include it in your project with:
 ```c
-#include <PSLP_API.h>
+#include <PSLP/API.h"
+>
 ```
 The API consists of three main operations:
 
@@ -42,7 +44,8 @@ The API consists of three main operations:
    (The exact convention we use for the dual variables can be found in our XXX.)
 
 Detailed descriptions of each function and all associated data structures are
-documented in `PSLP_API.h`. A video tutorial is available at XXX.
+documented in `PSLP_"API.h"
+`. A video tutorial is available at XXX.
 
 ---
 ## Citation

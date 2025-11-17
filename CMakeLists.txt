@@ -1,0 +1,197 @@
+#CMakeLists.txt file for cvx_presolver
+cmake_minimum_required(VERSION 3.20)
+project(PSLP
+  LANGUAGES C
+  VERSION 0.1.0
+  DESCRIPTION "PSLP — A Lightweight C Presolver for Linear Programs"
+)
+
+include(GNUInstallDirs)
+
+#Set output directories for libraries and executables
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
+
+#Enable export of all symbols on Windows for shared libraries
+if(BUILD_SHARED_LIBS)
+  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
+#Set debug postfix for MSVC
+if(MSVC)
+    set(CMAKE_DEBUG_POSTFIX "d")
+endif()
+
+#Build position - independent code
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+#Disable C compiler extensions
+set(CMAKE_C_EXTENSIONS OFF)
+
+#This is needed for clock_gettime on Linux without compiler extensions
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_compile_definitions(_POSIX_C_SOURCE=200809L)
+endif()
+
+#Append custom CMake modules
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+
+#Option for shared / static libraries
+option(BUILD_SHARED_LIBS "Build libraries as shared as opposed to static" ON)
+
+#Enable RPATH support
+include(AddInstallRPATHSupport)
+add_install_rpath_support(
+  BIN_DIRS "${CMAKE_INSTALL_FULL_BINDIR}"
+  LIB_DIRS "${CMAKE_INSTALL_FULL_LIBDIR}"
+  INSTALL_NAME_DIR "${CMAKE_INSTALL_FULL_LIBDIR}"
+  USE_LINK_PATH
+)
+
+#Set default build type to Release if not specified
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  message(STATUS "Setting build type to 'Release' as none was specified.")
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+endif()
+
+#Add uninstall target
+include(AddUninstallTarget)
+
+#Specify the C standard
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
+#Collect source files
+file(GLOB CORE_SOURCES CONFIGURE_DEPENDS
+    src/core/*.c
+    src/explorers/*.c
+)
+
+# distinguish between public and private headers
+set(PUBLIC_HEADERS
+  include/PSLP/"API.h"
+ 
+)
+
+file(GLOB PRIVATE_HEADERS CONFIGURE_DEPENDS
+    include/core/*.h
+    include/data_structures/*.h
+    include/explorers/*.h
+)
+
+
+# Handle debugger conditionally
+option(ENABLE_DEBUGGER "Enable debugger functionality" OFF)
+
+if(NOT (ENABLE_DEBUGGER OR CMAKE_BUILD_TYPE STREQUAL "Debug"))
+    list(REMOVE_ITEM CORE_SOURCES 
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/core/Debugger.c"
+    )
+    message(STATUS "Debugger disabled")
+else()
+    message(STATUS "Debugger enabled")
+endif()
+
+# Create PSLP library
+add_library(PSLP ${CORE_SOURCES})# ${PRIVATE_HEADERS})
+target_include_directories(PSLP
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/PSLP>
+  PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/core>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/explorers>
+)
+
+# Common compile options
+target_compile_options(PSLP PRIVATE
+  -Wall -Wextra -Wpedantic -Wno-sign-compare
+)
+
+# Config-specific compile options
+target_compile_options(PSLP PRIVATE
+  $<$<CONFIG:Debug>:-g -O0>
+  $<$<CONFIG:Release>:-O3 -DNDEBUG>
+  $<$<CONFIG:RelWithDebInfo>:-O2 -g -DNDEBUG>
+  $<$<CONFIG:MinSizeRel>:-Os -DNDEBUG>
+)
+
+if(ENABLE_DEBUGGER OR CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_definitions(PSLP PRIVATE DEBUGGER_ENABLED)
+else()
+    target_compile_definitions(PSLP PRIVATE NDEBUG)
+endif()
+
+# Testing
+option(BUILD_TESTING "Build tests" ON)
+if(BUILD_TESTING)
+  include(CTest)
+  enable_testing()
+  message(STATUS "Testing enabled")
+
+  add_executable(all_tests tests/all_tests.c)
+
+  # Link PSLP library
+  target_link_libraries(all_tests PRIVATE PSLP)
+  target_compile_definitions(PSLP PRIVATE TESTING)
+
+    # Add include directories explicitly for the test target
+  target_include_directories(all_tests PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/core
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP
+  )
+
+  target_compile_definitions(all_tests PRIVATE TESTING)
+
+  # Link math library on UNIX
+  if(UNIX)
+    target_link_libraries(all_tests PRIVATE m)
+  endif()
+
+  add_test(NAME all_tests COMMAND all_tests)
+else()
+  message(STATUS "Testing disabled")
+endif()
+
+# Installation and export
+install(TARGETS PSLP
+  EXPORT PSLPTargets
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PSLP
+)
+
+install(FILES ${PUBLIC_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PSLP)
+
+# Export the targets file
+install(EXPORT PSLPTargets
+  FILE PSLPTargets.cmake
+  NAMESPACE PSLP::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PSLP
+)
+
+# Create and install Config file
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/PSLPConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/PSLPConfig.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PSLP
+)
+
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/PSLPConfigVersion.cmake
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY AnyNewerVersion
+)
+
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/PSLPConfig.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/PSLPConfigVersion.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PSLP
+)
