@@ -35,8 +35,6 @@
 #define HUGE_BOUND_ARG , huge_bound_ok
 #endif
 
-// OBS: The macros should be wrapped inside a DEBUG when use
-
 #ifndef NDEBUG
 #define DEBUG(code)                                                                 \
     do                                                                              \
