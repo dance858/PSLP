@@ -32,7 +32,6 @@ extern "C"
         double obj;
         int dim_x;
         int dim_y;
-        int status;
     } Solution;
 
 #ifdef __cplusplus

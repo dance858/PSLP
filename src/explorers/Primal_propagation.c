@@ -816,7 +816,6 @@ void remove_redundant_bounds(Constraints *constraints)
 
     bool is_ub_inf, is_lb_inf;
     int ii, jj;
-    int removed_bounds = 0;
 
     // ------------------------------------------------------------------------
     // Sort columns by column sizes. We want to process the shortest columns
@@ -862,7 +861,6 @@ void remove_redundant_bounds(Constraints *constraints)
                                    bounds))
             {
                 remove_finite_lb_from_activities(&col, acts, bounds[ii].lb);
-                removed_bounds++;
                 DEBUG(bounds[ii].lb = -INF);
                 UPDATE_TAG(col_tags[ii], C_TAG_LB_INF);
             }
@@ -875,7 +873,6 @@ void remove_redundant_bounds(Constraints *constraints)
                                    bounds))
             {
                 remove_finite_ub_from_activities(&col, acts, bounds[ii].ub);
-                removed_bounds++;
                 DEBUG(bounds[ii].ub = INF);
                 UPDATE_TAG(col_tags[ii], C_TAG_UB_INF);
             }

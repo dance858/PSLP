@@ -69,8 +69,7 @@ extern "C"
         double *rhs;
         double *c;
 
-        // variable bounds bounds[k].lb <= x_k <= bounds[k].ub
-        // Bound *bounds;
+        // variable bounds lbs <= x_k <= ubs
         double *lbs;
         double *ubs;
     } PresolvedProblem;
@@ -81,6 +80,7 @@ extern "C"
         struct PresolveStats *stats;
         const Settings *stgs;
         struct Problem *prob;
+        PresolvedProblem *reduced_prob;
         Solution *sol;
     } Presolver;
 

@@ -293,12 +293,10 @@ void delete_inactive_cols_from_A_and_AT(Constraints *constraints)
 
 static void bounds_shrink(Bound *ptr, int *map, int len)
 {
-    int new_len = 0;
     for (int i = 0; i < len; ++i)
     {
         if (map[i] != -1)
         {
-            new_len++;
             ptr[map[i]] = ptr[i];
         }
     }

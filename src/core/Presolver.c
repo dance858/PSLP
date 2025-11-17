@@ -278,6 +278,8 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     presolver->stats->nnz_removed_trivial = nnz - A->nnz; // due to clean_small_coeff
     clock_gettime(CLOCK_MONOTONIC, &timer.end);
     presolver->stats->ps_time_init = GET_ELAPSED_SECONDS(timer);
+    presolver->reduced_prob =
+        (PresolvedProblem *) ps_calloc(1, sizeof(PresolvedProblem));
     DEBUG(run_debugger(constraints, false));
 
     // ---------------------------------------------------------------------------
@@ -520,6 +522,37 @@ run_medium_explorers(Problem *prob, const Settings *stgs, PresolveStats *stats)
     return status;
 }
 
+void populate_presolved_problem(Presolver *presolver)
+{
+    PresolvedProblem *ps_prob = presolver->reduced_prob;
+    Constraints *constraints = presolver->prob->constraints;
+    Matrix *A = constraints->A;
+    ps_prob->m = A->m;
+    ps_prob->n = A->n;
+    ps_prob->nnz = A->nnz;
+    ps_prob->Ax = A->x;
+    ps_prob->Ai = A->i;
+    ps_prob->rhs = constraints->rhs;
+    ps_prob->lhs = constraints->lhs;
+    ps_prob->c = presolver->prob->obj->c;
+
+    // create bounds arrays
+    ps_prob->lbs = (double *) malloc(A->n * sizeof(double));
+    ps_prob->ubs = (double *) malloc(A->n * sizeof(double));
+    for (int i = 0; i < A->n; i++)
+    {
+        ps_prob->lbs[i] = constraints->bounds[i].lb;
+        ps_prob->ubs[i] = constraints->bounds[i].ub;
+    }
+
+    // create row pointers
+    ps_prob->Ap = (int *) malloc((A->m + 1) * sizeof(int));
+    for (int i = 0; i < A->m + 1; i++)
+    {
+        ps_prob->Ap[i] = A->p[i].start;
+    }
+}
+
 static inline void print_start_message(const PresolveStats *stats)
 {
     printf("\n\t       PSLP v%s - LP presolver \n\t(c) Daniel "
@@ -620,6 +653,7 @@ PresolveStatus run_presolver(Presolver *presolver)
     stats->nnz_reduced = A->nnz;
     stats->presolve_total_time = GET_ELAPSED_SECONDS(outer_timer);
     DEBUG(run_debugger_stats_consistency_check(stats));
+    populate_presolved_problem(presolver);
 
     if (stgs->verbose)
     {
@@ -660,6 +694,14 @@ void free_presolver(Presolver *presolver)
 
     free_problem(presolver->prob);
     PS_FREE(presolver->stats);
+
+    if (presolver->reduced_prob)
+    {
+        PS_FREE(presolver->reduced_prob->Ap);
+        PS_FREE(presolver->reduced_prob->lbs);
+        PS_FREE(presolver->reduced_prob->ubs);
+        PS_FREE(presolver->reduced_prob);
+    }
 
     if (presolver->sol)
     {
