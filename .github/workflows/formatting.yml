@@ -1,0 +1,38 @@
+name: Code Formatting
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  format:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # Install clang-format if needed
+      - name: Install clang-format (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y clang-format
+
+      - name: Install clang-format (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install clang-format || true
+
+      # Check formatting
+      - name: Check C/C++ formatting
+        run: |
+          misformatted=$(find . -name '*.c' -o -name '*.h' -print0 | xargs -0 clang-format -style=file -output-replacements-xml | grep "<replacement " || true)
+          if [ -n "$misformatted" ]; then
+            echo "ERROR: Some files are not properly formatted. Run clang-format -i."
+            exit 1
+          else
+            echo "All files are properly formatted."
+            exit 0
+          fi
