@@ -78,9 +78,10 @@ static inline uint32_t hash_double_array_with_scale(const double *arr, int size)
 #ifndef TESTING
 static inline
 #endif
-    void compute_supp_and_coeff_hash(const Matrix *A, const RowTag *rowtags,
-                                     int *sparsity_IDs, int *coeff_hashes,
-                                     RowTag INACTIVE_TAG)
+    void
+    compute_supp_and_coeff_hash(const Matrix *A, const RowTag *rowtags,
+                                int *sparsity_IDs, int *coeff_hashes,
+                                RowTag INACTIVE_TAG)
 {
 
     for (int i = 0; i < A->m; i++)
