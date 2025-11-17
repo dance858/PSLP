@@ -21,6 +21,20 @@ dependencies. Happy presolving!
 
 ---
 ## Installation
+**PSLP** is built using CMake:
+
+```code
+git clone https://github.com/dance858/PSLP.git
+cd PSLP
+mkdir build && cd build
+cmake ..  
+make
+```
+If you want to run the tests, do `cmake -DBUILD_TESTING=ON .. -DCMAKE_BUILD_TYPE=Debug ..`, which creates a test executable in
+the bin folder. 
+
+After this you can use **PSLP** in your own project by adding the following lines to your CMakeLists.txt: TODO
+
 ---
 ## API
 The public C API is defined in the header file `PSLP/PSLP_API.h`. The other files 
@@ -38,7 +52,7 @@ in that folder contain some trivial public data structures. The API consists of 
    (The exact convention we use for the dual variables can be found in our XXX.)
 
 Detailed descriptions of each function and all associated data structures are
-documented in the `PSLP` folder. A video tutorial is available at XXX.
+documented in the `PSLP` folder. A video tutorial is available at TODO.
 
 ---
 ## Citation
