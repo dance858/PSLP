@@ -42,3 +42,4 @@ AllowAllParametersOfDeclarationOnNextLine: true
 ReflowComments: true
 IndentCaseLabels: true
 AlignOperands: true
+InsertNewlineAtEOF: true              
