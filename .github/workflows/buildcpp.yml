@@ -1,0 +1,50 @@
+name: Build C++  # Test PSLP with a C++ compiler (compatibility check)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  linux:
+    name: Linux (C++ compiler)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Use g++ as the C compiler for compatibility test
+      - name: Configure with g++
+        run: |
+          export CC=g++
+          cmake -B build_cpp -S . \
+            -DCMAKE_C_COMPILER=g++ \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build (g++)
+        run: cmake --build build_cpp --config Release
+
+      - name: Run tests (g++)
+        run: cd build_cpp && ctest --output-on-failure
+
+  macos:
+    name: macOS (C++ compiler)
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Use clang++ as the C compiler for compatibility test
+      - name: Configure with clang++
+        run: |
+          export CC=clang++
+          cmake -B build_cpp -S . \
+            -DCMAKE_C_COMPILER=clang++ \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build (clang++)
+        run: cmake --build build_cpp --config Release
+
+      - name: Run tests (clang++)
+        run: cd build_cpp && ctest --output-on-failure
