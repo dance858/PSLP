@@ -69,7 +69,8 @@ extern "C"
         double *rhs;
         double *c;
 
-        // variable bounds lbs <= x_k <= ubs
+        // variable bounds bounds[k].lb <= x_k <= bounds[k].ub
+        // Bound *bounds;
         double *lbs;
         double *ubs;
     } PresolvedProblem;
