@@ -36,7 +36,8 @@ jobs:
       run: |
         gcovr \
           --root . \
-          --xml-pretty coverage.xml \
+          --xml-pretty \
+          --output coverage.xml \
           --exclude 'test/*' \
           --exclude 'build/*'
 
