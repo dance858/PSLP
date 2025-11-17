@@ -21,23 +21,27 @@ dependencies. Happy presolving!
 
 ---
 ## Installation
-**PSLP** is built using CMake:
-
+**PSLP** is built using CMake. If you wish to use **PSLP** in your own CMake-based project, a simple approach is to do as follows.
+First, create a folder `third_party` in your project root and add PSLP as a submodule by running the following command
+in your terminal:
 ```code
-git clone https://github.com/dance858/PSLP.git
-cd PSLP
-mkdir build && cd build
-cmake ..  
-make
+git submodule add https://github.com/dance858/PSLP.git third_party/PSLP
 ```
-If you want to run the tests, do `cmake -DBUILD_TESTING=ON .. -DCMAKE_BUILD_TYPE=Debug ..`, which creates a test executable in
-the bin folder. 
+Next, add **PSLP** as a subdirectory by adding the following line to your CMakeLists.txt:
+```code
+add_subdirectory(third_party/PSLP EXCLUDE_FROM_ALL)
+```
+Finally, link your project to PSLP by adding the following line to your CMakeLists.txt
+(replace YOUR_PROJECT with your actual target name):
+```code
+target_link_libraries(YOUR_PROJECT PRIVATE PSLP)
+```
 
-After this you can use **PSLP** in your own project by adding the following lines to your CMakeLists.txt: TODO
+After this, you should be able to import the public API using `#include "PSLP_API.h"`.
 
 ---
 ## API
-The public C API is defined in the header file `PSLP/PSLP_API.h`. The other files 
+The public C API is defined in the header file `PSLP_API.h`. The other files 
 in that folder contain some trivial public data structures. The API consists of three main operations:
 
 1. **Initialization** — performed using `new_presolver()`, which creates and
