@@ -1,7 +1,6 @@
-#CMakeLists.txt file for cvx_presolver
 cmake_minimum_required(VERSION 3.20)
 project(PSLP
-  LANGUAGES C CXX
+  LANGUAGES C CXX # The library is written in C, but we also have some C++ test files
   VERSION 0.1.0
   DESCRIPTION "PSLP — A Lightweight C Presolver for Linear Programs"
 )
@@ -95,7 +94,7 @@ else()
 endif()
 
 # Create PSLP library
-add_library(PSLP ${CORE_SOURCES})# ${PRIVATE_HEADERS})
+add_library(PSLP ${CORE_SOURCES})
 target_include_directories(PSLP
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP>
@@ -126,7 +125,7 @@ else()
 endif()
 
 # Testing
-option(BUILD_TESTING "Build tests" ON)
+option(BUILD_TESTING "Build tests" OFF)
 if(BUILD_TESTING)
   include(CTest)
   enable_testing()
@@ -156,6 +155,15 @@ if(BUILD_TESTING)
   add_test(NAME all_tests COMMAND all_tests)
 else()
   message(STATUS "Testing disabled")
+endif()
+
+option(COVERAGE "Enable coverage reporting" OFF)
+
+if(COVERAGE)
+    message(STATUS "Building with coverage flags")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g --coverage")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage")
 endif()
 
 add_executable(test_cpp EXCLUDE_FROM_ALL tests/test_cpp.cpp)
