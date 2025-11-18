@@ -45,6 +45,6 @@
 #define SIZE_INACTIVE_ROW -1
 #define SIZE_INACTIVE_COL -1
 #define MAX_RATIO_PIVOT 1e3
-#define CVX_PRESOLVE_VERSION "0.0.1"
+#define PSLP_presolve_VERSION "0.0.1"
 
 #endif
