@@ -19,7 +19,7 @@
 #ifndef SIMPLE_DUAL_FIX_H
 #define SIMPLE_DUAL_FIX_H
 
-#include "PresolveStatus.h"
+#include "PSLP_status.h"
 
 // forward declaration
 struct Problem;

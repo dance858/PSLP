@@ -336,6 +336,7 @@ static inline bool update_termination(int nnz_after_cycle, int nnz_before_cycle,
 
     if (GET_ELAPSED_SECONDS(outer_timer) >= max_time)
     {
+        printf("Maximum time limit of %.2f seconds reached.\n", max_time);
         return true;
     }
 
@@ -370,6 +371,7 @@ static inline Complexity update_complexity(Complexity curr_complexity,
     {
         assert(false);
     }
+
     return FAST; // to suppress compiler warning
 }
 
@@ -409,7 +411,6 @@ static inline PresolveStatus run_trivial_explorers(Problem *prob,
     assert(prob->constraints->state->ston_rows->len == 0);
     assert(prob->constraints->state->empty_rows->len == 0);
     assert(prob->constraints->state->empty_cols->len == 0);
-
     return UNCHANGED;
 }
 
@@ -437,12 +438,10 @@ static inline PresolveStatus run_fast_explorers(Problem *prob, const Settings *s
     if (stgs->dton_eq)
     {
         status |= remove_dton_eq_rows(prob, stgs->max_shift);
-
         // after removing doubleton equality rows, there can be new empty rows,
         // new singleton rows, and new empty columns
         status |= run_trivial_explorers(prob, stgs);
     }
-
     return status;
 }
 

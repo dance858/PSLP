@@ -16,11 +16,9 @@
  * limitations under the License.
  */
 
-/* Public header containing the outward facing API. It includes all the
-   input/output data structs and the API functions.  Make sure this file is
-   somewhere appropriate and then use `#include <PSLP/"API.h"
->` to access the
-   public API. */
+/* Public header containing the outward facing API. Together with the other
+   files in the folder "PSLP", it includes the input/output data structs
+   and the API functions. */
 #ifndef PRESOLVER_H
 #define PRESOLVER_H
 
@@ -29,8 +27,8 @@ extern "C"
 {
 #endif
 
-#include "PresolveStatus.h"
-#include "Sol.h"
+#include "PSLP_sol.h"
+#include "PSLP_status.h"
 #include <stdbool.h>
 
     /* forward declaration */
@@ -69,13 +67,21 @@ extern "C"
         double *rhs;
         double *c;
 
-        // variable bounds bounds[k].lb <= x_k <= bounds[k].ub
-        // Bound *bounds;
+        // variable bounds lbs <= x <= ubs
         double *lbs;
         double *ubs;
     } PresolvedProblem;
 
-    /* struct corresponding to the presolver*/
+    /* struct corresponding to the presolver:
+         - 'stats' contains statistics about the presolving process
+         - 'stgs' contains the settings used for presolving
+         - 'prob' contains the internal problem representation used during
+            presolving
+         - 'reduced_prob' contains the presolved problem after running
+            'run_presolver'
+         - 'sol' contains the solution to the original problem after running
+            'postsolve'
+    */
     typedef struct
     {
         struct PresolveStats *stats;
@@ -85,8 +91,7 @@ extern "C"
         Solution *sol;
     } Presolver;
 
-    /* The user is responsible for freeing the settings struct using standard free.
-     */
+    /* The user is responsible for freeing the settings using 'free_settings'. */
     Settings *default_settings();
     void free_settings(Settings *stgs);
     void set_settings_true(Settings *stgs);
@@ -94,7 +99,7 @@ extern "C"
 
     /* Initialize presolver, allocate memory, and build internal data structures.
        The presolver maintains internal deep copies of Ax, Ai, Ap, lhs, rhs, lbs,
-       ubs, and c. The user is responsible for freeing this memory using
+       ubs, and c. The user is responsible for freeing the presolver using
        'free_presolver'. If the allocation fails, the function returns NULL. */
     Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
                              int n, int nnz, const double *lhs, const double *rhs,
@@ -104,13 +109,14 @@ extern "C"
     /* Free the memory allocated for the presolver. */
     void free_presolver(Presolver *presolver);
 
-    /* Runs the presolver. At completion, the 'problem' field of the presolver
-       contains the presolved problem. */
+    /* Runs the presolver. At completion, the 'reduced_prob' field of the
+       presolver contains the presolved problem. */
     PresolveStatus run_presolver(Presolver *presolver);
 
     /* Postsolve the problem given the primal-dual solution (x, y, z) of the
        reduced problem. The optimal value of the reduced problem is 'obj'.
-       The function populates presolver->sol. */
+       The function populates presolver->sol, so if you're looking for the
+       solution to the original problem, you should look there. */
     void postsolve(Presolver *presolver, const double *x, const double *y,
                    const double *z, double obj);
 
