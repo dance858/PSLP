@@ -19,7 +19,7 @@
 #ifndef PARALLEL_COLS_H
 #define PARALLEL_COLS_H
 
-#include "PresolveStatus.h"
+#include "PSLP_status.h"
 
 // forward declaration
 struct Problem;

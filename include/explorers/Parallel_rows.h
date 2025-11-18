@@ -19,7 +19,7 @@
 #ifndef PARALLEL_ROWS_H
 #define PARALLEL_ROWS_H
 
-#include "PresolveStatus.h"
+#include "PSLP_status.h"
 #include "Tags.h"
 
 // forward declarations

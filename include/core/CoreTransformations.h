@@ -19,8 +19,8 @@
 #ifndef CORE_TRANSFORMATIONS_H
 #define CORE_TRANSFORMATIONS_H
 
+#include "PSLP_status.h"
 #include "Postsolver.h"
-#include "PresolveStatus.h"
 #include "Tags.h"
 #include "debug_macros.h"
 #include "glbopts.h"

@@ -22,7 +22,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "Sol.h"
+#include "PSLP_sol.h"
 #include "Tags.h"
 
 struct u16Vec;

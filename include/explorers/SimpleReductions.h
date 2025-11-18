@@ -19,7 +19,7 @@
 #ifndef SIMPLEREDUCTIONS_H
 #define SIMPLEREDUCTIONS_H
 
-#include "PresolveStatus.h"
+#include "PSLP_status.h"
 #include "Tags.h"
 
 // forward declarations

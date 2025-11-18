@@ -19,7 +19,7 @@
 #ifndef DTONS_EQ_H
 #define DTONS_EQ_H
 
-#include "PresolveStatus.h"
+#include "PSLP_status.h"
 struct Matrix;
 struct Problem;
 struct PostsolveInfo;
