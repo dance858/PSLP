@@ -81,7 +81,7 @@ Settings *default_settings()
     stgs->parallel_cols = true;
     stgs->primal_propagation = true;
     stgs->dual_fix = true;
-    stgs->clean_small_coeff = true;
+    stgs->clean_small_coeff = false;
     stgs->finite_bound_tightening = true;
     stgs->relax_bounds = true;
     stgs->max_shift = 10;
@@ -557,7 +557,7 @@ static inline void print_start_message(const PresolveStats *stats)
 {
     printf("\n\t       PSLP v%s - LP presolver \n\t(c) Daniel "
            "Cederberg, Stanford University, 2025\n",
-           CVX_PRESOLVE_VERSION);
+           PSLP_presolve_VERSION);
     printf("Original problem:  %d rows, %d columns, %d nnz\n",
            stats->n_rows_original, stats->n_cols_original, stats->nnz_original);
 }
