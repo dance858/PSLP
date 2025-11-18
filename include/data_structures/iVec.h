@@ -26,6 +26,7 @@
 // This macro defines a vector of integers.
 DEFINE_VECTOR(int, i)
 
+/*
 __attribute__((unused)) static void print_ivec(iVec *vec)
 {
     for (size_t i = 0; i < vec->len; ++i)
@@ -34,5 +35,5 @@ __attribute__((unused)) static void print_ivec(iVec *vec)
     }
     printf("\n");
 }
-
+*/
 #endif // IVEC_H

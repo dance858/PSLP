@@ -1066,6 +1066,96 @@ static char *test_13_ston()
     return 0;
 }
 
+static char *test_14_ston()
+{
+    double Ax[] = {1, 1, 2, 1, 1};
+    int Ai[] = {0, 1, 2, 1, 2};
+    int Ap[] = {0, 3, 5};
+    int nnz = 5;
+    int n_rows = 2;
+    int n_cols = 3;
+
+    double lhs[] = {1, -INF};
+    double rhs[] = {6, 5};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {INF, INF, INF};
+    double c[] = {-1, 1, 1};
+
+    Settings *stgs = default_settings();
+    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
+                                         lbs, ubs, c, stgs, true);
+
+    Problem *prob = presolver->prob;
+    Constraints *constraints = prob->constraints;
+    Matrix *A = constraints->A;
+    remove_ston_cols(prob);
+    problem_clean(prob, true);
+
+    mu_assert("error",
+              CHECK_ROW_SIZES(constraints->A, constraints->state->row_sizes));
+    mu_assert("error",
+              CHECK_COL_SIZES(constraints->AT, constraints->state->col_sizes));
+
+    // check that new A is correct
+    double Ax_correct[] = {1, 2, 1, 1};
+    int Ai_correct[] = {0, 1, 0, 1};
+    int Ap_correct[] = {0, 2, 4};
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 4));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 4));
+    CHECK_ROW_STARTS(A, Ap_correct);
+
+    PS_FREE(stgs);
+    DEBUG(run_debugger(constraints, false));
+    free_presolver(presolver);
+
+    return 0;
+}
+
+static char *test_15_ston()
+{
+    double Ax[] = {-1, 1, 2, 1, 1};
+    int Ai[] = {0, 1, 2, 1, 2};
+    int Ap[] = {0, 3, 5};
+    int nnz = 5;
+    int n_rows = 2;
+    int n_cols = 3;
+
+    double lhs[] = {1, -INF};
+    double rhs[] = {6, 5};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {INF, INF, INF};
+    double c[] = {-1, 1, 1};
+
+    Settings *stgs = default_settings();
+    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
+                                         lbs, ubs, c, stgs, true);
+
+    Problem *prob = presolver->prob;
+    Constraints *constraints = prob->constraints;
+    Matrix *A = constraints->A;
+    remove_ston_cols(prob);
+    problem_clean(prob, true);
+
+    mu_assert("error",
+              CHECK_ROW_SIZES(constraints->A, constraints->state->row_sizes));
+    mu_assert("error",
+              CHECK_COL_SIZES(constraints->AT, constraints->state->col_sizes));
+
+    // check that new A is correct
+    double Ax_correct[] = {1, 2, 1, 1};
+    int Ai_correct[] = {0, 1, 0, 1};
+    int Ap_correct[] = {0, 2, 4};
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 4));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 4));
+    CHECK_ROW_STARTS(A, Ap_correct);
+
+    PS_FREE(stgs);
+    DEBUG(run_debugger(constraints, false));
+    free_presolver(presolver);
+
+    return 0;
+}
+
 static const char *all_tests_ston()
 {
     mu_run_test(test_01_ston, counter_ston); // (✓)
@@ -1080,6 +1170,8 @@ static const char *all_tests_ston()
     mu_run_test(test_10_ston, counter_ston); // (✓)
     mu_run_test(test_12_ston, counter_ston); // (✓)
     mu_run_test(test_13_ston, counter_ston); // (✓)
+    mu_run_test(test_14_ston, counter_ston); // (✓)
+    mu_run_test(test_15_ston, counter_ston); // (✓)
     return 0;
 }
 
