@@ -617,8 +617,6 @@ PresolveStatus remove_ston_cols__(Problem *prob)
         {
             printf("debug warning: large coefficient when eliminating col ston\n");
         }
-        // This happens on map10 (miplib)
-        // assert(!IS_HUGE(Aik) && !IS_HUGE(1 / Aik) && "Be aware of this!");
 #endif
 
         // If two column singletons appear in the same constraint, the

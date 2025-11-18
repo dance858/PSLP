@@ -21,6 +21,7 @@
 // This macro defines a vector of uint16_t.
 DEFINE_VECTOR(uint16_t, u16)
 
+/*
 __attribute__((unused)) static void print_u16Vec(const u16Vec *vec)
 {
     for (int i = 0; i < vec->len; ++i)
@@ -29,3 +30,4 @@ __attribute__((unused)) static void print_u16Vec(const u16Vec *vec)
     }
     printf("\n");
 }
+*/
