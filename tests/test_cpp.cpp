@@ -53,12 +53,12 @@ int main()
 
     PresolveStatus status = run_presolver(presolver);
 
-    free_settings(stgs);
-    free_presolver(presolver);
-
     std::cout << "removed "
               << presolver->stats->nnz_original - presolver->stats->nnz_reduced
               << " non-zeros during presolving." << std::endl;
+
+    free_settings(stgs);
+    free_presolver(presolver);
 
     std::cout << "Presolver ran succesfully in C++ build" << std::endl;
     return 0;
