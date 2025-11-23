@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef PRESOLVE_STATS_H
-#define PRESOLVE_STATS_H
+#ifndef PSLP_STATS_H
+#define PSLP_STATS_H
 
 typedef struct PresolveStats
 {
@@ -47,4 +47,4 @@ typedef struct PresolveStats
 
 } PresolveStats;
 
-#endif // PRESOLVE_STATS_H
+#endif // PSLP_STATS_H

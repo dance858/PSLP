@@ -16,15 +16,15 @@
  * limitations under the License.
  */
 
-#ifndef CORE_SOL_H
-#define CORE_SOL_H
+#ifndef PSLP_SOL_H
+#define PSLP_SOL_H
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-    typedef struct
+    typedef struct Solution
     {
         double *x;
         double *y;
@@ -38,4 +38,4 @@ extern "C"
 }
 #endif
 
-#endif // CORE_SOL_H
+#endif // PSLP_SOL_H

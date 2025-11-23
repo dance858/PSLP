@@ -4,6 +4,7 @@
 #include "CoreTransformations.h"
 #include "Numerics.h"
 #include "PSLP_API.h"
+#include "PSLP_sol.h"
 
 #include "SimpleReductions.h"
 #include "minunit.h"
