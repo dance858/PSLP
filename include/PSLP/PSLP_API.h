@@ -27,11 +27,11 @@ extern "C"
 {
 #endif
 
-#include "PSLP_sol.h"
 #include "PSLP_status.h"
 #include <stdbool.h>
 
-    /* forward declaration */
+    /* forward declarations */
+    struct Solution;
     struct Problem;
     struct PresolveStats;
 
@@ -76,7 +76,7 @@ extern "C"
          - 'stats' contains statistics about the presolving process
          - 'stgs' contains the settings used for presolving
          - 'prob' contains the internal problem representation used during
-            presolving
+            presolving (never needs to be accessed by the user)
          - 'reduced_prob' contains the presolved problem after running
             'run_presolver'
          - 'sol' contains the solution to the original problem after running
@@ -88,7 +88,7 @@ extern "C"
         const Settings *stgs;
         struct Problem *prob;
         PresolvedProblem *reduced_prob;
-        Solution *sol;
+        struct Solution *sol;
     } Presolver;
 
     /* The user is responsible for freeing the settings using 'free_settings'. */
@@ -100,7 +100,8 @@ extern "C"
     /* Initialize presolver, allocate memory, and build internal data structures.
        The presolver maintains internal deep copies of Ax, Ai, Ap, lhs, rhs, lbs,
        ubs, and c. The user is responsible for freeing the presolver using
-       'free_presolver'. If the allocation fails, the function returns NULL. */
+       'free_presolver'. If the allocation fails, the function returns NULL.
+       It's most efficient to provide the matrix in CSR format (set CSR=true) */
     Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
                              int n, int nnz, const double *lhs, const double *rhs,
                              const double *lbs, const double *ubs, const double *c,

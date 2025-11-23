@@ -1,5 +1,5 @@
-#ifndef PSLP_PresolveStatus_H
-#define PSLP_PresolveStatus_H
+#ifndef PSLP_STATUS_H
+#define PSLP_STATUS_H
 
 #include <stdint.h>
 
@@ -23,4 +23,4 @@ extern "C"
 }
 #endif
 
-#endif // PSLP_PresolveStatus_H
+#endif // PSLP_STATUS_H

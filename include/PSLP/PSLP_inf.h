@@ -1,5 +1,5 @@
-#ifndef PSLP_PSLP_INFS_H
-#define PSLP_PSLP_INFS_H
+#ifndef PSLP_INFS_H
+#define PSLP_INFS_H
 
 #ifdef __cplusplus
 extern "C"
@@ -12,4 +12,4 @@ extern "C"
 }
 #endif
 
-#endif /* PSLP_PSLP_INFS_H */
+#endif /* PSLP_INFS_H */

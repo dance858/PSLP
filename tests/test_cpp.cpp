@@ -1,5 +1,6 @@
 #include "PSLP_API.h"
 #include "PSLP_inf.h"
+#include "PSLP_stats.h"
 #include <cassert>
 #include <iostream>
 
@@ -51,6 +52,10 @@ int main()
     assert(presolver != nullptr && "Presolver initialization failed");
 
     PresolveStatus status = run_presolver(presolver);
+
+    std::cout << "removed "
+              << presolver->stats->nnz_original - presolver->stats->nnz_reduced
+              << " non-zeros during presolving." << std::endl;
 
     free_settings(stgs);
     free_presolver(presolver);
