@@ -5,6 +5,8 @@ project(PSLP
   DESCRIPTION "PSLP — A Lightweight C Presolver for Linear Programs"
 )
 
+message(STATUS "Configuring PSLP (version ${PROJECT_VERSION})")
+
 include(GNUInstallDirs)
 
 #Set output directories for libraries and executables
@@ -147,14 +149,14 @@ if(BUILD_TESTING)
 
   target_compile_definitions(all_tests PRIVATE TESTING)
 
-  # Link math library on UNIX
-  if(UNIX)
-    target_link_libraries(all_tests PRIVATE m)
-  endif()
-
   add_test(NAME all_tests COMMAND all_tests)
 else()
   message(STATUS "Testing disabled")
+endif()
+
+# Link math library on UNIX
+if(UNIX)
+  target_link_libraries(PSLP PRIVATE m)
 endif()
 
 option(COVERAGE "Enable coverage reporting" OFF)
