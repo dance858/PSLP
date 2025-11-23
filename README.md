@@ -54,10 +54,10 @@ in that folder contain some trivial public data structures. The API consists of 
 
 4. **Postsolve** — performed using `postsolve()`, which recovers a primal-dual
    solution to the original LP from a primal-dual solution to the reduced problem.
-   (The exact convention we use for the dual variables can be found in our XXX.)
 
 Detailed descriptions of each function and all associated data structures are
-documented in the `PSLP` folder. A video tutorial is available at TODO.
+documented in the `PSLP` folder. A video tutorial is available [here](https://www.youtube.com/watch?v=ASYi21eCB-8).
+
 
 ---
 ## Citation
