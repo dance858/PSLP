@@ -32,7 +32,6 @@ extern "C"
 
     /* forward declarations */
     struct Solution;
-    struct PresolveStatus;
     struct Problem;
     struct PresolveStats;
 
