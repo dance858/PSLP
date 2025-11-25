@@ -70,6 +70,12 @@ extern "C"
         // variable bounds lbs <= x <= ubs
         double *lbs;
         double *ubs;
+
+        /* offset to be added to the objective value. (When the presolver fixes
+           variables, it adds an offset to the objective. This offset should
+           possibly be taken into account when evaluating the relative optimality gap
+           of the reduced problem.) */
+        double obj_offset;
     } PresolvedProblem;
 
     /* struct corresponding to the presolver:

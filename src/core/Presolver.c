@@ -536,6 +536,7 @@ void populate_presolved_problem(Presolver *presolver)
     ps_prob->rhs = constraints->rhs;
     ps_prob->lhs = constraints->lhs;
     ps_prob->c = presolver->prob->obj->c;
+    ps_prob->obj_offset = presolver->prob->obj->offset;
 
     // create bounds arrays
     ps_prob->lbs = (double *) malloc(A->n * sizeof(double));
