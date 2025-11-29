@@ -2,7 +2,7 @@
 #include "PSLP_stats.h"
 #include <cassert>
 #include <iostream>
-#include <limits.h>
+#include <limits>
 
 // run affiro presolver test in C++
 int main()
