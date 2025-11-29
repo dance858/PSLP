@@ -1,12 +1,15 @@
+#include "INF.h"
 #include "PSLP_API.h"
-#include "PSLP_inf.h"
 #include "PSLP_stats.h"
 #include <cassert>
 #include <iostream>
+#include <limits.h>
 
 // run affiro presolver test in C++
 int main()
 {
+    double INF = std::numeric_limits<double>::infinity();
+
     double CSR = true;
     double Ax[] = {
         -1.,   1.,    1.,    -1.06, 1.,    1.,    -1.,   1.4,   -1.,   -1.,   -1.,
@@ -27,21 +30,16 @@ int main()
     int nnz = 83;
     int n_rows = 27;
     int n_cols = 32;
-    double lhs[] = {0.,        0.,        -PSLP_INF, -PSLP_INF, 0.,        0.,
-                    -PSLP_INF, -PSLP_INF, -PSLP_INF, -PSLP_INF, 0.,        0.,
-                    -PSLP_INF, -PSLP_INF, 0.,        44.,       -PSLP_INF, -PSLP_INF,
-                    -PSLP_INF, -PSLP_INF, -PSLP_INF, -PSLP_INF, -PSLP_INF, -PSLP_INF,
-                    -PSLP_INF, -PSLP_INF, -PSLP_INF};
+    double lhs[] = {0.,   0.,   -INF, -INF, 0.,   0.,   -INF, -INF, -INF,
+                    -INF, 0.,   0.,   -INF, -INF, 0.,   44.,  -INF, -INF,
+                    -INF, -INF, -INF, -INF, -INF, -INF, -INF, -INF, -INF};
     double rhs[] = {0., 0.,  80.,  0., 0., 0., 80., 0., 0., 0., 0., 0.,   500., 0.,
                     0., 44., 500., 0., 0., 0., 0.,  0., 0., 0., 0., 310., 300.};
     double lbs[] = {0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                     0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.};
-    double ubs[] = {PSLP_INF, PSLP_INF, PSLP_INF, PSLP_INF, PSLP_INF, PSLP_INF,
-                    PSLP_INF, PSLP_INF, PSLP_INF, PSLP_INF, PSLP_INF, PSLP_INF,
-                    PSLP_INF, PSLP_INF, PSLP_INF, PSLP_INF, PSLP_INF, PSLP_INF,
-                    PSLP_INF, PSLP_INF, PSLP_INF, PSLP_INF, PSLP_INF, PSLP_INF,
-                    PSLP_INF, PSLP_INF, PSLP_INF, PSLP_INF, PSLP_INF, PSLP_INF,
-                    PSLP_INF, PSLP_INF};
+    double ubs[] = {INF, INF, INF, INF, INF, INF, INF, INF, INF, INF, INF,
+                    INF, INF, INF, INF, INF, INF, INF, INF, INF, INF, INF,
+                    INF, INF, INF, INF, INF, INF, INF, INF, INF, INF};
     double c[] = {0., -0.4,  0., 0., 0., 0.,   0.,    0., 0., 0., 0.,
                   0., -0.32, 0., 0., 0., -0.6, 0.,    0., 0., 0., 0.,
                   0., 0.,    0., 0., 0., 0.,   -0.48, 0., 0., 10.};
