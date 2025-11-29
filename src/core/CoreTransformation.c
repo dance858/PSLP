@@ -245,7 +245,7 @@ bool implied_free_from_above_by_row(double Aik, const ConstRowView *row, double 
         return true;
     }
 
-    assert(ub != INF && Aik != 0);
+    assert(!IS_POS_INF(ub) && Aik != 0);
     double implied_ub = INF;
 
     if (Aik > 0 && !HAS_TAG(*row->tag, R_TAG_RHS_INF))
@@ -406,7 +406,7 @@ PresolveStatus change_lhs_of_ineq(RowView *row, double new_lhs, Lock *locks,
                                   int other_row_idx, double ratio)
 {
     assert(!HAS_TAG(*row->tag, (R_TAG_EQ | R_TAG_INACTIVE)));
-    assert(new_lhs != INF && new_lhs != -INF);
+    assert(!IS_ABS_INF(new_lhs));
     assert(other_row_idx >= 0);
 
     if (!HAS_TAG(*row->tag, R_TAG_RHS_INF) && *row->rhs <= new_lhs - FEAS_TOL)

@@ -43,7 +43,7 @@ static char *test_1_core()
     // check LHS and RHS
     mu_assert("error lhs", constraints->lhs[0] == 5);
     mu_assert("error lhs", constraints->lhs[1] == 2);
-    mu_assert("error lhs", constraints->lhs[2] == -INF);
+    mu_assert("error lhs", IS_NEG_INF(constraints->lhs[2]));
     mu_assert("error rhs", constraints->rhs[0] == 5);
     mu_assert("error rhs", constraints->rhs[1] == 2);
     mu_assert("error rhs", constraints->rhs[2] == 0);
