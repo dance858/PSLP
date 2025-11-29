@@ -21,8 +21,8 @@
 
 #include <math.h>
 #define INF (INFINITY)
-#define IS_POS_INF(x) (isinf(x) > 0)
-#define IS_NEG_INF(x) (isinf(x) < 0)
+#define IS_POS_INF(x) (isinf(x) && (x) > 0)
+#define IS_NEG_INF(x) (isinf(x) && (x) < 0)
 #define IS_ABS_INF(x) (IS_POS_INF(x) || IS_NEG_INF(x))
 
 #ifdef TESTING
