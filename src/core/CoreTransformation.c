@@ -338,6 +338,7 @@ bool implied_free_from_below_by_row(double Aik, const ConstRowView *row, double 
         }
     }
 
+    printf("!IS_POS_INF(implied_lb): %d\n", !IS_POS_INF(implied_lb));
     printf("implied_lb: %f, lb: %f\n", implied_lb, lb);
     printf("!IS_POS_INF(implied_lb): %d\n", !IS_POS_INF(implied_lb));
     assert(!IS_POS_INF(implied_lb));
