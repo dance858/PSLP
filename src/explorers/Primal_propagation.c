@@ -35,7 +35,7 @@ static PresolveStatus update_lb_within_propagation(double new_lb, double *lb,
                                                    Problem *prob,
                                                    bool *finite_bound_tightening)
 {
-    assert(ABS(new_lb) != INF && !HAS_TAG(*cTag, C_TAG_INACTIVE));
+    assert(!IS_ABS_INF(new_lb) && !HAS_TAG(*cTag, C_TAG_INACTIVE));
     assert((HAS_TAG(*cTag, C_TAG_LB_INF) || new_lb >= *lb) && !IS_HUGE(new_lb));
 
     bool is_ub_inf = HAS_TAG(*cTag, C_TAG_UB_INF);
@@ -111,7 +111,7 @@ static PresolveStatus update_ub_within_propagation(double new_ub, double *ub,
                                                    Problem *prob,
                                                    bool *finite_bound_tightening)
 {
-    assert(new_ub != -INF && new_ub != INF && !HAS_TAG(*cTag, C_TAG_INACTIVE));
+    assert(!IS_ABS_INF(new_ub) && !HAS_TAG(*cTag, C_TAG_INACTIVE));
     assert((HAS_TAG(*cTag, C_TAG_UB_INF) || new_ub <= *ub) && !IS_HUGE(new_ub));
 
     bool is_lb_inf = HAS_TAG(*cTag, C_TAG_LB_INF);
@@ -224,7 +224,7 @@ bound_tightening_single_row_rhs(const ConstRowView *row, const Activity *act,
     // ------------------------------------------------------------------
     if (!is_rhs_inf && act->n_inf_min == 0)
     {
-        assert(ABS(*row->rhs) != INF && ABS(act->min) != INF);
+        assert(!IS_ABS_INF(*row->rhs) && !IS_ABS_INF(act->min));
 
         for (j = 0; j < *row->len; ++j)
         {
@@ -272,7 +272,7 @@ bound_tightening_single_row_rhs(const ConstRowView *row, const Activity *act,
             // ---------------------------------------------------------------------
             else
             {
-                assert(Aik < 0 && ABS(bounds[k].ub) != INF);
+                assert(Aik < 0 && !IS_ABS_INF(bounds[k].ub));
                 assert(!HAS_TAG(col_tags[k], C_TAG_UB_INF));
 
                 implied_lb = bounds[k].ub + (*row->rhs - act->min) / Aik;
@@ -339,9 +339,9 @@ bound_tightening_single_row_rhs(const ConstRowView *row, const Activity *act,
         // ------------------------------------------------------------------------------
         min_act =
             compute_min_act_one_tag(row->vals, row->cols, *row->len, bounds, k);
-        assert((is_rhs_inf && act->n_inf_max == 0 && ABS(act->max) != INF) ||
-               (!is_rhs_inf && ABS(*row->rhs) != INF));
-        assert(ABS(min_act) != INF && Aik != INF && Aik != 0);
+        assert((is_rhs_inf && act->n_inf_max == 0 && !IS_ABS_INF(act->max)) ||
+               (!is_rhs_inf && !IS_ABS_INF(*row->rhs)));
+        assert(!IS_ABS_INF(min_act) && !IS_ABS_INF(Aik) && Aik != 0);
         implied_bound =
             (is_rhs_inf) ? (act->max - min_act) / Aik : (*row->rhs - min_act) / Aik;
 
@@ -423,7 +423,7 @@ bound_tightening_single_row_lhs(const ConstRowView *row, const Activity *act,
     // ------------------------------------------------------------------
     if (!is_lhs_inf && act->n_inf_max == 0)
     {
-        assert(ABS(*row->lhs) != INF && ABS(act->max) != INF);
+        assert(!IS_ABS_INF(*row->lhs) && !IS_ABS_INF(act->max));
 
         for (j = 0; j < *row->len; ++j)
         {
@@ -445,7 +445,7 @@ bound_tightening_single_row_lhs(const ConstRowView *row, const Activity *act,
             // --------------------------------------------------------------------
             if (Aik > 0)
             {
-                assert(ABS(bounds[k].ub) != INF &&
+                assert(!IS_ABS_INF(bounds[k].ub) &&
                        !HAS_TAG(col_tags[k], C_TAG_UB_INF));
 
                 implied_lb = bounds[k].ub + (*row->lhs - act->max) / Aik;
@@ -539,10 +539,10 @@ bound_tightening_single_row_lhs(const ConstRowView *row, const Activity *act,
         // ------------------------------------------------------------------------------
         max_act =
             compute_max_act_one_tag(row->vals, row->cols, *row->len, bounds, k);
-        assert((act->n_inf_min == 0 && ABS(act->min) != INF && is_lhs_inf) ||
-               (!is_lhs_inf && ABS(*row->lhs) != INF));
-        assert(max_act != INF);
-        assert(Aik != INF && Aik != 0);
+        assert((act->n_inf_min == 0 && !IS_ABS_INF(act->min) && is_lhs_inf) ||
+               (!is_lhs_inf && !IS_ABS_INF(*row->lhs)));
+        assert(!IS_ABS_INF(max_act));
+        assert(!IS_ABS_INF(Aik) && Aik != 0);
         implied_bound =
             (is_lhs_inf) ? (act->min - max_act) / Aik : (*row->lhs - max_act) / Aik;
 

@@ -78,7 +78,7 @@ static void handle_impl_free_from_above_eq(RowView *row, int k, double Aik,
         }
         else
         {
-            assert(ub != -INF && ub != INF);
+            assert(!IS_ABS_INF(ub));
             if (act->n_inf_max == 0)
             {
                 act->max -= ub * Aik;
@@ -112,7 +112,7 @@ static void handle_impl_free_from_above_eq(RowView *row, int k, double Aik,
         }
         else
         {
-            assert(ub != -INF && ub != INF);
+            assert(!IS_ABS_INF(ub));
             if (act->n_inf_min == 0)
             {
                 act->min -= ub * Aik;
@@ -167,7 +167,7 @@ static void handle_impl_free_from_below_eq(RowView *row, int k, double Aik,
         }
         else
         {
-            assert(lb != -INF && lb != INF);
+            assert(!IS_ABS_INF(lb));
             if (act->n_inf_min == 0)
             {
                 act->min -= lb * Aik;
@@ -200,7 +200,7 @@ static void handle_impl_free_from_below_eq(RowView *row, int k, double Aik,
         }
         else
         {
-            assert(lb != -INF && lb != INF);
+            assert(!IS_ABS_INF(lb));
             if (act->n_inf_max == 0)
             {
                 act->max -= lb * Aik;

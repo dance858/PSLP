@@ -82,13 +82,13 @@ Activity *new_activities(const Matrix *A, const ColTag *col_tags,
                 if (vals[j] > 0)
                 {
                     assert(!HAS_TAG(col_tags[cols[j]], C_TAG_UB_INF));
-                    assert(bounds[cols[j]].ub != INF);
+                    assert(!IS_POS_INF(bounds[cols[j]].ub));
                     act->max += vals[j] * bounds[cols[j]].ub;
                 }
                 else
                 {
                     assert(!HAS_TAG(col_tags[cols[j]], C_TAG_LB_INF));
-                    assert(bounds[cols[j]].lb != -INF);
+                    assert(!IS_NEG_INF(bounds[cols[j]].lb));
                     act->max += vals[j] * bounds[cols[j]].lb;
                 }
             }
@@ -108,13 +108,13 @@ Activity *new_activities(const Matrix *A, const ColTag *col_tags,
                 if (vals[j] > 0)
                 {
                     assert(!HAS_TAG(col_tags[cols[j]], C_TAG_LB_INF));
-                    assert(bounds[cols[j]].lb != -INF);
+                    assert(!IS_NEG_INF(bounds[cols[j]].lb));
                     act->min += vals[j] * bounds[cols[j]].lb;
                 }
                 else
                 {
                     assert(!HAS_TAG(col_tags[cols[j]], C_TAG_UB_INF));
-                    assert(bounds[cols[j]].ub != INF);
+                    assert(!IS_POS_INF(bounds[cols[j]].ub));
                     act->min += vals[j] * bounds[cols[j]].ub;
                 }
             }
@@ -199,13 +199,13 @@ void Activity_init(Activity *act, const double *vals, const int *cols, int len,
             if (vals[j] > 0)
             {
                 assert(!HAS_TAG(col_tags[cols[j]], C_TAG_UB_INF));
-                assert(bounds[cols[j]].ub != INF);
+                assert(!IS_POS_INF(bounds[cols[j]].ub));
                 act->max += vals[j] * bounds[cols[j]].ub;
             }
             else
             {
                 assert(!HAS_TAG(col_tags[cols[j]], C_TAG_LB_INF));
-                assert(bounds[cols[j]].lb != -INF);
+                assert(!IS_NEG_INF(bounds[cols[j]].lb));
                 act->max += vals[j] * bounds[cols[j]].lb;
             }
         }
@@ -225,13 +225,13 @@ void Activity_init(Activity *act, const double *vals, const int *cols, int len,
             if (vals[j] > 0)
             {
                 assert(!HAS_TAG(col_tags[cols[j]], C_TAG_LB_INF));
-                assert(bounds[cols[j]].lb != -INF);
+                assert(!IS_NEG_INF(bounds[cols[j]].lb));
                 act->min += vals[j] * bounds[cols[j]].lb;
             }
             else
             {
                 assert(!HAS_TAG(col_tags[cols[j]], C_TAG_UB_INF));
-                assert(bounds[cols[j]].ub != INF);
+                assert(!IS_POS_INF(bounds[cols[j]].ub));
                 act->min += vals[j] * bounds[cols[j]].ub;
             }
         }
@@ -254,7 +254,7 @@ double compute_min_act_tags(const double *vals, const int *cols, int len,
         {
             if (!HAS_TAG(col_tags[cols[j]], C_TAG_LB_INF))
             {
-                assert(bounds[cols[j]].lb != -INF);
+                assert(!IS_NEG_INF(bounds[cols[j]].lb));
                 min_act += vals[j] * bounds[cols[j]].lb;
             }
         }
@@ -262,7 +262,7 @@ double compute_min_act_tags(const double *vals, const int *cols, int len,
         {
             if (!HAS_TAG(col_tags[cols[j]], C_TAG_UB_INF))
             {
-                assert(bounds[cols[j]].ub != INF);
+                assert(!IS_POS_INF(bounds[cols[j]].ub));
                 min_act += vals[j] * bounds[cols[j]].ub;
             }
         }
@@ -280,7 +280,7 @@ double compute_max_act_tags(const double *vals, const int *cols, int len,
         {
             if (!HAS_TAG(col_tags[cols[j]], C_TAG_UB_INF))
             {
-                assert(bounds[cols[j]].ub != INF);
+                assert(!IS_POS_INF(bounds[cols[j]].ub));
                 max_act += vals[j] * bounds[cols[j]].ub;
             }
         }
@@ -288,7 +288,7 @@ double compute_max_act_tags(const double *vals, const int *cols, int len,
         {
             if (!HAS_TAG(col_tags[cols[j]], C_TAG_LB_INF))
             {
-                assert(bounds[cols[j]].lb != -INF);
+                assert(!IS_NEG_INF(bounds[cols[j]].lb));
                 max_act += vals[j] * bounds[cols[j]].lb;
             }
         }
@@ -304,12 +304,12 @@ double compute_min_act_no_tags(const double *vals, const int *cols, int len,
     {
         if (vals[j] > 0)
         {
-            assert(bounds[cols[j]].lb != -INF);
+            assert(!IS_NEG_INF(bounds[cols[j]].lb));
             min_act += vals[j] * bounds[cols[j]].lb;
         }
         else
         {
-            assert(bounds[cols[j]].ub != INF);
+            assert(!IS_POS_INF(bounds[cols[j]].ub));
             min_act += vals[j] * bounds[cols[j]].ub;
         }
     }
@@ -324,12 +324,12 @@ double compute_max_act_no_tags(const double *vals, const int *cols, int len,
     {
         if (vals[j] > 0)
         {
-            assert(bounds[cols[j]].ub != INF);
+            assert(!IS_POS_INF(bounds[cols[j]].ub));
             max_act += vals[j] * bounds[cols[j]].ub;
         }
         else
         {
-            assert(bounds[cols[j]].lb != -INF);
+            assert(!IS_NEG_INF(bounds[cols[j]].lb));
             max_act += vals[j] * bounds[cols[j]].lb;
         }
     }
@@ -350,12 +350,12 @@ double compute_min_act_one_tag(const double *vals, const int *cols, int len,
 
         if (vals[j] > 0)
         {
-            assert(bounds[cols[j]].lb != -INF);
+            assert(!IS_NEG_INF(bounds[cols[j]].lb));
             min_act += vals[j] * bounds[cols[j]].lb;
         }
         else
         {
-            assert(bounds[cols[j]].ub != INF);
+            assert(!IS_POS_INF(bounds[cols[j]].ub));
             min_act += vals[j] * bounds[cols[j]].ub;
         }
     }
@@ -376,12 +376,12 @@ double compute_max_act_one_tag(const double *vals, const int *cols, int len,
 
         if (vals[j] > 0)
         {
-            assert(bounds[cols[j]].ub != INF);
+            assert(!IS_POS_INF(bounds[cols[j]].ub));
             max_act += vals[j] * bounds[cols[j]].ub;
         }
         else
         {
-            assert(bounds[cols[j]].lb != -INF);
+            assert(!IS_NEG_INF(bounds[cols[j]].lb));
             max_act += vals[j] * bounds[cols[j]].lb;
         }
     }

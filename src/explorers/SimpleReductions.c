@@ -623,7 +623,7 @@ void clean_small_coeff_A(Matrix *A, const Bound *bounds, const RowTag *row_tags,
 
             if (has_finite_bounds)
             {
-                assert(ABS(bounds[col].lb) != INF && ABS(bounds[col].ub) != INF);
+                assert(!IS_ABS_INF(bounds[col].lb) && !IS_ABS_INF(bounds[col].ub));
                 diff = bounds[col].ub - bounds[col].lb;
                 assert(diff >= 0);
 

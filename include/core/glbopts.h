@@ -19,11 +19,10 @@
 #ifndef GLB_H_GUARD
 #define GLB_H_GUARD
 
-#include "PSLP_inf.h"
-
-#define INF PSLP_INF
-#define IS_POS_INF(x) ((x) >= PSLP_INF)
-#define IS_NEG_INF(x) ((x) <= -PSLP_INF)
+#include <math.h>
+#define INF (INFINITY)
+#define IS_POS_INF(x) (isinf(x) && (x) > 0)
+#define IS_NEG_INF(x) (isinf(x) && (x) < 0)
 #define IS_ABS_INF(x) (IS_POS_INF(x) || IS_NEG_INF(x))
 
 #ifdef TESTING

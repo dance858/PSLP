@@ -299,13 +299,6 @@ void verify_nonnegative_iVec(const iVec *vec)
 
 void verify_no_duplicates_lists(const State *data)
 {
-    // verify_no_duplicates(data->updated_activities);
-    // verify_no_duplicates(data->dton_rows);
-    // verify_no_duplicates(data->ston_rows);
-    // verify_no_duplicates(data->fixed_cols_to_delete);
-    // verify_no_duplicates(data->sub_cols_to_delete);
-    // verify_no_duplicates(data->rows_to_delete);
-
     verify_nonnegative_iVec(data->updated_activities);
     verify_nonnegative_iVec(data->dton_rows);
     verify_nonnegative_iVec(data->ston_rows);
@@ -329,24 +322,24 @@ void verify_row_tags(const Constraints *constraints)
 
     for (int i = 0; i < constraints->m; ++i)
     {
-        if (lhs[i] == -INF && !HAS_TAG(row_tags[i], R_TAG_INACTIVE))
+        if (IS_NEG_INF(lhs[i]) && !HAS_TAG(row_tags[i], R_TAG_INACTIVE))
         {
             assert(HAS_TAG(row_tags[i], R_TAG_LHS_INF));
         }
 
-        if (rhs[i] == INF && !HAS_TAG(row_tags[i], R_TAG_INACTIVE))
+        if (IS_POS_INF(rhs[i]) && !HAS_TAG(row_tags[i], R_TAG_INACTIVE))
         {
             assert(HAS_TAG(row_tags[i], R_TAG_RHS_INF));
         }
 
         if (HAS_TAG(row_tags[i], R_TAG_LHS_INF))
         {
-            assert(lhs[i] == -INF);
+            assert(IS_NEG_INF(lhs[i]));
         }
 
         if (HAS_TAG(row_tags[i], R_TAG_RHS_INF))
         {
-            assert(rhs[i] == INF);
+            assert(IS_POS_INF(rhs[i]));
         }
 
         if (!HAS_TAG(row_tags[i], R_TAG_LHS_INF) &&
@@ -672,13 +665,13 @@ void verify_activity(const ColTag *col_tags, const Bound *bounds, Activity activ
             if (vals[i] > 0)
             {
                 assert(!HAS_TAG(col_tags[col], C_TAG_UB_INF) &&
-                       bounds[col].ub != INF);
+                       !IS_POS_INF(bounds[col].ub));
                 max += vals[i] * bounds[col].ub;
             }
             else
             {
                 assert(!HAS_TAG(col_tags[col], C_TAG_LB_INF) &&
-                       bounds[col].lb != -INF);
+                       !IS_NEG_INF(bounds[col].lb));
                 max += vals[i] * bounds[col].lb;
             }
         }
@@ -704,13 +697,13 @@ void verify_activity(const ColTag *col_tags, const Bound *bounds, Activity activ
             if (vals[i] > 0)
             {
                 assert(!HAS_TAG(col_tags[col], C_TAG_LB_INF) &&
-                       bounds[col].lb != -INF);
+                       !IS_NEG_INF(bounds[col].lb));
                 min += vals[i] * bounds[col].lb;
             }
             else
             {
                 assert(!HAS_TAG(col_tags[col], C_TAG_UB_INF) &&
-                       bounds[col].ub != INF);
+                       !IS_POS_INF(bounds[col].ub));
                 min += vals[i] * bounds[col].ub;
             }
         }
