@@ -72,7 +72,7 @@ file(GLOB CORE_SOURCES CONFIGURE_DEPENDS
 
 # distinguish between public and private headers
 set(PUBLIC_HEADERS
-  include/PSLP/API.h
+  include/PSLP/PSLP_API.h
  
 )
 
@@ -129,9 +129,11 @@ endif()
 # Testing
 option(BUILD_TESTING "Build tests" OFF)
 if(BUILD_TESTING)
+#option(PSLP_BUILD_TESTING "Build PSLP tests" OFF)
+#if(PSLP_BUILD_TESTING)
   include(CTest)
   enable_testing()
-  message(STATUS "Testing enabled")
+  message(STATUS "PSLP testing enabled (this should be disabled for production builds!!!)")
 
   add_executable(all_tests tests/all_tests.c)
 
