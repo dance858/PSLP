@@ -134,12 +134,10 @@ Matrix *transpose(const Matrix *A, int *work_n_cols)
             count[A->i[j]]++;
         }
     }
-
     // ------------------------------------------------------------------
     //  compute row pointers, taking the extra space into account
     // ------------------------------------------------------------------
     AT->p[0].start = 0;
-
     for (i = 0; i < A->n; ++i)
     {
         start = AT->p[i].start;
@@ -153,7 +151,7 @@ Matrix *transpose(const Matrix *A, int *work_n_cols)
     AT->p[A->n].end = AT->n_alloc;
 
     // ------------------------------------------------------------------
-    //  fill transposed matrix
+    //  fill transposed matrix (this is a bottleneck)
     // ------------------------------------------------------------------
     for (i = 0; i < A->m; ++i)
     {

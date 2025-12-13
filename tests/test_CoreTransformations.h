@@ -26,8 +26,8 @@ static char *test_1_core()
     double c[] = {0, 0, 0, 0};
 
     Settings *stgs = default_settings();
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Constraints *constraints = presolver->prob->constraints;
 

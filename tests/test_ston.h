@@ -62,8 +62,8 @@ static char *test_01_ston()
     double c[] = {1, 1, -1, 3, 2};
 
     Settings *stgs = default_settings();
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -147,8 +147,8 @@ static char *test_02_ston()
     double c[] = {1, 1, -1, 3, 2};
 
     Settings *stgs = default_settings();
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -233,8 +233,8 @@ static char *test_03_ston()
     double c[] = {1, 1, -1, 3, 2};
 
     Settings *stgs = default_settings();
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -320,8 +320,8 @@ static char *test_04_ston()
     double c[] = {1, 2, -1, 3, 2};
 
     Settings *stgs = default_settings();
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -407,8 +407,8 @@ static char *test_05_ston()
     double c[] = {1, 1, -1, 3, 2};
 
     Settings *stgs = default_settings();
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -494,8 +494,8 @@ static char *test_06_ston()
     double c[] = {1, 1, -1, 3, 2};
 
     Settings *stgs = default_settings();
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -582,8 +582,8 @@ static char *test_07_ston()
     double c[] = {1, 1, -1, 3, 2};
 
     Settings *stgs = default_settings();
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -669,8 +669,8 @@ static char *test_08_ston()
     double c[] = {1, 1, -1, 3, 2};
 
     Settings *stgs = default_settings();
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -757,8 +757,8 @@ static char *test_09_ston()
     double c[] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
     Settings *stgs = default_settings();
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -841,8 +841,8 @@ static char *test_10_ston()
     double c[] = {1, 2, -4, -3};
 
     Settings *stgs = default_settings();
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -924,8 +924,8 @@ static char *test_12_ston()
     double c[] = {4, 1, -2, 7};
 
     Settings *stgs = default_settings();
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -1007,8 +1007,8 @@ static char *test_13_ston()
     double c[] = {4, -1, -2, 7};
 
     Settings *stgs = default_settings();
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -1082,8 +1082,8 @@ static char *test_14_ston()
     double c[] = {-1, 1, 1};
 
     Settings *stgs = default_settings();
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -1127,8 +1127,8 @@ static char *test_15_ston()
     double c[] = {-1, 1, 1};
 
     Settings *stgs = default_settings();
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;

@@ -39,8 +39,8 @@ static char *test_0_postsolve()
     Settings *stgs = default_settings();
     set_settings_true(stgs);
     stgs->parallel_cols = false;
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -102,8 +102,8 @@ static char *test_1_postsolve()
     set_settings_true(stgs);
     stgs->parallel_cols = false;
     // stgs->ston_cols = false;
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -156,8 +156,8 @@ static char *test_singleton_eq()
     set_settings_true(stgs);
     stgs->parallel_cols = false;
     stgs->primal_propagation = false;
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -217,8 +217,8 @@ static char *test_1_postsolve_implied_bound_active()
     Settings *stgs = default_settings();
     set_settings_true(stgs);
     stgs->parallel_cols = false;
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -270,8 +270,8 @@ static char *test_singleton_ineq_row()
     Settings *stgs = default_settings();
     set_settings_true(stgs);
     stgs->parallel_cols = false;
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -332,8 +332,8 @@ static char *test_2_postsolve()
     Settings *stgs = default_settings();
     set_settings_true(stgs);
     stgs->primal_propagation = false;
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -383,8 +383,8 @@ static char *test_implied_free_col_ston_in_inequality_postsolve()
     stgs->primal_propagation = false;
     stgs->parallel_cols = false;
     stgs->dual_fix = false;
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -435,8 +435,8 @@ static char *test_col_ston_dual_fix()
     stgs->primal_propagation = false;
     stgs->parallel_cols = false;
     stgs->dual_fix = false;
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -490,8 +490,8 @@ static char *test_3_postsolve()
     set_settings_true(stgs);
     stgs->primal_propagation = false;
     stgs->parallel_cols = false;
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -549,8 +549,8 @@ static char *test_4_postsolve()
     Settings *stgs = default_settings();
     set_settings_true(stgs);
     stgs->primal_propagation = false;
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -621,8 +621,8 @@ static char *test_6_postsolve()
     // reductions enabled
     stgs->dual_fix = false;
     stgs->primal_propagation = false;
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -687,8 +687,8 @@ static char *test_7_postsolve()
     // with dual reduction enabled we reduce the problem much more.
     // Would be interesting to add this test again with that reductions enabled
     stgs->dual_fix = false;
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -758,8 +758,8 @@ static char *test_8_postsolve()
     stgs->ston_cols = false;
     stgs->primal_propagation = false;
     stgs->dual_fix = false;
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -818,8 +818,8 @@ static char *test_9_postsolve()
     set_settings_true(stgs);
     stgs->primal_propagation = false;
     stgs->parallel_cols = false;
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -872,8 +872,8 @@ static char *test_pathological_ston_one()
     set_settings_true(stgs);
     stgs->parallel_cols = false;
     stgs->primal_propagation = false;
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
@@ -926,8 +926,8 @@ static char *test_pathological_ston_two()
     set_settings_true(stgs);
     stgs->parallel_cols = false;
     stgs->primal_propagation = false;
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;

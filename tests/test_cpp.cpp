@@ -9,7 +9,6 @@ int main()
 {
     double INF = std::numeric_limits<double>::infinity();
 
-    double CSR = true;
     double Ax[] = {
         -1.,   1.,    1.,    -1.06, 1.,    1.,    -1.,   1.4,   -1.,   -1.,   -1.,
         -1.,   1.,    1.,    -1.06, -1.06, -0.96, -0.86, 1.,    1.,    -1.,   1.,
@@ -44,8 +43,8 @@ int main()
                   0., 0.,    0., 0., 0., 0.,   -0.48, 0., 0., 10.};
 
     Settings *stgs = default_settings();
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, CSR);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
     assert(presolver != nullptr && "Presolver initialization failed");
 
     PresolveStatus status = run_presolver(presolver);

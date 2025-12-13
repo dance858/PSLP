@@ -42,7 +42,7 @@ extern "C"
         bool parallel_rows;
         bool parallel_cols;
         bool primal_propagation;
-        bool clean_small_coeff;
+        // bool clean_small_coeff;
         bool finite_bound_tightening;
         bool dual_fix;
         bool relax_bounds;
@@ -111,7 +111,7 @@ extern "C"
     Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
                              int n, int nnz, const double *lhs, const double *rhs,
                              const double *lbs, const double *ubs, const double *c,
-                             const Settings *stgs, bool CSR);
+                             const Settings *stgs);
 
     /* Free the memory allocated for the presolver. */
     void free_presolver(Presolver *presolver);
