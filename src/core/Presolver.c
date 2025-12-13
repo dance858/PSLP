@@ -45,6 +45,7 @@
 #include "dVec.h"
 #include "glbopts.h"
 #include "iVec.h"
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -83,13 +84,63 @@ Settings *default_settings()
     stgs->parallel_cols = true;
     stgs->primal_propagation = true;
     stgs->dual_fix = true;
-    stgs->clean_small_coeff = false;
+    // stgs->clean_small_coeff = false;
     stgs->finite_bound_tightening = true;
     stgs->relax_bounds = true;
     stgs->max_shift = 10;
     stgs->max_time = 60.0;
     stgs->verbose = true;
     return stgs;
+}
+
+// Helper struct for parallel initialization work
+typedef struct
+{
+    Matrix *A;
+    Work *work;
+    int n_cols;
+    int n_rows;
+    const double *lbs;
+    const double *ubs;
+    double *lhs_copy;
+    double *rhs_copy;
+    Bound *bounds;
+    ColTag *col_tags;
+    RowTag *row_tags;
+    Lock *locks;
+    Activity *activities;
+    int *row_sizes;
+} ParallelInitData;
+
+// thread function for initializing data
+static void *init_thread_func(void *arg)
+{
+    ParallelInitData *data = (ParallelInitData *) arg;
+
+    data->row_tags = new_rowtags(data->lhs_copy, data->rhs_copy, data->n_rows);
+
+    for (int i = 0; i < data->n_cols; i++)
+    {
+        data->bounds[i].lb = data->lbs[i];
+        data->bounds[i].ub = data->ubs[i];
+
+        if (IS_NEG_INF(data->lbs[i]))
+        {
+            UPDATE_TAG(data->col_tags[i], C_TAG_LB_INF);
+        }
+
+        if (IS_POS_INF(data->ubs[i]))
+        {
+
+            UPDATE_TAG(data->col_tags[i], C_TAG_UB_INF);
+        }
+    }
+
+    data->locks = new_locks(data->A, data->row_tags);
+    data->activities = new_activities(data->A, data->col_tags, data->bounds);
+    count_rows(data->A, data->row_sizes);
+
+    return NULL;
 }
 
 void set_settings_true(Settings *stgs)
@@ -100,7 +151,7 @@ void set_settings_true(Settings *stgs)
     stgs->parallel_cols = true;
     stgs->primal_propagation = true;
     stgs->dual_fix = true;
-    stgs->clean_small_coeff = true;
+    // stgs->clean_small_coeff = true;
     stgs->finite_bound_tightening = true;
     stgs->relax_bounds = true;
     stgs->verbose = true;
@@ -114,7 +165,7 @@ void set_settings_false(Settings *stgs)
     stgs->parallel_cols = false;
     stgs->primal_propagation = false;
     stgs->dual_fix = false;
-    stgs->clean_small_coeff = false;
+    // stgs->clean_small_coeff = false;
     stgs->finite_bound_tightening = false;
     stgs->relax_bounds = false;
     stgs->verbose = false;
@@ -161,7 +212,7 @@ void presolver_clean_up(clean_up_scope scope)
 Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
                          int n, int nnz, const double *lhs, const double *rhs,
                          const double *lbs, const double *ubs, const double *c,
-                         const Settings *stgs, bool CSR)
+                         const Settings *stgs)
 {
     Timer timer;
     clock_gettime(CLOCK_MONOTONIC, &timer.start);
@@ -206,56 +257,42 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     memcpy(c_copy, c, n_cols * sizeof(double));
 
     // ---------------------------------------------------------------------------
-    //                  Build bounds, row tags, A and AT.
+    //  Build bounds, row tags, A and AT. We first build A, then in parallel
+    //  we build AT (main thread) and some other things (second thread).
     // ---------------------------------------------------------------------------
-    row_tags = new_rowtags(lhs_copy, rhs_copy, n_rows);
-    if (!row_tags) goto cleanup;
+    A = matrix_new_no_extra_space(Ax, Ai, Ap, n_rows, n_cols, nnz);
+    if (!A) goto cleanup;
 
-    for (int i = 0; i < n_cols; i++)
+    // commented out for now because does not seem helpful
+    // if (stgs->clean_small_coeff)
+    // {
+    //     clean_small_coeff_A(A, bounds, row_tags, col_tags, rhs_copy, lhs_copy);
+    // }
+
+    pthread_t thread_id;
+    ParallelInitData parallel_data = {A,    work,     n_cols,   n_rows,   lbs,
+                                      ubs,  lhs_copy, rhs_copy, bounds,   col_tags,
+                                      NULL, NULL,     NULL,     row_sizes};
+
+    pthread_create(&thread_id, NULL, init_thread_func, &parallel_data);
+
+    // Main thread: Transpose A and count rows
+    AT = transpose(A, work->iwork_n_cols);
+    if (!AT)
     {
-        bounds[i].lb = lbs[i];
-        bounds[i].ub = ubs[i];
-
-        if (IS_NEG_INF(lbs[i]))
-        {
-            UPDATE_TAG(col_tags[i], C_TAG_LB_INF);
-        }
-
-        if (IS_POS_INF(ubs[i]))
-        {
-            UPDATE_TAG(col_tags[i], C_TAG_UB_INF);
-        }
+        pthread_cancel(thread_id);
+        goto cleanup;
     }
-
-    if (CSR)
-    {
-        A = matrix_new_no_extra_space(Ax, Ai, Ap, n_rows, n_cols, nnz);
-        if (!A) goto cleanup;
-
-        if (stgs->clean_small_coeff)
-        {
-            clean_small_coeff_A(A, bounds, row_tags, col_tags, rhs_copy, lhs_copy);
-        }
-
-        AT = transpose(A, work->iwork_n_cols);
-        if (!AT) goto cleanup;
-    }
-    else
-    {
-        AT = matrix_new(Ax, Ai, Ap, n_cols, n_rows, nnz);
-        if (!AT) goto cleanup;
-        A = transpose(AT, work->iwork_n_rows);
-        if (!A) goto cleanup;
-    }
-
-    // ---------------------------------------------------------------------------
-    //           locks, activities, row sizes and column sizes
-    // ---------------------------------------------------------------------------
-    locks = new_locks(A, row_tags);
-    activities = new_activities(A, col_tags, bounds);
-    if (!locks || !activities) goto cleanup;
-    count_rows(A, row_sizes);
     count_rows(AT, col_sizes);
+
+    // sync threads
+    pthread_join(thread_id, NULL);
+
+    row_tags = parallel_data.row_tags;
+    if (!row_tags) goto cleanup;
+    locks = parallel_data.locks;
+    activities = parallel_data.activities;
+    if (!locks || !activities) goto cleanup;
 
     // ---------------------------------------------------------------------------
     //  Initialize internal data and constraints
@@ -277,7 +314,8 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     presolver->stgs = stgs;
     presolver->prob = new_problem(constraints, obj);
     presolver->stats = init_stats(A->m, A->n, nnz);
-    presolver->stats->nnz_removed_trivial = nnz - A->nnz; // due to clean_small_coeff
+    // presolver->stats->nnz_removed_trivial = nnz - A->nnz; // due to
+    // clean_small_coeff
     presolver->reduced_prob =
         (PresolvedProblem *) ps_calloc(1, sizeof(PresolvedProblem));
     DEBUG(run_debugger(constraints, false));

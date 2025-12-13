@@ -128,6 +128,10 @@ else()
     target_compile_definitions(PSLP PRIVATE NDEBUG)
 endif()
 
+# Link pthread library
+find_package(Threads REQUIRED)
+target_link_libraries(PSLP PRIVATE Threads::Threads)
+
 # Testing
 option(PSLP_BUILD_TESTING "Build PSLP tests" OFF)
 if(PSLP_BUILD_TESTING)

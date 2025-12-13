@@ -30,8 +30,8 @@ static char *test_00_presolver()
     double c[] = {2, -1, -1, 3, 2};
 
     Settings *stgs = default_settings();
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
     mu_assert("Presolver initialization failed", presolver != NULL);
     PS_FREE(stgs);
@@ -77,8 +77,8 @@ static char *test_01_presolver()
                   0., 0.,    0., 0., 0., 0.,   -0.48, 0., 0., 10.};
 
     Settings *stgs = default_settings();
-    Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs,
-                                         lbs, ubs, c, stgs, true);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
     mu_assert("Presolver initialization failed", presolver != NULL);
 
     run_presolver(presolver);
