@@ -278,8 +278,6 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     presolver->prob = new_problem(constraints, obj);
     presolver->stats = init_stats(A->m, A->n, nnz);
     presolver->stats->nnz_removed_trivial = nnz - A->nnz; // due to clean_small_coeff
-    clock_gettime(CLOCK_MONOTONIC, &timer.end);
-    presolver->stats->ps_time_init = GET_ELAPSED_SECONDS(timer);
     presolver->reduced_prob =
         (PresolvedProblem *) ps_calloc(1, sizeof(PresolvedProblem));
     DEBUG(run_debugger(constraints, false));
@@ -298,6 +296,9 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     {
         goto cleanup;
     }
+
+    clock_gettime(CLOCK_MONOTONIC, &timer.end);
+    presolver->stats->ps_time_init = GET_ELAPSED_SECONDS(timer);
 
     return presolver;
 
@@ -369,12 +370,10 @@ static inline Complexity update_complexity(Complexity curr_complexity,
     {
         return FAST;
     }
-    else
-    {
-        assert(false);
-    }
 
-    return FAST; // to suppress compiler warning
+    // should never reach here
+    assert(false);
+    return FAST;
 }
 
 /* This function exhaustively removes singleton rows from the problem. It
@@ -472,7 +471,7 @@ run_medium_explorers(Problem *prob, const Settings *stgs, PresolveStats *stats)
         status |= check_activities(prob);
         status |= propagate_primal(prob, stgs->finite_bound_tightening);
 
-        // after dom prop propagation there can be new empty and ston rows rows
+        // after dom prop propagation there can be new empty and ston rows
         status |= run_trivial_explorers(prob, stgs);
 
         // stats
@@ -525,33 +524,33 @@ run_medium_explorers(Problem *prob, const Settings *stgs, PresolveStats *stats)
 
 void populate_presolved_problem(Presolver *presolver)
 {
-    PresolvedProblem *ps_prob = presolver->reduced_prob;
+    PresolvedProblem *reduced_prob = presolver->reduced_prob;
     Constraints *constraints = presolver->prob->constraints;
     Matrix *A = constraints->A;
-    ps_prob->m = A->m;
-    ps_prob->n = A->n;
-    ps_prob->nnz = A->nnz;
-    ps_prob->Ax = A->x;
-    ps_prob->Ai = A->i;
-    ps_prob->rhs = constraints->rhs;
-    ps_prob->lhs = constraints->lhs;
-    ps_prob->c = presolver->prob->obj->c;
-    ps_prob->obj_offset = presolver->prob->obj->offset;
+    reduced_prob->m = A->m;
+    reduced_prob->n = A->n;
+    reduced_prob->nnz = A->nnz;
+    reduced_prob->Ax = A->x;
+    reduced_prob->Ai = A->i;
+    reduced_prob->rhs = constraints->rhs;
+    reduced_prob->lhs = constraints->lhs;
+    reduced_prob->c = presolver->prob->obj->c;
+    reduced_prob->obj_offset = presolver->prob->obj->offset;
 
     // create bounds arrays
-    ps_prob->lbs = (double *) malloc(A->n * sizeof(double));
-    ps_prob->ubs = (double *) malloc(A->n * sizeof(double));
+    reduced_prob->lbs = (double *) malloc(A->n * sizeof(double));
+    reduced_prob->ubs = (double *) malloc(A->n * sizeof(double));
     for (int i = 0; i < A->n; i++)
     {
-        ps_prob->lbs[i] = constraints->bounds[i].lb;
-        ps_prob->ubs[i] = constraints->bounds[i].ub;
+        reduced_prob->lbs[i] = constraints->bounds[i].lb;
+        reduced_prob->ubs[i] = constraints->bounds[i].ub;
     }
 
     // create row pointers
-    ps_prob->Ap = (int *) malloc((A->m + 1) * sizeof(int));
+    reduced_prob->Ap = (int *) malloc((A->m + 1) * sizeof(int));
     for (int i = 0; i < A->m + 1; i++)
     {
-        ps_prob->Ap[i] = A->p[i].start;
+        reduced_prob->Ap[i] = A->p[i].start;
     }
 }
 
@@ -559,7 +558,7 @@ static inline void print_start_message(const PresolveStats *stats)
 {
     printf("\n\t       PSLP v%s - LP presolver \n\t(c) Daniel "
            "Cederberg, Stanford University, 2025\n",
-           PSLP_presolve_VERSION);
+           PSLP_VERSION);
     printf("Original problem:  %d rows, %d columns, %d nnz\n",
            stats->n_rows_original, stats->n_cols_original, stats->nnz_original);
 }
@@ -567,8 +566,7 @@ static inline void print_start_message(const PresolveStats *stats)
 static inline void print_end_message(const Matrix *A, const PresolveStats *stats)
 {
     printf("Presolved problem: %d rows, %d columns, %d nnz\n", A->m, A->n, A->nnz);
-
-    printf("Presolver init & run time : %.3f seconds, %.3f \n", stats->ps_time_init,
+    printf("PSLP init & run time : %.3f seconds, %.3f \n", stats->ps_time_init,
            stats->presolve_total_time);
 }
 
@@ -605,8 +603,10 @@ PresolveStatus run_presolver(Presolver *presolver)
         // before each phase we run the trivial presolvers
         nnz_before_reduction = A->nnz;
         status = run_trivial_explorers(prob, stgs);
+        // run_trivial_explorers returns something else than UNCHANGED only
+        // if the problem is detected to be infeasible or unbounded
+        RETURN_IF_NOT_UNCHANGED(status);
         stats->nnz_removed_trivial += nnz_before_reduction - A->nnz;
-        RETURN_IF_NOT_UNCHANGED(status); // TODO: this name is misleading!
         DEBUG(run_debugger(prob->constraints, false));
         nnz_before_phase = A->nnz;
 
@@ -653,9 +653,9 @@ PresolveStatus run_presolver(Presolver *presolver)
     stats->n_rows_reduced = A->m;
     stats->n_cols_reduced = A->n;
     stats->nnz_reduced = A->nnz;
-    stats->presolve_total_time = GET_ELAPSED_SECONDS(outer_timer);
     DEBUG(run_debugger_stats_consistency_check(stats));
     populate_presolved_problem(presolver);
+    stats->presolve_total_time = GET_ELAPSED_SECONDS(outer_timer);
 
     if (stgs->verbose)
     {
@@ -683,7 +683,7 @@ void postsolve(Presolver *presolver, const double *x, const double *y,
 
     if (presolver->stgs->verbose)
     {
-        printf("Postsolve time: %.4f seconds\n", stats->ps_time_post_solve);
+        printf("PSLP postsolve time: %.4f seconds\n", stats->ps_time_post_solve);
     }
 }
 
