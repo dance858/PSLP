@@ -1,11 +1,13 @@
 cmake_minimum_required(VERSION 3.20)
-project(PSLP
-  LANGUAGES C CXX # The library is written in C, but we also have some C++ test files
-  VERSION 0.1.0
-  DESCRIPTION "PSLP — A Lightweight C Presolver for Linear Programs"
-)
+project(PSLP LANGUAGES C CXX) # The library is written in C, but we also have some C++ test files
 
-message(STATUS "Configuring PSLP (version ${PROJECT_VERSION})")
+set(PSLP_VERSION_MAJOR 0)
+set(PSLP_VERSION_MINOR 0)
+set(PSLP_VERSION_PATCH 1)
+set(PSLP_VERSION "${PSLP_VERSION_MAJOR}.${PSLP_VERSION_MINOR}.${PSLP_VERSION_PATCH}")
+add_compile_definitions(PSLP_VERSION="${PSLP_VERSION}")
+
+message(STATUS "Configuring PSLP (version ${PSLP_VERSION})")
 
 include(GNUInstallDirs)
 
@@ -72,7 +74,7 @@ file(GLOB CORE_SOURCES CONFIGURE_DEPENDS
 
 # distinguish between public and private headers
 set(PUBLIC_HEADERS
-  include/PSLP/API.h
+  include/PSLP/PSLP_API.h
  
 )
 
@@ -127,11 +129,11 @@ else()
 endif()
 
 # Testing
-option(BUILD_TESTING "Build tests" OFF)
-if(BUILD_TESTING)
+option(PSLP_BUILD_TESTING "Build PSLP tests" OFF)
+if(PSLP_BUILD_TESTING)
   include(CTest)
   enable_testing()
-  message(STATUS "Testing enabled")
+  message(STATUS "PSLP testing enabled (this should be disabled for production builds!!!)")
 
   add_executable(all_tests tests/all_tests.c)
 
@@ -199,7 +201,7 @@ configure_package_config_file(
 
 write_basic_package_version_file(
   ${CMAKE_CURRENT_BINARY_DIR}/PSLPConfigVersion.cmake
-  VERSION ${PROJECT_VERSION}
+  VERSION ${PSLP_VERSION}
   COMPATIBILITY AnyNewerVersion
 )
 

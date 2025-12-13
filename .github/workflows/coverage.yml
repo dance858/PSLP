@@ -17,7 +17,7 @@ jobs:
 
     # ---- BUILD ----
     - name: Configure
-      run: cmake -DCOVERAGE=ON -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON .
+      run: cmake -DCOVERAGE=ON -DCMAKE_BUILD_TYPE=Debug -DPSLP_BUILD_TESTING=ON .
 
     - name: Build
       run: make -j
