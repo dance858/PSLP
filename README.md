@@ -57,6 +57,8 @@ in that folder contain some trivial public data structures. The API consists of 
 
 Detailed descriptions of each function and all associated data structures are
 documented in the `PSLP` folder. A video tutorial is available [here](https://www.youtube.com/watch?v=ASYi21eCB-8).
+Note that since the video was recorded, `PSLP_inf` has been removed. Infinite variable bounds or constraint limits
+should now be represented using the IEEE-754 encoding. (For example, in C, use `INFINITY` defined in `math.h`).
 
 
 ---
