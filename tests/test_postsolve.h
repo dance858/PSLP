@@ -960,6 +960,59 @@ static char *test_pathological_ston_two()
     return 0;
 }
 
+/* fix col to positive inf */
+static char *test_fix_col_inf()
+{
+    double Ax[] = {1.0, 1, 1, 2, 2, 1, 1, 1, 2, 1};
+    int Ai[] = {0, 1, 2, 0, 1, 2, 0, 2, 0, 2};
+    int Ap[] = {0, 3, 6, 8, 10};
+    int nnz = 10;
+    int n_rows = 4;
+    int n_cols = 3;
+    double lhs[] = {1, 3, 1, 2};
+    double rhs[] = {INF, INF, INF, INF};
+    double lbs[] = {-1.0, -INF, 0.5};
+    double ubs[] = {INF, INF, INF};
+    double c[] = {1.0, 0, 2};
+
+    Settings *stgs = default_settings();
+    set_settings_true(stgs);
+    stgs->parallel_cols = false;
+    stgs->primal_propagation = false;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    Problem *prob = presolver->prob;
+    Constraints *constraints = prob->constraints;
+    Matrix *A = constraints->A;
+
+    run_presolver(presolver);
+
+    Mapping *maps = prob->constraints->state->work->mappings;
+    int *rows_map = maps->rows;
+    int *cols_map = maps->cols;
+
+    // construct optimal primal solution to reduced problem (computed offline)
+    double x[] = {0.75, 0.5};
+    double y[] = {0.0, 0.5};
+    double z[] = {0.0, 1.5};
+    double obj = 0.0;
+    postsolve(presolver, x, y, z, obj);
+
+    // check that the primal solution to the original problem is correct
+    double correct_x[] = {0.75, 0.5, 0.5};
+    double correct_y[] = {0.0, 0.0, 0.0, 0.5};
+    double correct_z[] = {0.0, 0.0, 1.5};
+
+    mu_assert("postsolve error",
+              is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
+                                  correct_y, presolver->sol->z, correct_z, n_rows,
+                                  n_cols, POSTSOLVE_TOL_FEAS));
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_postsolve()
 {
     mu_run_test(test_0_postsolve, counter_postsolve);
@@ -979,6 +1032,7 @@ static const char *all_tests_postsolve()
     mu_run_test(test_singleton_eq, counter_postsolve);
     mu_run_test(test_pathological_ston_one, counter_postsolve);
     mu_run_test(test_pathological_ston_two, counter_postsolve);
+    mu_run_test(test_fix_col_inf, counter_postsolve);
     //        all tests above pass
 
     return 0;
