@@ -703,6 +703,7 @@ PresolveStatus propagate_primal(Problem *prob, bool finite_bound_tightening)
 
             if (HAS_STATUS(status, INFEASIBLE))
             {
+                DEBUG(PS_FREE(HAVE_ROWS_BEEN_PROP););
                 return INFEASIBLE;
             }
         }
