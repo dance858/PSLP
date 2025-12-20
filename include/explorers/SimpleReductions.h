@@ -108,7 +108,7 @@ PresolveStatus check_activities(struct Problem *prob);
 */
 PresolveStatus remove_empty_cols(struct Problem *prob);
 
-void remove_variables_with_close_bounds(struct Problem *prob);
+PresolveStatus remove_variables_with_close_bounds(struct Problem *prob);
 
 // only used for debugging purposes
 // void fix_cols_with_equal_bounds(struct Constraints *constraints);

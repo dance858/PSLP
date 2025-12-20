@@ -8,6 +8,7 @@
 #include "test_domain_propagation.h"
 #include "test_dton.h"
 #include "test_iVec.h"
+#include "test_pathological.h"
 #include "test_postsolve.h"
 #include "test_ston.h"
 
@@ -25,6 +26,8 @@ const char *run_all_tests()
     mu_assert("parallel_cols error", test_parallel_cols());
     mu_assert("postsolve error", test_postsolve());
     mu_assert("presolver error", test_presolver());
+    mu_assert("pathological error", test_pathological());
+
     return NULL;
 }
 

@@ -749,7 +749,7 @@ PresolveStatus remove_dton_eq_rows(Problem *prob, int max_shift_per_row)
     assert(prob->constraints->state->empty_cols->len == 0);
     DEBUG(verify_problem_up_to_date(prob->constraints));
 
-    PresolveStatus status = UNCHANGED;
+    // PresolveStatus status = UNCHANGED;
 
     // important to have double ptr in case of realloc when appending
     iVec **dton_rows = &(prob->constraints->state->dton_rows);
@@ -757,6 +757,12 @@ PresolveStatus remove_dton_eq_rows(Problem *prob, int max_shift_per_row)
     {
         PresolveStatus temp = remove_dton_eq_rows__(prob, max_shift_per_row);
 
+        if (temp != REDUCED)
+        {
+            break;
+        }
+
+        /*
         if (temp == REDUCED)
         {
             status = REDUCED;
@@ -765,6 +771,7 @@ PresolveStatus remove_dton_eq_rows(Problem *prob, int max_shift_per_row)
         {
             break;
         }
+        */
     }
 
     // some variables might have been fixed because of the bound change
@@ -776,5 +783,6 @@ PresolveStatus remove_dton_eq_rows(Problem *prob, int max_shift_per_row)
 
     DEBUG(verify_problem_up_to_date(prob->constraints));
 
-    return status;
+    // always return UNCHANGED because this function can't detect infeas/unbnd.
+    return UNCHANGED;
 }

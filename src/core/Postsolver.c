@@ -37,10 +37,11 @@
 PostsolveInfo *postsolve_info_new(int n_rows, int n_cols)
 {
     PostsolveInfo *info = (PostsolveInfo *) ps_malloc(1, sizeof(PostsolveInfo));
-    info->starts = iVec_new((int) (INIT_FRAC_POSTSOLVE * (n_rows + n_cols)));
-    info->indices = iVec_new((int) (INIT_FRAC_POSTSOLVE * (n_rows + n_cols)));
-    info->vals = dVec_new((int) (INIT_FRAC_POSTSOLVE * (n_rows + n_cols)));
-    info->type = u16Vec_new((int) (INIT_FRAC_POSTSOLVE * (n_rows + n_cols)));
+    info->starts = iVec_new((int) (MAX(1, INIT_FRAC_POSTSOLVE * (n_rows + n_cols))));
+    info->indices =
+        iVec_new((int) (MAX(1, INIT_FRAC_POSTSOLVE * (n_rows + n_cols))));
+    info->vals = dVec_new((int) (MAX(1, INIT_FRAC_POSTSOLVE * (n_rows + n_cols))));
+    info->type = u16Vec_new((int) (MAX(1, INIT_FRAC_POSTSOLVE * (n_rows + n_cols))));
     if (!info->starts || !info->indices || !info->vals || !info->type)
     {
         PS_FREE(info->starts);

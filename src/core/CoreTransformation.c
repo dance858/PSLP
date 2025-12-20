@@ -181,7 +181,10 @@ PresolveStatus update_lb(Constraints *constraints, int col, double new_lb,
                                            false);
         save_retrieval_bound_change_the_row(data->postsolve_info, row, row_cols,
                                             row_vals, row_len, 1);
-        return REDUCED;
+
+        // TODO: should we check for variable fixing here? And we could potentially
+        // get rid of remove_variables_with_close_bounds from trivial presolve
+        // and just run it once in the beginning?
     }
 
     return UNCHANGED;
@@ -231,6 +234,10 @@ PresolveStatus update_ub(Constraints *constraints, int col, double new_ub,
 
         save_retrieval_bound_change_the_row(data->postsolve_info, row, row_cols,
                                             row_vals, row_len, 1);
+
+        // TODO: should we check for variable fixing here? And we could potentially
+        // get rid of remove_variables_with_close_bounds from trivial presolve
+        // and just run it once in the beginning?
     }
 
     return UNCHANGED;
