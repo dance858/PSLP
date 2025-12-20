@@ -22,5 +22,5 @@ jobs:
       - name: Run tests under Valgrind
         run: |
           valgrind --leak-check=full --show-leak-kinds=all \
-                   --track-origins=yes --show-reachable=yes \
+                   --track-origins=yes -s --show-reachable=yes \
                    --error-exitcode=1 build/bin/all_tests

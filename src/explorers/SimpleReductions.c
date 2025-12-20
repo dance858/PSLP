@@ -246,7 +246,6 @@ PresolveStatus remove_ston_rows(Problem *prob)
 
         if (INFEASIBLE == remove_stonrow(prob, row))
         {
-            assert(false);
             return INFEASIBLE;
         }
     }
@@ -267,7 +266,6 @@ PresolveStatus remove_ston_rows(Problem *prob)
 
         if (INFEASIBLE == remove_stonrow(prob, row))
         {
-            assert(false);
             return INFEASIBLE;
         }
     }
@@ -671,7 +669,7 @@ void clean_small_coeff_A(Matrix *A, const Bound *bounds, const RowTag *row_tags,
     }
 }
 
-void remove_variables_with_close_bounds(Problem *prob)
+PresolveStatus remove_variables_with_close_bounds(Problem *prob)
 {
     Constraints *constraints = prob->constraints;
     const double *c = prob->obj->c;
@@ -682,7 +680,7 @@ void remove_variables_with_close_bounds(Problem *prob)
 
     for (int ii = 0; ii < n_cols; ++ii)
     {
-        if (col_sizes[ii] <= 0 ||
+        if (col_sizes[ii] < 0 ||
             HAS_TAG(col_tags[ii], (C_TAG_LB_INF | C_TAG_UB_INF)))
         {
             continue;
@@ -695,9 +693,14 @@ void remove_variables_with_close_bounds(Problem *prob)
             // no need to check return value since bounds are equal
             fix_col(constraints, ii, bounds[ii].lb, c[ii]);
         }
+        else if (bounds[ii].lb > bounds[ii].ub + FEAS_TOL)
+        {
+            return INFEASIBLE;
+        }
     }
 
     // remove fixed columns
     delete_fixed_cols_from_problem(prob);
     delete_inactive_cols_from_A_and_AT(constraints);
+    return UNCHANGED;
 }

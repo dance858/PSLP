@@ -14,9 +14,8 @@ extern "C"
     {
         UNCHANGED = 0,
         REDUCED = 1 << 0,
-        UNBOUNDED = 1 << 1,
-        INFEASIBLE = 1 << 2,
-        UNBNDORINFEAS = UNBOUNDED | INFEASIBLE,
+        INFEASIBLE = 1 << 1,
+        UNBNDORINFEAS = INFEASIBLE | (1 << 2),
     };
 
 #ifdef __cplusplus

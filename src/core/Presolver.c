@@ -314,8 +314,7 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     presolver->stgs = stgs;
     presolver->prob = new_problem(constraints, obj);
     presolver->stats = init_stats(A->m, A->n, nnz);
-    // presolver->stats->nnz_removed_trivial = nnz - A->nnz; // due to
-    // clean_small_coeff
+    // presolver->stats->nnz_removed_trivial = nnz - A->nnz; due to clean_small_coeff
     presolver->reduced_prob =
         (PresolvedProblem *) ps_calloc(1, sizeof(PresolvedProblem));
     DEBUG(run_debugger(constraints, false));
@@ -336,7 +335,7 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     }
 
     clock_gettime(CLOCK_MONOTONIC, &timer.end);
-    presolver->stats->ps_time_init = GET_ELAPSED_SECONDS(timer);
+    presolver->stats->time_init = GET_ELAPSED_SECONDS(timer);
 
     return presolver;
 
@@ -423,7 +422,10 @@ static inline PresolveStatus run_trivial_explorers(Problem *prob,
 {
     PresolveStatus status = UNCHANGED;
 
-    remove_variables_with_close_bounds(prob);
+    // TODO: should we just run this once in the beginning of presolve?
+    // Very important question.
+    status = remove_variables_with_close_bounds(prob);
+    RETURN_IF_INFEASIBLE(status);
 
     if (stgs->dual_fix)
     {
@@ -511,11 +513,13 @@ run_medium_explorers(Problem *prob, const Settings *stgs, PresolveStats *stats)
 
         // after dom prop propagation there can be new empty and ston rows
         status |= run_trivial_explorers(prob, stgs);
+        assert(!(status & REDUCED));
+        RETURN_IF_NOT_UNCHANGED(status);
 
         // stats
         stats->nnz_removed_primal_propagation += nnz_before - *nnz;
         clock_gettime(CLOCK_MONOTONIC, &timer.end);
-        stats->ps_time_primal_propagation += GET_ELAPSED_SECONDS(timer);
+        stats->time_primal_propagation += GET_ELAPSED_SECONDS(timer);
     }
 
     if (stgs->parallel_rows)
@@ -529,11 +533,13 @@ run_medium_explorers(Problem *prob, const Settings *stgs, PresolveStats *stats)
         status |= remove_parallel_rows(prob->constraints);
         assert(prob->constraints->state->empty_rows->len == 0);
         assert(prob->constraints->state->ston_rows->len == 0);
+        assert(!(status & REDUCED));
+        RETURN_IF_NOT_UNCHANGED(status);
 
         // stats
         stats->nnz_removed_parallel_rows += nnz_before - *nnz;
         clock_gettime(CLOCK_MONOTONIC, &timer.end);
-        stats->ps_time_parallel_rows += GET_ELAPSED_SECONDS(timer);
+        stats->time_parallel_rows += GET_ELAPSED_SECONDS(timer);
     }
 
     if (stgs->parallel_cols)
@@ -550,11 +556,13 @@ run_medium_explorers(Problem *prob, const Settings *stgs, PresolveStats *stats)
         assert(prob->constraints->state->empty_cols->len == 0);
         status |= run_trivial_explorers(prob, stgs);
         assert(prob->constraints->state->ston_rows->len == 0);
+        assert(!(status & REDUCED));
+        RETURN_IF_NOT_UNCHANGED(status);
 
         // stats
         stats->nnz_removed_parallel_cols += nnz_before - *nnz;
         clock_gettime(CLOCK_MONOTONIC, &timer.end);
-        stats->ps_time_parallel_cols += GET_ELAPSED_SECONDS(timer);
+        stats->time_parallel_cols += GET_ELAPSED_SECONDS(timer);
     }
 
     return status;
@@ -604,8 +612,39 @@ static inline void print_start_message(const PresolveStats *stats)
 static inline void print_end_message(const Matrix *A, const PresolveStats *stats)
 {
     printf("Presolved problem: %d rows, %d columns, %d nnz\n", A->m, A->n, A->nnz);
-    printf("PSLP init & run time : %.3f seconds, %.3f \n", stats->ps_time_init,
-           stats->presolve_total_time);
+    printf("PSLP init & run time : %.3f seconds, %.3f \n", stats->time_init,
+           stats->time_presolve);
+}
+
+static inline void print_infeas_or_unbnd_message(PresolveStatus status)
+{
+    if (status == INFEASIBLE)
+    {
+        printf("PSLP declares problem as infeasible.\n");
+        return;
+    }
+    else if (status == UNBNDORINFEAS)
+    {
+        printf("PSLP declares problem as infeasible or unbounded.\n");
+        return;
+    }
+
+    // should never reach here
+    assert(false);
+}
+
+static inline PresolveStatus final_status(PresolveStats *stats)
+{
+    if (stats->n_cols_original == stats->n_cols_reduced &&
+        stats->n_rows_original == stats->n_rows_reduced &&
+        stats->nnz_original == stats->nnz_reduced)
+    {
+        return UNCHANGED;
+    }
+    else
+    {
+        return REDUCED;
+    }
 }
 
 PresolveStatus run_presolver(Presolver *presolver)
@@ -641,9 +680,14 @@ PresolveStatus run_presolver(Presolver *presolver)
         // before each phase we run the trivial presolvers
         nnz_before_reduction = A->nnz;
         status = run_trivial_explorers(prob, stgs);
+
         // run_trivial_explorers returns something else than UNCHANGED only
         // if the problem is detected to be infeasible or unbounded
-        RETURN_IF_NOT_UNCHANGED(status);
+        if (status != UNCHANGED)
+        {
+            break;
+        }
+
         stats->nnz_removed_trivial += nnz_before_reduction - A->nnz;
         DEBUG(run_debugger(prob->constraints, false));
         nnz_before_phase = A->nnz;
@@ -652,14 +696,14 @@ PresolveStatus run_presolver(Presolver *presolver)
         if (curr_complexity == FAST)
         {
             nnz_before_reduction = A->nnz;
-            RUN_AND_TIME(run_fast_explorers, inner_timer, stats->ps_time_fast,
-                         status, prob, stgs);
+            RUN_AND_TIME(run_fast_explorers, inner_timer,
+                         stats->time_fast_reductions, status, prob, stgs);
             stats->nnz_removed_fast += nnz_before_reduction - A->nnz;
         }
         else if (curr_complexity == MEDIUM)
         {
-            RUN_AND_TIME(run_medium_explorers, inner_timer, stats->ps_time_medium,
-                         status, prob, stgs, stats);
+            RUN_AND_TIME(run_medium_explorers, inner_timer,
+                         stats->time_medium_reductions, status, prob, stgs, stats);
             nnz_after_cycle = A->nnz;
         }
 
@@ -679,6 +723,13 @@ PresolveStatus run_presolver(Presolver *presolver)
             update_complexity(curr_complexity, nnz_before_phase, nnz_after_phase);
     }
 
+    if (status != UNCHANGED)
+    {
+        // problem detected to be infeasible or unbounded
+        print_infeas_or_unbnd_message(status);
+        return status;
+    }
+
     if (stgs->relax_bounds)
     {
         remove_redundant_bounds(prob->constraints);
@@ -686,21 +737,20 @@ PresolveStatus run_presolver(Presolver *presolver)
 
     problem_clean(prob, true);
     DEBUG(run_debugger(prob->constraints, true));
-
-    clock_gettime(CLOCK_MONOTONIC, &outer_timer.end);
     stats->n_rows_reduced = A->m;
     stats->n_cols_reduced = A->n;
     stats->nnz_reduced = A->nnz;
     DEBUG(run_debugger_stats_consistency_check(stats));
     populate_presolved_problem(presolver);
-    stats->presolve_total_time = GET_ELAPSED_SECONDS(outer_timer);
+    clock_gettime(CLOCK_MONOTONIC, &outer_timer.end);
+    stats->time_presolve = GET_ELAPSED_SECONDS(outer_timer);
 
     if (stgs->verbose)
     {
         print_end_message(A, stats);
     }
 
-    return status;
+    return final_status(stats);
 }
 
 void postsolve(Presolver *presolver, const double *x, const double *y,
@@ -717,11 +767,11 @@ void postsolve(Presolver *presolver, const double *x, const double *y,
     postsolver_run(postsolve_info, sol, x, y, z);
     sol->obj = obj + presolver->prob->obj->offset;
     clock_gettime(CLOCK_MONOTONIC, &timer.end);
-    stats->ps_time_post_solve = GET_ELAPSED_SECONDS(timer);
+    stats->time_postsolve = GET_ELAPSED_SECONDS(timer);
 
     if (presolver->stgs->verbose)
     {
-        printf("PSLP postsolve time: %.4f seconds\n", stats->ps_time_post_solve);
+        printf("PSLP postsolve time: %.4f seconds\n", stats->time_postsolve);
     }
 }
 

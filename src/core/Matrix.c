@@ -225,8 +225,8 @@ void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_sizes,
     A->p[A->m].end = curr;
 
     // shrink size
-    A->x = realloc(A->x, curr * sizeof(double));
-    A->i = (int *) ps_realloc(A->i, curr, sizeof(int));
+    A->x = (double *) ps_realloc(A->x, MAX(curr, 1), sizeof(double));
+    A->i = (int *) ps_realloc(A->i, MAX(curr, 1), sizeof(int));
     A->p = (RowRange *) ps_realloc(A->p, A->m + 1, sizeof(RowRange));
 
     // -------------------------------------------------------------------------

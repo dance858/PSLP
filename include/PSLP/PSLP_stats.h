@@ -36,14 +36,14 @@ typedef struct PresolveStats
     int nnz_removed_parallel_cols;
 
     /* time stats */
-    double ps_time_init;
-    double ps_time_fast;
-    double ps_time_medium;
-    double ps_time_primal_propagation;
-    double ps_time_parallel_rows;
-    double ps_time_parallel_cols;
-    double presolve_total_time;
-    double ps_time_post_solve;
+    double time_init;
+    double time_fast_reductions;
+    double time_medium_reductions;
+    double time_primal_propagation;
+    double time_parallel_rows;
+    double time_parallel_cols;
+    double time_presolve;
+    double time_postsolve;
 
 } PresolveStats;
 
