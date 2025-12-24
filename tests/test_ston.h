@@ -33,6 +33,7 @@
 # Test 13: Dual fix to upper bound                                           (✓)
 # Test 14: Upper part of a constraint is active at an optimal solution       (✓)
 # Test 15: Lower part of a constraint is active at an optimal solution       (✓)
+# Test 16: Upper constraint to equality constraint                           (✓)
 */
 
 static int counter_ston = 0;
@@ -1156,6 +1157,46 @@ static char *test_15_ston()
     return 0;
 }
 
+static char *test_16_ston()
+{
+    double Ax[] = {1, 1, 1, 1, 1, -2, 3, -4, 5};
+    int Ai[] = {0, 1, 2, 3, 4, 0, 1, 2, 3};
+    int Ap[] = {0, 5, 9};
+    int nnz = 9;
+    int n_rows = 2;
+    int n_cols = 5;
+
+    double lhs[] = {-INF, -INF};
+    double rhs[] = {5, 5};
+    double lbs[] = {0, 0, 0, 0, 0};
+    double ubs[] = {INF, INF, INF, INF, INF};
+    double c[] = {1, 1, 1, 1, -1};
+
+    Settings *stgs = default_settings();
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    Problem *prob = presolver->prob;
+    Constraints *constraints = prob->constraints;
+    Matrix *A = constraints->A;
+    remove_ston_cols(prob);
+    problem_clean(prob, true);
+
+    // check that new A is correct
+    double Ax_correct[] = {1, 1, 1, 1, -2, 3, -4, 5};
+    int Ai_correct[] = {0, 1, 2, 3, 0, 1, 2, 3};
+    int Ap_correct[] = {0, 4, 8};
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
+    CHECK_ROW_STARTS(A, Ap_correct);
+
+    PS_FREE(stgs);
+    DEBUG(run_debugger(constraints, false));
+    free_presolver(presolver);
+
+    return 0;
+}
+
 static const char *all_tests_ston()
 {
     mu_run_test(test_01_ston, counter_ston); // (✓)
@@ -1172,6 +1213,7 @@ static const char *all_tests_ston()
     mu_run_test(test_13_ston, counter_ston); // (✓)
     mu_run_test(test_14_ston, counter_ston); // (✓)
     mu_run_test(test_15_ston, counter_ston); // (✓)
+    mu_run_test(test_16_ston, counter_ston); // (✓)
     return 0;
 }
 

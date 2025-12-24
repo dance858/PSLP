@@ -184,7 +184,8 @@ PresolveStatus update_lb(Constraints *constraints, int col, double new_lb,
 
         // TODO: should we check for variable fixing here? And we could potentially
         // get rid of remove_variables_with_close_bounds from trivial presolve
-        // and just run it once in the beginning?
+        // and just run it once in the beginning? But we don't have access to ck
+        // here.
     }
 
     return UNCHANGED;
