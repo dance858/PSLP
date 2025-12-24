@@ -179,7 +179,7 @@ static const char *test_no_linear_constraints_feasible()
     mu_assert("no linear constraints failed", status == REDUCED);
 
     // check that we can recover solution
-    postsolve(presolver, NULL, NULL, NULL, 0.0);
+    postsolve(presolver, NULL, NULL, NULL);
 
     double correct_x[] = {-1, 2, -3, 4};
     double correct_y[] = {};

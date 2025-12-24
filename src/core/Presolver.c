@@ -754,7 +754,7 @@ PresolveStatus run_presolver(Presolver *presolver)
 }
 
 void postsolve(Presolver *presolver, const double *x, const double *y,
-               const double *z, double obj)
+               const double *z)
 {
     Timer timer;
     Solution *sol = presolver->sol;
@@ -765,7 +765,6 @@ void postsolve(Presolver *presolver, const double *x, const double *y,
     postsolver_update(postsolve_info, stats->n_cols_reduced, stats->n_rows_reduced,
                       data->work->mappings->cols, data->work->mappings->rows);
     postsolver_run(postsolve_info, sol, x, y, z);
-    sol->obj = obj + presolver->prob->obj->offset;
     clock_gettime(CLOCK_MONOTONIC, &timer.end);
     stats->time_postsolve = GET_ELAPSED_SECONDS(timer);
 

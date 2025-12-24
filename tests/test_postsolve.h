@@ -57,7 +57,7 @@ static char *test_0_postsolve()
     double y[] = {-2.57142857, 0.14285714};
     double z[] = {-0.78571429, 1.44285714, 0.78571429, 0., 1., 0., 1.45714286};
     double obj = 0.0;
-    postsolve(presolver, x, y, z, obj);
+    postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
     double correct_x[] = {10., -10., 3., -10., 2.71428571, -10., -6.85714286, -10.};
@@ -120,7 +120,7 @@ static char *test_1_postsolve()
     double y[] = {-4.66666667, 0.66666667};
     double z[] = {-0.73333333, 1.6, 0., 0.26666667, 0., 2.03333333};
     double obj = 0.0;
-    postsolve(presolver, x, y, z, obj);
+    postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
     double correct_x[] = {10, -10, 3, 0.5333333, 3.4666666, -10, 0.6666666, -10};
@@ -174,7 +174,7 @@ static char *test_singleton_eq()
     double y[] = {3.0625, -2.8125, 3.375};
     double z[] = {-3.1875, 0., 0., 0., 0.};
     double obj = 0.0;
-    postsolve(presolver, x, y, z, obj);
+    postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
     double correct_x[] = {5., -2.525, 0.2, -1.8875, -0.2625};
@@ -235,7 +235,7 @@ static char *test_1_postsolve_implied_bound_active()
     double y[] = {-2.0, 0.0};
     double z[] = {-0.8, 1.4, 1.0, 1.2, 0.0, 1.3};
     double obj = 0.0;
-    postsolve(presolver, x, y, z, obj);
+    postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
     double correct_x[] = {10., -10., 3., 1.6, 2.4, -10., 6., -10.};
@@ -288,7 +288,7 @@ static char *test_singleton_ineq_row()
     double y[] = {1.0};
     double z[] = {2.0, 0.0, 1.0};
     double obj = 0.0;
-    postsolve(presolver, x, y, z, obj);
+    postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
     double correct_x[] = {4.0, 1.0, 0.0};
@@ -346,7 +346,7 @@ static char *test_2_postsolve()
     double y[] = {10.83333333, -7.33333333};
     double z[] = {0.0, 2.5, 0.0};
     double obj = 0.0;
-    postsolve(presolver, x, y, z, obj);
+    postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
     double correct_x[] = {0.0, -1.0, 0.33333333, 0.0, 0.33333333};
@@ -398,7 +398,7 @@ static char *test_implied_free_col_ston_in_inequality_postsolve()
     double z[] = {5.4, 0., 4.6};
     double obj = 0.0;
 
-    postsolve(presolver, x, y, z, obj);
+    postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
     double correct_x[] = {0., 8., 1., 0.};
@@ -450,7 +450,7 @@ static char *test_col_ston_dual_fix()
     double z[] = {6.66666667, 0., 9.66666667};
     double obj = 0.0;
 
-    postsolve(presolver, x, y, z, obj);
+    postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
     double correct_x[] = {0., 1., 1.66666667, 0.};
@@ -505,7 +505,7 @@ static char *test_3_postsolve()
     double z[] = {0., 1.3, 2.1, -3., 0.05, -4., 3., 0.};
     double obj = 0.0;
 
-    postsolve(presolver, x, y, z, obj);
+    postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
     double correct_x[] = {-3., 4., -1., 1., 0., 0., 4., 0., 6., 0., -10.};
@@ -564,7 +564,7 @@ static char *test_4_postsolve()
     double z[] = {1.5, -1.25, 0., 3.75};
     double obj = 0.0;
 
-    postsolve(presolver, x, y, z, obj);
+    postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
     double correct_x[] = {-10.0, 10.0, -6.75, -73.25, -10.0};
@@ -645,7 +645,7 @@ static char *test_6_postsolve()
     double obj = 0.0;
 #endif
 
-    postsolve(presolver, x, y, z, obj);
+    postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
     double correct_x[] = {-1.0, -2.0, 3.0, 4.0, 5.0, -6.0, -7.0, -8.0};
@@ -710,7 +710,7 @@ static char *test_7_postsolve()
 
 #endif
 
-    postsolve(presolver, x, y, z, obj);
+    postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
     double correct_x[] = {-1.0, -2.0, 3.0, 4.0, 5.0, -6.0, -7.0, -8.0};
@@ -776,7 +776,7 @@ static char *test_8_postsolve()
     double y[] = {1., -0.33333333};
     double z[] = {0., 0., 1., 0.33333333};
     double obj = 0.0;
-    postsolve(presolver, x, y, z, obj);
+    postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
     double correct_x[] = {0.66666667, 0.83333333, 0.16666667, 0., 0.};
@@ -836,7 +836,7 @@ static char *test_9_postsolve()
     double y[] = {0.5};
     double z[] = {0., 0.1, 0.2};
     double obj = 0.0;
-    postsolve(presolver, x, y, z, obj);
+    postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
     double correct_x[] = {3., 0., 0.};
@@ -890,7 +890,7 @@ static char *test_pathological_ston_one()
     double y[] = {-0.35294118, 0.58823529};
     double z[] = {0., 4.29411765, 0.};
     double obj = 0.0;
-    postsolve(presolver, x, y, z, obj);
+    postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
     double correct_x[] = {3., 3.64705882, -5., 3.11764706};
@@ -944,7 +944,7 @@ static char *test_pathological_ston_two()
     double y[] = {-0.35294118, 0.58823529};
     double z[] = {0., 4.29411765, 0.};
     double obj = 0.0;
-    postsolve(presolver, x, y, z, obj);
+    postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
     double correct_x[] = {3., 3.64705882, -5., 3.11764706};
@@ -997,7 +997,7 @@ static char *test_fix_col_inf()
     double y[] = {0.0, 0.5};
     double z[] = {0.0, 1.5};
     double obj = 0.0;
-    postsolve(presolver, x, y, z, obj);
+    postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
     double correct_x[] = {0.75, 0.5, 0.5};

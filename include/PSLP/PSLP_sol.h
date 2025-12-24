@@ -29,7 +29,6 @@ extern "C"
         double *x;
         double *y;
         double *z;
-        double obj;
         int dim_x;
         int dim_y;
     } Solution;
