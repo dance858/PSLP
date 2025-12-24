@@ -73,8 +73,8 @@ extern "C"
 
         /* offset to be added to the objective value. (When the presolver fixes
            variables, it adds an offset to the objective. This offset should
-           possibly be taken into account when evaluating the relative optimality gap
-           of the reduced problem.) */
+           possibly be taken into account on the solver side when evaluating the
+           relative optimality gap of the reduced problem.) */
         double obj_offset;
     } PresolvedProblem;
 
@@ -107,7 +107,7 @@ extern "C"
        The presolver maintains internal deep copies of Ax, Ai, Ap, lhs, rhs, lbs,
        ubs, and c. The user is responsible for freeing the presolver using
        'free_presolver'. If the allocation fails, the function returns NULL.
-       It's most efficient to provide the matrix in CSR format (set CSR=true) */
+       The matrix should be given in CSR form.*/
     Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
                              int n, int nnz, const double *lhs, const double *rhs,
                              const double *lbs, const double *ubs, const double *c,
@@ -121,11 +121,13 @@ extern "C"
     PresolveStatus run_presolver(Presolver *presolver);
 
     /* Postsolve the problem given the primal-dual solution (x, y, z) of the
-       reduced problem. The optimal value of the reduced problem is 'obj'.
-       The function populates presolver->sol, so if you're looking for the
-       solution to the original problem, you should look there. */
+       reduced problem. The function populates presolver->sol, so if you're
+       looking for the solution to the original problem, you should look there.
+       If the solver has added the offset to the objective when solving the reduced
+       problem, the optimal value of the original problem is the same as that of
+       the reduced problem. */
     void postsolve(Presolver *presolver, const double *x, const double *y,
-                   const double *z, double obj);
+                   const double *z);
 
 #ifdef __cplusplus
 }

@@ -3,7 +3,7 @@ project(PSLP LANGUAGES C CXX) # The library is written in C, but we also have so
 
 set(PSLP_VERSION_MAJOR 0)
 set(PSLP_VERSION_MINOR 0)
-set(PSLP_VERSION_PATCH 3)
+set(PSLP_VERSION_PATCH 4)
 set(PSLP_VERSION "${PSLP_VERSION_MAJOR}.${PSLP_VERSION_MINOR}.${PSLP_VERSION_PATCH}")
 add_compile_definitions(PSLP_VERSION="${PSLP_VERSION}")
 
