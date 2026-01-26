@@ -244,9 +244,10 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     work = new_work(n_rows, n_cols);
     row_sizes = (int *) ps_malloc(n_rows, sizeof(int));
     col_sizes = (int *) ps_malloc(n_cols, sizeof(int));
+    ParallelInitData *parallel_data = calloc(1, sizeof(*parallel_data));
 
     if (!lhs_copy || !rhs_copy || !c_copy || !col_tags || !bounds || !work ||
-        !row_sizes || !col_sizes)
+        !row_sizes || !col_sizes || !parallel_data)
     {
         goto cleanup;
     }
@@ -262,53 +263,31 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     A = matrix_new_no_extra_space(Ax, Ai, Ap, n_rows, n_cols, nnz);
     if (!A) goto cleanup;
 
-    // commented out for now because does not seem helpful
-    // if (stgs->clean_small_coeff)
-    // {
-    //     clean_small_coeff_A(A, bounds, row_tags, col_tags, rhs_copy, lhs_copy);
-    // }
-
     ps_thread_t thread_id;
-    int thread_created = 0;
-
-    ParallelInitData *parallel_data = calloc(1, sizeof(*parallel_data));
-    if (!parallel_data)
-    {
-        goto cleanup;
-    }
-
     *parallel_data = (ParallelInitData) {
         A,        work,   n_cols,   n_rows, lbs,  ubs,  lhs_copy,
         rhs_copy, bounds, col_tags, NULL,   NULL, NULL, row_sizes};
 
-    if (ps_thread_create(&thread_id, NULL, init_thread_func, parallel_data) == 0)
-    {
-        thread_created = 1;
-    }
+    ps_thread_create(&thread_id, NULL, init_thread_func, parallel_data);
 
+    /* main thread: transpose A and count rows */
     AT = transpose(A, work->iwork_n_cols);
     if (!AT)
     {
-        if (thread_created)
-        {
-            ps_thread_join(&thread_id, NULL);
-        }
+
+        ps_thread_join(&thread_id, NULL);
         goto cleanup;
     }
-
     count_rows(AT, col_sizes);
 
-    if (thread_created)
-    {
-        ps_thread_join(&thread_id, NULL);
-    }
+    /* sync threads */
+    ps_thread_join(&thread_id, NULL);
 
     row_tags = parallel_data->row_tags;
     locks = parallel_data->locks;
     activities = parallel_data->activities;
 
-    if (!row_tags) goto cleanup;
-    if (!locks || !activities) goto cleanup;
+    if (!row_tags || !locks || !activities) goto cleanup;
 
     // ---------------------------------------------------------------------------
     //  Initialize internal data and constraints
