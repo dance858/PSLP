@@ -220,7 +220,7 @@ PresolveStatus remove_ston_rows(Problem *prob)
 {
     iVec *ston_rows = prob->constraints->state->ston_rows;
     const int *ston_rows_data = ston_rows->data;
-    int len = ston_rows->len;
+    int len = (int) ston_rows->len;
     RowTag *row_tags = prob->constraints->row_tags;
     DEBUG(verify_no_duplicates_sort(ston_rows));
 
@@ -468,7 +468,7 @@ PresolveStatus remove_empty_rows(const Constraints *constraints)
 {
     iVec *empty_rows = constraints->state->empty_rows;
     const int *empty_rows_data = empty_rows->data;
-    int len = empty_rows->len;
+    int len = (int) empty_rows->len;
 
     if (len == 0)
     {

@@ -78,10 +78,9 @@ static inline uint32_t hash_double_array_with_scale(const double *arr, int size)
 #ifndef TESTING
 static inline
 #endif
-    void
-    compute_supp_and_coeff_hash(const Matrix *A, const RowTag *rowtags,
-                                int *sparsity_IDs, int *coeff_hashes,
-                                RowTag INACTIVE_TAG)
+    void compute_supp_and_coeff_hash(const Matrix *A, const RowTag *rowtags,
+                                     int *sparsity_IDs, int *coeff_hashes,
+                                     RowTag INACTIVE_TAG)
 {
 
     for (int i = 0; i < A->m; i++)
@@ -182,7 +181,7 @@ void VERIFY_PARALLEL_ROWS(const Matrix *A, const RowTag *rows_tags,
                           const int *parallel_rows, const iVec *group_starts)
 {
     int i, j, k, start, end, n_rows_this_group, len1;
-    int n_groups = group_starts->len - 1;
+    int n_groups = (int) group_starts->len - 1;
 
     for (i = 0; i < n_groups; ++i)
     {
@@ -572,7 +571,7 @@ static inline PresolveStatus process_single_bin(const Constraints *constraints,
 static PresolveStatus process_all_bins(const Constraints *constraints,
                                        const int *parallel_rows, const iVec *groups)
 {
-    int n_groups = groups->len - 1;
+    int n_groups = (int) groups->len - 1;
 
     for (int i = 0; i < n_groups; ++i)
     {

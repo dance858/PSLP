@@ -671,6 +671,7 @@ PresolveStatus run_presolver(Presolver *presolver)
     // complexity class. The cycle resets after the medium presolvers.
     // ------------------------------------------------------------------------
     nnz_before_cycle = A->nnz;
+    nnz_after_cycle = A->nnz; // just to get rid of uninitialized warning
     while (!terminate)
     {
         // before each phase we run the trivial presolvers

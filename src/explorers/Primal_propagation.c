@@ -214,7 +214,7 @@ bound_tightening_single_row_rhs(const ConstRowView *row, const Activity *act,
     bool is_rhs_inf = HAS_TAG(*row->tag, R_TAG_RHS_INF);
     bool is_lb_inf = false;
     bool is_ub_inf = false;
-    bool is_col_inactive;
+    bool is_col_inactive = false;
 
     // ------------------------------------------------------------------
     // Case 1: assume RHS is finite and the min activity is valid. Then
@@ -413,7 +413,7 @@ bound_tightening_single_row_lhs(const ConstRowView *row, const Activity *act,
     bool is_lhs_inf = HAS_TAG(*row->tag, R_TAG_LHS_INF);
     bool is_lb_inf = false;
     bool is_ub_inf = false;
-    bool is_col_inactive;
+    bool is_col_inactive = false;
 
     // ------------------------------------------------------------------
     // Case 1: assume LHS is finite and the max activity is valid. Then
@@ -669,7 +669,7 @@ PresolveStatus propagate_primal(Problem *prob, bool finite_bound_tightening)
     ii = 0;
     while (ii < updated_activities->len)
     {
-        current_len = updated_activities->len;
+        current_len = (int) updated_activities->len;
         for (; ii < current_len; ++ii)
         {
             i = updated_activities->data[ii];

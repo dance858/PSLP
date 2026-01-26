@@ -550,7 +550,7 @@ static inline void refresh_ston_cols(const int *col_sizes, iVec *ston_cols)
 {
     int n_ston_cols = 0;
     int shift = 0;
-    int len = ston_cols->len;
+    int len = (int) ston_cols->len;
 
     for (int i = 0; i < len; i++)
     {

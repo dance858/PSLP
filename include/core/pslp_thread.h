@@ -33,6 +33,8 @@ static inline int ps_thread_create(ps_thread_t *t, void *attr,
 // join does nothing, function already ran
 static inline int ps_thread_join(ps_thread_t *t, void **retval)
 {
+    (void) t; // unused
+    (void) retval;
     return 0;
 }
 
