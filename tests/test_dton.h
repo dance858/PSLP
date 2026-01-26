@@ -1707,7 +1707,9 @@ static const char *all_tests_dton()
     mu_run_test(test_15_dton, counter_dton); // implemented
     printf("after test 15\n");
     mu_run_test(test_16_dton, counter_dton); // implemented
+    printf("after test 16\n");
     mu_run_test(test_17_dton, counter_dton); // implemented
+    printf("after test 17\n");
     mu_run_test(test_18_dton, counter_dton); // implemented
     //    mu_run_test(test_19_dton, counter_dton); // implemented but we don't
     //    run it
