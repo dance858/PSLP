@@ -49,6 +49,8 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
+
+
 # Add uninstall target
 include(AddUninstallTarget)
 
@@ -91,7 +93,7 @@ endif()
 
 # Create PSLP library
 #add_library(PSLP ${CORE_SOURCES})
-add_library(PSLP ${CORE_SOURCES} src/core/PSLP_API.c)
+add_library(PSLP ${CORE_SOURCES})
 target_include_directories(PSLP
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -124,6 +126,12 @@ else()
     $<$<CONFIG:RelWithDebInfo>:-O2 -g -DNDEBUG>
     $<$<CONFIG:MinSizeRel>:-Os -DNDEBUG>
   )
+endif()
+
+if (MSVC)
+    set_target_properties(PSLP PROPERTIES
+        WINDOWS_EXPORT_ALL_SYMBOLS ON
+    )
 endif()
 
 if(ENABLE_DEBUGGER OR CMAKE_BUILD_TYPE STREQUAL "Debug")
