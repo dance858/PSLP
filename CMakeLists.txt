@@ -110,9 +110,11 @@ target_include_directories(PSLP
 )
 
 # Common compile options
-target_compile_options(PSLP PRIVATE
-  -Wall -Wextra -Wpedantic -Wno-sign-compare
-)
+if(MSVC)
+  target_compile_options(PSLP PRIVATE /W4)
+else()
+  target_compile_options(PSLP PRIVATE -Wall -Wextra -Wpedantic -Wno-sign-compare)
+endif()
 
 # Config-specific compile options
 target_compile_options(PSLP PRIVATE
