@@ -88,7 +88,7 @@ else()
 endif()
 
 # Create PSLP library
-add_library(PSLP ${CORE_SOURCES} src/core/PSLP_API.c)
+add_library(PSLP ${CORE_SOURCES})
 target_include_directories(PSLP
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP>
@@ -100,7 +100,7 @@ target_include_directories(PSLP
 )
 
 # Common compile options
-if(MSVC)
+if (MSVC)
   target_compile_options(PSLP PRIVATE /W4)
   set(CMAKE_DEBUG_POSTFIX "d")
   set_target_properties(PSLP PROPERTIES DEBUG_POSTFIX "d")
