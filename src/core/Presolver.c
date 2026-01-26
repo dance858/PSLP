@@ -307,7 +307,7 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
         if (thread_created)
         {
             printf("[DEBUG] joining thread after transpose failure\n");
-            ps_thread_join(thread_id, NULL);
+            ps_thread_join(&thread_id, NULL);
         }
         goto cleanup;
     }
@@ -319,7 +319,8 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     if (thread_created)
     {
         printf("[DEBUG] before ps_thread_join\n");
-        ps_thread_join(thread_id, NULL);
+        ps_thread_join(&thread_id, NULL);
+        // ps_thread_join(&thread_id, NULL);
         printf("[DEBUG] after ps_thread_join\n");
     }
 

@@ -52,8 +52,8 @@ static inline int ps_thread_create(ps_thread_t *t, void *attr,
 
 static inline int ps_thread_join(ps_thread_t t, void **retval)
 {
-    printf("[DEBUG] [ps_thread_join] entered, handle=%p\n", (void *) t.handle);
-    DWORD wait_result = WaitForSingleObject(t.handle, INFINITE);
+    printf("[DEBUG] [ps_thread_join] entered, handle=%p\n", (void *) t->handle);
+    DWORD wait_result = WaitForSingleObject(t->handle, INFINITE);
     printf("[DEBUG] [ps_thread_join] WaitForSingleObject returned %lu\n",
            (unsigned long) wait_result);
     if (wait_result != WAIT_OBJECT_0)
@@ -62,11 +62,12 @@ static inline int ps_thread_join(ps_thread_t t, void **retval)
         return -1;
     }
 
-    if (retval) *retval = t.wrapper->ret;
+    if (retval) *retval = t->wrapper->ret;
 
-    CloseHandle(t.handle);
+    CloseHandle(t->handle);
     printf("[DEBUG] [ps_thread_join] handle closed\n");
-    free(t.wrapper);
+    free(t->wrapper);
+    t->wrapper = NULL;
     printf("[DEBUG] [ps_thread_join] wrapper freed, returning 0\n");
     return 0;
 }
@@ -83,9 +84,14 @@ static inline int ps_thread_create(ps_thread_t *thread, void *attr,
     return pthread_create(thread, (pthread_attr_t *) attr, start_routine, arg);
 }
 
-static inline int ps_thread_join(ps_thread_t thread, void **retval)
+// static inline int ps_thread_join(ps_thread_t thread, void **retval)
+//{
+//     return pthread_join(thread, retval);
+// }
+
+static inline int ps_thread_join(ps_thread_t *thread, void **retval)
 {
-    return pthread_join(thread, retval);
+    return pthread_join(*thread, retval);
 }
 
 static inline int ps_thread_cancel(ps_thread_t thread)
