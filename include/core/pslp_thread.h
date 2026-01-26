@@ -3,7 +3,8 @@
 
 #if defined(_WIN32) || defined(_WIN64)
 
-#include <stdint.h>
+#include <process.h> // for _beginthreadex
+#include <stdio.h>
 #include <stdlib.h>
 #include <windows.h>
 
@@ -20,9 +21,10 @@ typedef struct
     ps_thread_wrapper_t *wrapper;
 } ps_thread_t;
 
-static DWORD WINAPI ps_thread_trampoline(LPVOID param)
+// trampoline for _beginthreadex
+static unsigned __stdcall ps_thread_trampoline(void *param)
 {
-    ps_thread_wrapper_t *w = param;
+    ps_thread_wrapper_t *w = (ps_thread_wrapper_t *) param;
     w->ret = w->start_routine(w->arg);
     return 0;
 }
@@ -32,21 +34,29 @@ static inline int ps_thread_create(ps_thread_t *t, void *attr,
 {
     (void) attr;
 
-    t->wrapper = calloc(1, sizeof(*t->wrapper));
+    t->wrapper = (ps_thread_wrapper_t *) calloc(1, sizeof(*t->wrapper));
     if (!t->wrapper) return -1;
 
     t->wrapper->start_routine = start_routine;
     t->wrapper->arg = arg;
     t->wrapper->ret = NULL;
 
-    t->handle = CreateThread(NULL, 0, ps_thread_trampoline, t->wrapper, 0, NULL);
+    uintptr_t handle = _beginthreadex(NULL, // security
+                                      0,    // stack size (0 = default)
+                                      ps_thread_trampoline,
+                                      t->wrapper, // argument
+                                      0,          // create flags
+                                      NULL        // thread id
+    );
 
-    if (!t->handle)
+    if (handle == 0)
     {
         free(t->wrapper);
+        t->wrapper = NULL;
         return -1;
     }
 
+    t->handle = (HANDLE) handle;
     return 0;
 }
 
@@ -54,16 +64,9 @@ static inline int ps_thread_join(ps_thread_t *t, void **retval)
 {
     if (!t || !t->handle) return -1;
 
-    printf("[DEBUG] [ps_thread_join] entered, handle=%p\n", (void *) t->handle);
-
     DWORD wait_result = WaitForSingleObject(t->handle, INFINITE);
-
-    printf("[DEBUG] [ps_thread_join] WaitForSingleObject returned %lu\n",
-           (unsigned long) wait_result);
-
     if (wait_result != WAIT_OBJECT_0)
     {
-        printf("[DEBUG] [ps_thread_join] WaitForSingleObject failed\n");
         return -1;
     }
 
@@ -72,12 +75,9 @@ static inline int ps_thread_join(ps_thread_t *t, void **retval)
     CloseHandle(t->handle);
     t->handle = NULL;
 
-    printf("[DEBUG] [ps_thread_join] handle closed\n");
-
     free(t->wrapper);
     t->wrapper = NULL;
 
-    printf("[DEBUG] [ps_thread_join] wrapper freed, returning 0\n");
     return 0;
 }
 

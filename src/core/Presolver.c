@@ -270,7 +270,7 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
 
     ps_thread_create(&thread_id, NULL, init_thread_func, parallel_data);
 
-    // for debuggin
+    // for debugging
     ps_thread_join(&thread_id, NULL);
 
     /* main thread: transpose A and count rows */
