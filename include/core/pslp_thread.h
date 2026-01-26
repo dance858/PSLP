@@ -93,11 +93,6 @@ static inline int ps_thread_create(ps_thread_t *thread, void *attr,
     return pthread_create(thread, (pthread_attr_t *) attr, start_routine, arg);
 }
 
-// static inline int ps_thread_join(ps_thread_t thread, void **retval)
-//{
-//     return pthread_join(thread, retval);
-// }
-
 static inline int ps_thread_join(ps_thread_t *thread, void **retval)
 {
     return pthread_join(*thread, retval);
