@@ -274,8 +274,9 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
                                       ubs,  lhs_copy, rhs_copy, bounds,   col_tags,
                                       NULL, NULL,     NULL,     row_sizes};
 
+    printf("before thread create\n");
     ps_thread_create(&thread_id, NULL, init_thread_func, &parallel_data);
-
+    printf("after thread create\n");
     // Main thread: Transpose A and count rows
     AT = transpose(A, work->iwork_n_cols);
     if (!AT)
@@ -286,7 +287,9 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     count_rows(AT, col_sizes);
 
     // sync threads
+    printf("before thread join\n");
     ps_thread_join(thread_id, NULL);
+    printf("after thread join\n");
 
     row_tags = parallel_data.row_tags;
     if (!row_tags) goto cleanup;

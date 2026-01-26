@@ -183,12 +183,6 @@ add_executable(test_cpp EXCLUDE_FROM_ALL tests/test_cpp.cpp)
 
 target_link_libraries(test_cpp PRIVATE PSLP)
 
-# Debug: List contents of bin directory after building test_cpp
-add_custom_command(TARGET test_cpp POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E echo "[DEBUG] Listing contents of $<TARGET_FILE_DIR:test_cpp>"
-  COMMAND ${CMAKE_COMMAND} -E env ls -l $<TARGET_FILE_DIR:test_cpp>
-)
-
 # Installation and export
 install(TARGETS PSLP
   EXPORT PSLPTargets
