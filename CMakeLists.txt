@@ -62,6 +62,8 @@ file(GLOB CORE_SOURCES CONFIGURE_DEPENDS
     src/explorers/*.c
 )
 
+message(STATUS "[DEBUG] CORE_SOURCES: ${CORE_SOURCES}")
+
 # distinguish between public and private headers
 set(PUBLIC_HEADERS
   include/PSLP/PSLP_API.h
