@@ -31,7 +31,7 @@ static char *test_1_constraints()
     double lhs[3] = {4, 2, -INF};
     double rhs[3] = {4, 2, 1};
     Bound bounds[4];
-    INIT_BOUNDS(bounds, -10, 10, 4);
+    init_bounds(bounds, -10, 10, 4);
 
     Lock locks[] = {{.up = 3, .down = 2},
                     {.up = 2, .down = 1},
@@ -68,19 +68,19 @@ static char *test_1_constraints()
     int A_row_starts_correct[] = {0, 2, 6};
     mu_assert("error A", ARRAYS_EQUAL_DOUBLE(A->x, A_vals_correct, 6));
     mu_assert("error A", ARRAYS_EQUAL_INT(A->i, A_cols_correct, 6));
-    CHECK_ROW_STARTS(A, A_row_starts_correct);
+    mu_assert("error row_starts", check_row_starts(A, A_row_starts_correct));
 
     double AT_vals_correct[] = {2, 1, 1, 1, -1, 1};
     int AT_cols_correct[] = {0, 1, 1, 1, 0, 1};
     int AT_row_starts_correct[] = {0, 2, 3, 4, 6};
     mu_assert("error AT_vals", ARRAYS_EQUAL_DOUBLE(AT->x, AT_vals_correct, 6));
     mu_assert("error AT_cols", ARRAYS_EQUAL_INT(AT->i, AT_cols_correct, 6));
-    CHECK_ROW_STARTS(AT, AT_row_starts_correct);
+    check_row_starts(AT, AT_row_starts_correct);
 
     int correct_up_locks[] = {2, 1, 1, 2};
     int correct_down_locks[] = {1, 0, 0, 1};
 
-    CHECK_LOCKS(locks, correct_up_locks, correct_down_locks, 4);
+    check_locks(locks, correct_up_locks, correct_down_locks, 4);
 
     // deallocate memory
     free_matrix(A);
@@ -113,7 +113,7 @@ static char *test_2_constraints()
     double lhs[10] = {0.0};
     double rhs[10] = {0.0};
     Bound bounds[10];
-    INIT_BOUNDS(bounds, -10, 10, 10);
+    init_bounds(bounds, -10, 10, 10);
 
     Lock locks[10];
     int row_sizes[10] = {4, 4, 5, 2, 4, 5, 3, 5, 4, 4};
@@ -153,7 +153,7 @@ static char *test_2_constraints()
 
     mu_assert("error A_vals", ARRAYS_EQUAL_DOUBLE(A->x, A_vals_correct, 29));
     mu_assert("error A_cols", ARRAYS_EQUAL_INT(A->i, A_cols_correct, 29));
-    CHECK_ROW_STARTS(A, A_row_starts_correct);
+    mu_assert("error row_starts", check_row_starts(A, A_row_starts_correct));
 
     double AT_vals_correct[] = {1.3,   -1.46, 0.17, 0.55,  -0.22, 1.31, -2.37, -1.4,
                                 -0.6,  0.47,  0.25, -0.18, 0.26,  -0.5, 0.77,  1.02,
@@ -164,7 +164,7 @@ static char *test_2_constraints()
     int AT_row_starts_correct[] = {0, 1, 5, 8, 12, 16, 19, 22, 24, 27, 29};
     mu_assert("error AT_vals", ARRAYS_EQUAL_DOUBLE(AT->x, AT_vals_correct, 27));
     mu_assert("error AT_cols", ARRAYS_EQUAL_INT(AT->i, AT_cols_correct, 27));
-    CHECK_ROW_STARTS(AT, AT_row_starts_correct);
+    check_row_starts(AT, AT_row_starts_correct);
 
     // deallocate memory
     free_matrix(A);
@@ -192,7 +192,7 @@ static char *test_3_constraints()
     double lhs[3] = {4, 2, -INF};
     double rhs[3] = {4, 2, 1};
     Bound bounds[4];
-    INIT_BOUNDS(bounds, -10, 10, 4);
+    init_bounds(bounds, -10, 10, 4);
 
     Lock locks[4];
 
@@ -226,14 +226,14 @@ static char *test_3_constraints()
     int A_row_starts_correct[] = {0, 2, 4, 7};
     mu_assert("error A", ARRAYS_EQUAL_DOUBLE(A->x, A_vals_correct, 7));
     mu_assert("error A", ARRAYS_EQUAL_INT(A->i, A_cols_correct, 7));
-    CHECK_ROW_STARTS(A, A_row_starts_correct);
+    mu_assert("error row_starts", check_row_starts(A, A_row_starts_correct));
 
     double AT_vals_correct[] = {1, 2, 1, 1, 1, -1, 1};
     int AT_cols_correct[] = {0, 1, 2, 0, 2, 1, 2};
     int AT_row_starts_correct[] = {0, 3, 5, 7};
     mu_assert("error AT_vals", ARRAYS_EQUAL_DOUBLE(AT->x, AT_vals_correct, 7));
     mu_assert("error AT_cols", ARRAYS_EQUAL_INT(AT->i, AT_cols_correct, 7));
-    CHECK_ROW_STARTS(AT, AT_row_starts_correct);
+    check_row_starts(AT, AT_row_starts_correct);
 
     // deallocate memory
     free_matrix(A);
@@ -266,7 +266,7 @@ static char *test_4_constraints()
     double lhs[10] = {0.0};
     double rhs[10] = {0.0};
     Bound bounds[10];
-    INIT_BOUNDS(bounds, -10, 10, 10);
+    init_bounds(bounds, -10, 10, 10);
 
     Lock locks[10];
 
@@ -307,7 +307,7 @@ static char *test_4_constraints()
 
     mu_assert("error A_vals", ARRAYS_EQUAL_DOUBLE(A->x, A_vals_correct, 29));
     mu_assert("error A_cols", ARRAYS_EQUAL_INT(A->i, A_cols_correct, 29));
-    CHECK_ROW_STARTS(A, A_row_starts_correct);
+    mu_assert("error row_starts", check_row_starts(A, A_row_starts_correct));
 
     double AT_vals_correct[] = {
         1.12, 1.38,  -0.56, 2.74,  -0.29, -1.75, -0.29, -0.72, -0.44, -0.33,
@@ -318,7 +318,7 @@ static char *test_4_constraints()
     int AT_row_starts_correct[] = {0, 2, 6, 10, 16, 20, 23, 29};
     mu_assert("error AT_vals", ARRAYS_EQUAL_DOUBLE(AT->x, AT_vals_correct, 29));
     mu_assert("error AT_cols", ARRAYS_EQUAL_INT(AT->i, AT_cols_correct, 29));
-    CHECK_ROW_STARTS(AT, AT_row_starts_correct);
+    check_row_starts(AT, AT_row_starts_correct);
 
     // deallocate memory
     free_matrix(A);

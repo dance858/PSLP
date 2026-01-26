@@ -155,7 +155,7 @@ if(PSLP_BUILD_TESTING)
   enable_testing()
   message(STATUS "PSLP testing enabled (this should be disabled for production builds!!!)")
 
-  add_executable(all_tests tests/all_tests.c)
+  add_executable(all_tests tests/all_tests.c tests/test_macros.c)
 
   # Link PSLP library
   target_link_libraries(all_tests PRIVATE PSLP)

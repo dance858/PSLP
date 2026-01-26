@@ -86,7 +86,7 @@ static char *test_4_simple()
     int Ap_correct[] = {0, 4, 8, 10};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 10));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 10));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that lhs and rhs are correct
     double lhs_correct[] = {-14, -INF, -10};
@@ -135,7 +135,7 @@ static char *test_11_simple()
     // check that new A is correct
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, 11));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, 11));
-    CHECK_ROW_STARTS(A, Ap);
+    check_row_starts(A, Ap);
 
     // check that new rowtags are correct
     RowTag rowtags_correct[] = {R_TAG_EQ, R_TAG_RHS_INF, R_TAG_RHS_INF};
@@ -189,7 +189,7 @@ static char *test_13_simple()
     // check that new A is correct
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, 11));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, 11));
-    CHECK_ROW_STARTS(A, Ap);
+    check_row_starts(A, Ap);
 
     // check that new rowtags are correct
     RowTag rowtags_correct[] = {R_TAG_EQ, R_TAG_LHS_INF, R_TAG_RHS_INF};
@@ -247,7 +247,7 @@ static char *test_14_simple()
     int Ap_correct[] = {0, 3, 8};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new rowtags are correct
     RowTag rowtags_correct[] = {R_TAG_EQ, R_TAG_RHS_INF};
@@ -305,7 +305,7 @@ static char *test_15_simple()
     int Ap_correct[] = {0, 3, 8};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new rowtags are correct
     RowTag rowtags_correct[] = {R_TAG_EQ, R_TAG_RHS_INF};
@@ -363,7 +363,7 @@ static char *test_16_simple()
     int Ap_correct[] = {0, 3, 8};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new rowtags are correct
     RowTag rowtags_correct[] = {R_TAG_EQ, R_TAG_RHS_INF};

@@ -46,7 +46,7 @@ static char *test_1_parallel_cols()
     int Ap_correct[] = {0, 2};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0};
@@ -101,7 +101,7 @@ static char *test_2_parallel_cols()
     int Ap_correct[] = {0, 2};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0};
@@ -156,7 +156,7 @@ static char *test_3_parallel_cols()
     int Ap_correct[] = {0, 2};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0};
@@ -211,7 +211,7 @@ static char *test_4_parallel_cols()
     int Ap_correct[] = {0, 2};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0};
@@ -266,7 +266,7 @@ static char *test_5_parallel_cols()
     int Ap_correct[] = {0, 2};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {-INF, 0};
@@ -321,7 +321,7 @@ static char *test_6_parallel_cols()
     int Ap_correct[] = {0, 1};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 1));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 1));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {-INF};
@@ -375,7 +375,7 @@ static char *test_5_negated_parallel_cols()
     int Ap_correct[] = {0, 2};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {-8, 0};
@@ -430,7 +430,7 @@ static char *test_6_negated_parallel_cols()
     int Ap_correct[] = {0, 2};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {-INF, 0};
@@ -554,7 +554,7 @@ static char *test_8_parallel_cols()
 #ifdef __linux__
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, A->nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, A->nnz));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {-2, -3.5, -14, -6, -7, -8};

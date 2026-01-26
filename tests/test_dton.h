@@ -53,7 +53,7 @@ static char *test_00_dton()
     int Ap_correct[] = {0, 3, 6, 8};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
     mu_assert("wrong nnz", A->nnz == 8);
 
     postsolve_info_free(postsolve_info);
@@ -102,7 +102,7 @@ static char *test_01_dton()
     int Ap_correct[] = {0, 5, 10, 14};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 14));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 14));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
     mu_assert("wrong nnz", A->nnz == 14);
 
     postsolve_info_free(postsolve_info);
@@ -151,7 +151,7 @@ static char *test_02_dton()
     int Ap_correct[] = {0, 5, 10, 14};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 14));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 14));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
     mu_assert("wrong nnz", A->nnz == 14);
 
     postsolve_info_free(postsolve_info);
@@ -199,7 +199,7 @@ static char *test_03_dton()
     int Ap_correct[] = {0, 3, 6, 8};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
     mu_assert("wrong nnz", A->nnz == 8);
 
     postsolve_info_free(postsolve_info);
@@ -247,7 +247,7 @@ static char *test_04_dton()
     int Ap_correct[] = {0, 5, 10, 14};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 14));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 14));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
     mu_assert("wrong nnz", A->nnz == 14);
 
     postsolve_info_free(postsolve_info);
@@ -295,7 +295,7 @@ static char *test_05_dton()
     int Ap_correct[] = {0, 5, 10, 14};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 14));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 14));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
     mu_assert("wrong nnz", A->nnz == 14);
 
     postsolve_info_free(postsolve_info);
@@ -346,7 +346,7 @@ static char *test_06_dton()
     int Ap_correct[] = {0, 3, 6, 8};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
     mu_assert("wrong nnz", A->nnz == 8);
 
     postsolve_info_free(postsolve_info);
@@ -399,7 +399,7 @@ static char *test_1_dton()
     int Ap_correct[] = {0, 4, 7};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 7));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 7));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -485,7 +485,7 @@ static char *test_2_dton()
     int Ap_correct[] = {0, 4, 7};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 7));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 7));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -561,7 +561,7 @@ static char *test_3_dton()
     int Ap_correct[] = {0, 3, 6};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -637,7 +637,7 @@ static char *test_004_dton()
     int Ap_correct[] = {0, 4, 7, 7};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 7));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 7));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -713,7 +713,7 @@ static char *test_4_dton()
     int Ap_correct[] = {0, 3, 6, 6};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -829,7 +829,7 @@ static char *test_6_dton()
     int Ap_correct[] = {0, 1, 3, 5};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 5));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 5));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -905,7 +905,7 @@ static char *test_7_dton()
     int Ap_correct[] = {0, 3, 7, 8};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -985,7 +985,7 @@ static char *test_8_dton()
     int Ap_correct[] = {0, 3, 5, 7, 9, 11, 13, 15, 17};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 17));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 17));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -1059,7 +1059,7 @@ static char *test_9_dton()
     int Ap_correct[] = {0, 3, 5, 7, 10, 12, 14, 16, 18};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 18));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 18));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -1135,7 +1135,7 @@ static char *test_10_dton()
     int Ap_correct[] = {0, 3, 5, 7, 10, 12, 14, 16, 18};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 18));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 18));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -1211,7 +1211,7 @@ static char *test_11_dton()
     // check that new A is correct
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
-    CHECK_ROW_STARTS(A, Ap);
+    check_row_starts(A, Ap);
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -1328,7 +1328,7 @@ static char *test_13_dton()
     int Ap_correct[] = {0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 30));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 30));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     PS_FREE(stgs);
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -1385,7 +1385,7 @@ static char *test_14_dton()
     int Ap_correct[] = {0, 2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 32));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 32));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -1443,7 +1443,7 @@ static char *test_15_dton()
     int Ap_correct[] = {0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 30));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 30));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -1500,7 +1500,7 @@ static char *test_16_dton()
     int Ap_correct[] = {0, 2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 32));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 32));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     PS_FREE(stgs); // check new AT
     DEBUG(run_debugger(constraints, false));
@@ -1559,7 +1559,7 @@ static char *test_17_dton()
     int Ap_correct[] = {0, 3, 7, 10};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 10));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 10));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -1618,7 +1618,7 @@ static char *test_18_dton()
     int Ap_correct[] = {0, 3, 6};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));

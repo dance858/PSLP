@@ -77,7 +77,7 @@ static char *test_1_domain()
     int Ap_correct[] = {0, 2, 4, 6, 8};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0};
@@ -141,7 +141,7 @@ static char *test_2_domain()
     int Ap_correct[] = {0, 2, 4, 6};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0};
@@ -207,7 +207,7 @@ static char *test_3_domain()
     int Ap_correct[] = {0, 2, 4, 6};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0};
@@ -274,7 +274,7 @@ static char *test_4_domain()
     int Ap_correct[] = {0, 2, 4, 6};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0};
@@ -340,7 +340,7 @@ static char *test_5_domain()
     int Ap_correct[] = {0, 1, 4, 6};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0, 0};
@@ -407,7 +407,7 @@ static char *test_6_domain()
     int Ap_correct[] = {0, 1, 4, 6};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {1, 0, 0};
@@ -473,7 +473,7 @@ static char *test_7_domain()
     int Ap_correct[] = {0, 1, 4, 6};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0, 0};
@@ -539,7 +539,7 @@ static char *test_8_domain()
     int Ap_correct[] = {0, 1, 4, 6};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {1, 0, 0};
