@@ -92,7 +92,6 @@ else()
 endif()
 
 # Create PSLP library
-#add_library(PSLP ${CORE_SOURCES})
 add_library(PSLP ${CORE_SOURCES})
 target_include_directories(PSLP
   PUBLIC
@@ -111,6 +110,7 @@ if (MSVC)
   target_compile_options(PSLP PRIVATE /W4)
   set(CMAKE_DEBUG_POSTFIX "d")
   set_target_properties(PSLP PROPERTIES DEBUG_POSTFIX "d")
+  set_target_properties(PSLP PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
   target_compile_definitions(PSLP PRIVATE PSLP_EXPORTS)
   target_compile_options(PSLP PRIVATE
     $<$<CONFIG:Debug>:/Od>
@@ -126,12 +126,6 @@ else()
     $<$<CONFIG:RelWithDebInfo>:-O2 -g -DNDEBUG>
     $<$<CONFIG:MinSizeRel>:-Os -DNDEBUG>
   )
-endif()
-
-if (MSVC)
-    set_target_properties(PSLP PROPERTIES
-        WINDOWS_EXPORT_ALL_SYMBOLS ON
-    )
 endif()
 
 if(ENABLE_DEBUGGER OR CMAKE_BUILD_TYPE STREQUAL "Debug")
