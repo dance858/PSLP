@@ -142,6 +142,8 @@ static void *init_thread_func(void *arg)
     printf("[DEBUG] [thread] after new_locks\n");
     data->activities = new_activities(data->A, data->col_tags, data->bounds);
     printf("[DEBUG] [thread] after new_activities\n");
+    printf("data->A: %p\n", (void *) data->A);
+    printf("data->row_sizes: %p\n", (void *) data->row_sizes);
     count_rows(data->A, data->row_sizes);
     printf("[DEBUG] [thread] after count_rows, exiting\n");
 

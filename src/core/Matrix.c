@@ -521,6 +521,7 @@ void remove_coeff(RowView *row, int col)
 
 void count_rows(const Matrix *A, int *row_sizes)
 {
+    printf("inside count rows\n");
     for (int i = 0; i < A->m; ++i)
     {
         row_sizes[i] = A->p[i].end - A->p[i].start;
