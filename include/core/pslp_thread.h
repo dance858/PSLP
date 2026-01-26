@@ -52,12 +52,22 @@ static inline int ps_thread_create(ps_thread_t *t, void *attr,
 
 static inline int ps_thread_join(ps_thread_t t, void **retval)
 {
-    if (WaitForSingleObject(t.handle, INFINITE) != WAIT_OBJECT_0) return -1;
+    printf("[DEBUG] [ps_thread_join] entered, handle=%p\n", (void *) t.handle);
+    DWORD wait_result = WaitForSingleObject(t.handle, INFINITE);
+    printf("[DEBUG] [ps_thread_join] WaitForSingleObject returned %lu\n",
+           (unsigned long) wait_result);
+    if (wait_result != WAIT_OBJECT_0)
+    {
+        printf("[DEBUG] [ps_thread_join] WaitForSingleObject failed\n");
+        return -1;
+    }
 
     if (retval) *retval = t.wrapper->ret;
 
     CloseHandle(t.handle);
+    printf("[DEBUG] [ps_thread_join] handle closed\n");
     free(t.wrapper);
+    printf("[DEBUG] [ps_thread_join] wrapper freed, returning 0\n");
     return 0;
 }
 
