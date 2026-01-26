@@ -192,7 +192,7 @@ void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_sizes,
                         bool remove_all, int *col_idxs_map)
 {
     int i, j, start, end, len, row_alloc, curr, n_deleted_rows, col_count;
-    double extra_row_space = (remove_all) ? 0.0 : EXTRA_ROW_SPACE;
+    int extra_row_space = (remove_all) ? 0 : EXTRA_ROW_SPACE;
     double extra_mem_ratio = (remove_all) ? 1.0 : EXTRA_MEMORY_RATIO;
     curr = 0;
     n_deleted_rows = 0;
