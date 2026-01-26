@@ -270,31 +270,39 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     // }
 
     ps_thread_t thread_id;
-    ParallelInitData parallel_data = {A,    work,     n_cols,   n_rows,   lbs,
-                                      ubs,  lhs_copy, rhs_copy, bounds,   col_tags,
-                                      NULL, NULL,     NULL,     row_sizes};
+    int thread_created = 0;
 
-    printf("before thread create\n");
-    ps_thread_create(&thread_id, NULL, init_thread_func, &parallel_data);
-    printf("after thread create\n");
-    // Main thread: Transpose A and count rows
+    ParallelInitData *parallel_data = malloc(sizeof(*parallel_data));
+    if (!parallel_data) goto cleanup;
+
+    *parallel_data = (ParallelInitData) {
+        A,        work,   n_cols,   n_rows, lbs,  ubs,  lhs_copy,
+        rhs_copy, bounds, col_tags, NULL,   NULL, NULL, row_sizes};
+
+    if (ps_thread_create(&thread_id, NULL, init_thread_func, parallel_data) == 0)
+        thread_created = 1;
+
     AT = transpose(A, work->iwork_n_cols);
     if (!AT)
     {
-        ps_thread_cancel(thread_id);
+        if (thread_created) ps_thread_join(thread_id, NULL);
         goto cleanup;
     }
+
     count_rows(AT, col_sizes);
 
-    // sync threads
-    printf("before thread join\n");
-    ps_thread_join(thread_id, NULL);
-    printf("after thread join\n");
+    if (thread_created) ps_thread_join(thread_id, NULL);
 
-    row_tags = parallel_data.row_tags;
+    row_tags = parallel_data->row_tags;
+    locks = parallel_data->locks;
+    activities = parallel_data->activities;
+
+    free(parallel_data);
+
+    // row_tags = parallel_data.row_tags;
     if (!row_tags) goto cleanup;
-    locks = parallel_data.locks;
-    activities = parallel_data.activities;
+    // locks = parallel_data.locks;
+    // activities = parallel_data.activities;
     if (!locks || !activities) goto cleanup;
 
     // ---------------------------------------------------------------------------
