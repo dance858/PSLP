@@ -11,22 +11,6 @@ message(STATUS "Configuring PSLP (version ${PSLP_VERSION})")
 
 include(GNUInstallDirs)
 
-
-# TODO: is this really necessary?
-
-# Set output directories for all configurations
-foreach(OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES})
-  string(TOUPPER ${OUTPUTCONFIG} OUTPUTCONFIG_UPPER)
-  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}")
-  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
-  set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
-endforeach()
-
-# Also set for single-config generators
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
-
 #Enable export of all symbols on Windows for shared libraries
 if(BUILD_SHARED_LIBS)
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
@@ -199,6 +183,26 @@ endif()
 
 add_executable(test_cpp EXCLUDE_FROM_ALL tests/test_cpp.cpp)
 target_link_libraries(test_cpp PRIVATE PSLP)
+
+# Set output directories to ${CMAKE_BINARY_DIR}/lib for all configurations
+foreach(OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES})
+  string(TOUPPER ${OUTPUTCONFIG} OUTPUTCONFIG_UPPER)
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} "${CMAKE_BINARY_DIR}/bin")
+  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} "${CMAKE_BINARY_DIR}/lib")
+  set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} "${CMAKE_BINARY_DIR}/lib")
+endforeach()
+
+# Also set for single-config generators
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+
+# Debug output for library location
+message(STATUS "PSLP library will be output to: ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+message(STATUS "PSLP archive will be output to: ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}")
+if(MSVC)
+  message(STATUS "Expected Debug import library: ${CMAKE_BINARY_DIR}/lib/PSLPd.lib")
+endif()
 
 # Installation and export
 install(TARGETS PSLP
