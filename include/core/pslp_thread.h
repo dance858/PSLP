@@ -3,27 +3,36 @@
 
 #if defined(_WIN32) || defined(_WIN64)
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <windows.h>
 
+/* ---------------- Windows Thread Types ---------------- */
 typedef HANDLE ps_thread_t;
 
-/* Wrapper to adapt POSIX-style start routine */
+/* Wrapper structure for POSIX-style thread on Windows */
 typedef struct
 {
     void *(*start_routine)(void *);
     void *arg;
     void *ret;
+    volatile LONG cancel_requested; /* cooperative cancellation flag */
 } ps_thread_wrapper_t;
 
+/* Thread trampoline: calls the user function */
 static DWORD WINAPI ps_thread_trampoline(LPVOID param)
 {
     ps_thread_wrapper_t *w = (ps_thread_wrapper_t *) param;
-    w->ret = w->start_routine(w->arg);
+    if (!w->cancel_requested)
+    {
+        w->ret = w->start_routine(w->arg);
+    }
     return 0;
 }
 
-static inline int ps_thread_create(ps_thread_t *thread, void *attr,
+/* Create a thread */
+static inline int ps_thread_create(ps_thread_t *thread,
+                                   void *attr, /* ignored on Windows */
                                    void *(*start_routine)(void *), void *arg)
 {
     (void) attr;
@@ -34,6 +43,7 @@ static inline int ps_thread_create(ps_thread_t *thread, void *attr,
     w->start_routine = start_routine;
     w->arg = arg;
     w->ret = NULL;
+    w->cancel_requested = 0;
 
     *thread = CreateThread(NULL, 0, ps_thread_trampoline, w, 0, NULL);
 
@@ -46,6 +56,7 @@ static inline int ps_thread_create(ps_thread_t *thread, void *attr,
     return 0;
 }
 
+/* Join a thread */
 static inline int ps_thread_join(ps_thread_t thread, void **retval)
 {
     if (WaitForSingleObject(thread, INFINITE) != WAIT_OBJECT_0) return -1;
@@ -61,11 +72,11 @@ static inline int ps_thread_join(ps_thread_t thread, void **retval)
     return 0;
 }
 
-/* Best-effort only: NOT safe */
-static inline int ps_thread_cancel(ps_thread_t thread)
+/* Cooperative cancel: signal the thread to exit at next check */
+static inline int ps_thread_cancel(ps_thread_wrapper_t *w)
 {
-    TerminateThread(thread, 0);
-    CloseHandle(thread);
+    if (!w) return -1;
+    InterlockedExchange(&w->cancel_requested, 1);
     return 0;
 }
 
@@ -91,5 +102,6 @@ static inline int ps_thread_cancel(ps_thread_t thread)
     return pthread_cancel(thread);
 }
 
-#endif
+#endif /* Windows / POSIX */
+
 #endif /* PSLP_THREAD_H */
