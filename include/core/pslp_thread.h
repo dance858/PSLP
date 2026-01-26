@@ -33,6 +33,14 @@ static inline int ps_thread_create(ps_thread_t *t, void *attr,
     return 0;
 }
 
+// join does nothing, function already ran
+static inline int ps_thread_join(ps_thread_t *t, void **retval)
+{
+    if (!t) return -1;
+    if (retval) *retval = t->wrapper.ret;
+    return 0;
+}
+
 #else /* POSIX */
 
 #include <pthread.h>
