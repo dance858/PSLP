@@ -3,35 +3,23 @@
 
 #if defined(_WIN32) || defined(_WIN64)
 
-/* ======================= */
-/*        WINDOWS          */
-/* ======================= */
-
-#include <process.h>
-#include <stdatomic.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <windows.h>
 
-typedef struct
-{
-    HANDLE handle;
-    atomic_int cancel_requested;
-    void *retval;
-} ps_thread_t;
+typedef HANDLE ps_thread_t;
 
+/* Wrapper to adapt POSIX-style start routine */
 typedef struct
 {
-    void *(*fn)(void *);
+    void *(*start_routine)(void *);
     void *arg;
-    ps_thread_t *thread;
-} ps_thread_start_t;
+    void *ret;
+} ps_thread_wrapper_t;
 
-static unsigned __stdcall ps_thread_trampoline(void *arg)
+static DWORD WINAPI ps_thread_trampoline(LPVOID param)
 {
-    ps_thread_start_t *s = (ps_thread_start_t *) arg;
-    s->thread->retval = s->fn(s->arg);
-    free(s);
+    ps_thread_wrapper_t *w = (ps_thread_wrapper_t *) param;
+    w->ret = w->start_routine(w->arg);
     return 0;
 }
 
@@ -40,55 +28,48 @@ static inline int ps_thread_create(ps_thread_t *thread, void *attr,
 {
     (void) attr;
 
-    atomic_init(&thread->cancel_requested, 0);
-    thread->retval = NULL;
+    ps_thread_wrapper_t *w = malloc(sizeof(*w));
+    if (!w) return -1;
 
-    ps_thread_start_t *start = malloc(sizeof(*start));
-    if (!start) return -1;
+    w->start_routine = start_routine;
+    w->arg = arg;
+    w->ret = NULL;
 
-    start->fn = start_routine;
-    start->arg = arg;
-    start->thread = thread;
+    *thread = CreateThread(NULL, 0, ps_thread_trampoline, w, 0, NULL);
 
-    uintptr_t h = _beginthreadex(NULL, 0, ps_thread_trampoline, start, 0, NULL);
-
-    if (!h)
+    if (!*thread)
     {
-        free(start);
+        free(w);
         return -1;
     }
 
-    thread->handle = (HANDLE) h;
     return 0;
 }
 
-static inline int ps_thread_join(ps_thread_t *thread, void **retval)
+static inline int ps_thread_join(ps_thread_t thread, void **retval)
 {
-    WaitForSingleObject(thread->handle, INFINITE);
+    if (WaitForSingleObject(thread, INFINITE) != WAIT_OBJECT_0) return -1;
 
-    if (retval) *retval = thread->retval;
+    /* Recover wrapper pointer */
+    ps_thread_wrapper_t *w = NULL;
+    GetExitCodeThread(thread, (LPDWORD) &w);
 
-    CloseHandle(thread->handle);
+    if (retval && w) *retval = w->ret;
+
+    free(w);
+    CloseHandle(thread);
     return 0;
 }
 
-/* Cooperative cancellation */
-static inline int ps_thread_cancel(ps_thread_t *thread)
+/* Best-effort only: NOT safe */
+static inline int ps_thread_cancel(ps_thread_t thread)
 {
-    atomic_store(&thread->cancel_requested, 1);
+    TerminateThread(thread, 0);
+    CloseHandle(thread);
     return 0;
 }
 
-static inline int ps_thread_test_cancel(ps_thread_t *thread)
-{
-    return atomic_load(&thread->cancel_requested);
-}
-
-#else
-
-/* ======================= */
-/*          POSIX          */
-/* ======================= */
+#else /* POSIX */
 
 #include <pthread.h>
 
@@ -111,5 +92,4 @@ static inline int ps_thread_cancel(ps_thread_t thread)
 }
 
 #endif
-
 #endif /* PSLP_THREAD_H */
