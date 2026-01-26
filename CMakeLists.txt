@@ -88,10 +88,13 @@ else()
 endif()
 
 # Create PSLP library
-add_library(PSLP ${CORE_SOURCES})
+#add_library(PSLP ${CORE_SOURCES})
+add_library(PSLP ${CORE_SOURCES} src/core/PSLP_API.c)
 target_include_directories(PSLP
   PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/PSLP>
   PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/core>
