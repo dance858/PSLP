@@ -12,6 +12,8 @@ message(STATUS "Configuring PSLP (version ${PSLP_VERSION})")
 include(GNUInstallDirs)
 
 
+# TODO: is this really necessary?
+
 # Set output directories for all configurations
 foreach(OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES})
   string(TOUPPER ${OUTPUTCONFIG} OUTPUTCONFIG_UPPER)
@@ -28,13 +30,6 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}"
 #Enable export of all symbols on Windows for shared libraries
 if(BUILD_SHARED_LIBS)
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-endif()
-
-
-# Set debug postfix for MSVC libraries
-if(MSVC)
-  set(CMAKE_DEBUG_POSTFIX "d")
-  set_target_properties(PSLP PROPERTIES DEBUG_POSTFIX "d")
 endif()
 
 #Build position - independent code
@@ -120,10 +115,11 @@ target_include_directories(PSLP
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/explorers>
 )
 
-
 # Common compile options
 if(MSVC)
   target_compile_options(PSLP PRIVATE /W4)
+  set(CMAKE_DEBUG_POSTFIX "d")
+  set_target_properties(PSLP PROPERTIES DEBUG_POSTFIX "d")
 else()
   target_compile_options(PSLP PRIVATE -Wall -Wextra -Wpedantic -Wno-sign-compare)
 endif()
