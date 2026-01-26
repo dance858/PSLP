@@ -26,4 +26,4 @@ jobs:
       run: cmake --build build --config ${{ matrix.build_type }}
       
     - name: Run tests
-      run: cd build && ctest -C ${{ matrix.build_type }} --output-on-failure
+      run: cd build && ctest -C ${{ matrix.build_type }} --verbose
