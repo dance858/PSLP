@@ -284,12 +284,9 @@ static void retrieve_parallel_col(Solution *sol, const int *indices,
     // if the multiplier is positive the variable should be at its lower bound
     if (sol->z[j] > 0)
     {
-        if (!IS_EQUAL_FEAS_TOL(sol->x[j], lb_j))
-        {
-            printf("j: %d, xj: %.12f, lb_j: %.12f\n", j, sol->x[j], lb_j);
-            fflush(stdout);
-            assert(false && "sol->x[j] != lb_j");
-        }
+        printf("j: %d, xj: %.12f, lb_j: %.12f\n, z[j]: %.12f\n", j, sol->x[j], lb_j,
+               sol->z[j]);
+        fflush(stdout);
 
         assert(!HAS_TAG(cTag_j, C_TAG_LB_INF) && IS_EQUAL_FEAS_TOL(sol->x[j], lb_j));
     }
