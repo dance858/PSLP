@@ -31,4 +31,4 @@ jobs:
 
     - name: Run C++ tests (Windows)
       if: runner.os == 'Windows'
-      run: cd build_cpp; .\bin\test_cpp.exe
+      run: .\build_cpp\Debug\test_cpp.exe
