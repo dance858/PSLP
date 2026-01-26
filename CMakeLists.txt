@@ -128,9 +128,21 @@ else()
     target_compile_definitions(PSLP PRIVATE NDEBUG)
 endif()
 
-# Link pthread library
-find_package(Threads REQUIRED)
-target_link_libraries(PSLP PRIVATE Threads::Threads)
+
+# Link pthread library or compatibility layer
+if(WIN32)
+  # Use pthreads-w32 on Windows
+  find_path(PTHREADS_WIN32_INCLUDE_DIR pthread.h)
+  find_library(PTHREADS_WIN32_LIBRARY NAMES pthreadVC2 pthreadVCE2 pthread)
+  if(NOT PTHREADS_WIN32_INCLUDE_DIR OR NOT PTHREADS_WIN32_LIBRARY)
+    message(FATAL_ERROR "PSLP: pthreads-w32 not found. Please install pthreads-w32 and set PTHREADS_WIN32_INCLUDE_DIR and PTHREADS_WIN32_LIBRARY.")
+  endif()
+  target_include_directories(PSLP PRIVATE ${PTHREADS_WIN32_INCLUDE_DIR})
+  target_link_libraries(PSLP PRIVATE ${PTHREADS_WIN32_LIBRARY})
+else()
+  find_package(Threads REQUIRED)
+  target_link_libraries(PSLP PRIVATE Threads::Threads)
+endif()
 
 # Testing
 option(PSLP_BUILD_TESTING "Build PSLP tests" OFF)
