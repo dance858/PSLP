@@ -2,114 +2,90 @@
 #define PSLP_THREAD_H
 
 #if defined(_WIN32) || defined(_WIN64)
-
-/* ======================= */
-/*        WINDOWS          */
-/* ======================= */
-
-#include <process.h>
-#include <stdatomic.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <windows.h>
+// Portable thread type
+typedef HANDLE ps_thread_t;
 
+// Internal structure to pass user function and argument
 typedef struct
 {
-    HANDLE handle;
-    atomic_int cancel_requested;
-    void *retval;
-} ps_thread_t;
-
-typedef struct
-{
-    void *(*fn)(void *);
+    void *(*start_routine)(void *);
     void *arg;
-    ps_thread_t *thread;
-} ps_thread_start_t;
+    void *ret;
+} ps_thread_wrapper_t;
 
-static unsigned __stdcall ps_thread_trampoline(void *arg)
+// Windows thread wrapper to safely return pointer
+static DWORD WINAPI ps_thread_start_wrapper(LPVOID param)
 {
-    ps_thread_start_t *s = (ps_thread_start_t *) arg;
-    s->thread->retval = s->fn(s->arg);
-    free(s);
+    ps_thread_wrapper_t *wrapper = (ps_thread_wrapper_t *) param;
+    wrapper->ret = wrapper->start_routine(wrapper->arg);
     return 0;
 }
 
+// Thread create: attr is ignored on Windows
 static inline int ps_thread_create(ps_thread_t *thread, void *attr,
                                    void *(*start_routine)(void *), void *arg)
 {
-    (void) attr;
+    (void) attr; // Not used on Windows
+    ps_thread_wrapper_t *wrapper =
+        (ps_thread_wrapper_t *) malloc(sizeof(ps_thread_wrapper_t));
+    if (!wrapper) return -1;
+    wrapper->start_routine = start_routine;
+    wrapper->arg = arg;
+    wrapper->ret = NULL;
+    *thread = CreateThread(NULL, 0, ps_thread_start_wrapper, wrapper, 0, NULL);
+    return *thread ? 0 : -1;
+}
 
-    atomic_init(&thread->cancel_requested, 0);
-    thread->retval = NULL;
-
-    ps_thread_start_t *start = malloc(sizeof(*start));
-    if (!start) return -1;
-
-    start->fn = start_routine;
-    start->arg = arg;
-    start->thread = thread;
-
-    uintptr_t h = _beginthreadex(NULL, 0, ps_thread_trampoline, start, 0, NULL);
-
-    if (!h)
+// Thread join: retrieves pointer return value if possible
+static inline int ps_thread_join(ps_thread_t thread, void **retval)
+{
+    DWORD res = WaitForSingleObject(thread, INFINITE);
+    if (res == WAIT_OBJECT_0)
     {
-        free(start);
-        return -1;
+        // Retrieve wrapper and return value
+        ps_thread_wrapper_t *wrapper = NULL;
+        BOOL ok = GetExitCodeThread(thread, (LPDWORD) &wrapper);
+        if (ok && wrapper)
+        {
+            if (retval) *retval = wrapper->ret;
+            free(wrapper);
+        }
+        else
+        {
+            if (retval) *retval = NULL;
+        }
+        CloseHandle(thread);
+        return 0;
     }
+    return -1;
+}
 
-    thread->handle = (HANDLE) h;
+// Thread cancel: WARNING - unsafe, does not clean up resources!
+// Use only if absolutely necessary. Prefer cooperative cancellation.
+static inline int ps_thread_cancel(ps_thread_t thread)
+{
+    TerminateThread(thread, 0);
+    CloseHandle(thread);
     return 0;
 }
-
-static inline int ps_thread_join(ps_thread_t *thread, void **retval)
-{
-    WaitForSingleObject(thread->handle, INFINITE);
-
-    if (retval) *retval = thread->retval;
-
-    CloseHandle(thread->handle);
-    return 0;
-}
-
-/* Cooperative cancellation */
-static inline int ps_thread_cancel(ps_thread_t *thread)
-{
-    atomic_store(&thread->cancel_requested, 1);
-    return 0;
-}
-
-static inline int ps_thread_test_cancel(ps_thread_t *thread)
-{
-    return atomic_load(&thread->cancel_requested);
-}
-
 #else
-
-/* ======================= */
-/*          POSIX          */
-/* ======================= */
-
 #include <pthread.h>
-
 typedef pthread_t ps_thread_t;
-
 static inline int ps_thread_create(ps_thread_t *thread, void *attr,
                                    void *(*start_routine)(void *), void *arg)
 {
     return pthread_create(thread, (pthread_attr_t *) attr, start_routine, arg);
 }
-
 static inline int ps_thread_join(ps_thread_t thread, void **retval)
 {
     return pthread_join(thread, retval);
 }
-
 static inline int ps_thread_cancel(ps_thread_t thread)
 {
     return pthread_cancel(thread);
 }
-
 #endif
 
-#endif /* PSLP_THREAD_H */
+#endif // PSLP_THREAD_H
