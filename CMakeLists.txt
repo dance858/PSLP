@@ -49,8 +49,6 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
-
-
 # Add uninstall target
 include(AddUninstallTarget)
 
@@ -63,8 +61,6 @@ file(GLOB CORE_SOURCES CONFIGURE_DEPENDS
     src/core/*.c
     src/explorers/*.c
 )
-
-#message(STATUS "[DEBUG] CORE_SOURCES: ${CORE_SOURCES}")
 
 # distinguish between public and private headers
 set(PUBLIC_HEADERS
@@ -185,44 +181,6 @@ endif()
 
 add_executable(test_cpp EXCLUDE_FROM_ALL tests/test_cpp.cpp)
 target_link_libraries(test_cpp PRIVATE PSLP)
-
-
-# Set output directories to match MSVC/Visual Studio defaults
-#foreach(OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES})
-#  string(TOUPPER ${OUTPUTCONFIG} OUTPUTCONFIG_UPPER)
-#  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} "${CMAKE_BINARY_DIR}/${OUTPUTCONFIG}")
-#  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} "${CMAKE_BINARY_DIR}/${OUTPUTCONFIG}")
-#  set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} "${CMAKE_BINARY_DIR}/${OUTPUTCONFIG}")
-#endforeach()
-
-# Also set for single-config generators
-#set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
-#set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
-#set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
-
-# Debug output for library location
-#message(STATUS "PSLP library will be output to: ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
-#message(STATUS "PSLP archive will be output to: ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}")
-#if(MSVC)
-#  message(STATUS "Expected Debug import library: ${CMAKE_BINARY_DIR}/lib/PSLPd.lib")
-#endif()
-
-# Print all library and archive output directories for all configurations
-#foreach(OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES})
-#  string(TOUPPER ${OUTPUTCONFIG} OUTPUTCONFIG_UPPER)
-#  message(STATUS "[DEBUG] CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER}: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER}}")
-#  message(STATUS "[DEBUG] CMAKE_LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER}: ${CMAKE_LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER}}")
-#  message(STATUS "[DEBUG] CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER}: ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER}}")
-#  message(STATUS "[DEBUG] Expected import lib: ${CMAKE_LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER}}/PSLPd.lib")
-#endforeach()
-#
-## Print single-config generator output directories
-#message(STATUS "[DEBUG] CMAKE_RUNTIME_OUTPUT_DIRECTORY: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
-#message(STATUS "[DEBUG] CMAKE_LIBRARY_OUTPUT_DIRECTORY: ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
-#message(STATUS "[DEBUG] CMAKE_ARCHIVE_OUTPUT_DIRECTORY: ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}")
-#if(MSVC)
-#  message(STATUS "[DEBUG] Expected Debug import library: ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/PSLPd.lib")
-#endif()
 
 # Installation and export
 install(TARGETS PSLP
