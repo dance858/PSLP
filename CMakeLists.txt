@@ -100,6 +100,7 @@ target_include_directories(PSLP
 )
 
 # Common compile options
+if(MSVC)
   target_compile_options(PSLP PRIVATE /W4)
   set(CMAKE_DEBUG_POSTFIX "d")
   set_target_properties(PSLP PROPERTIES DEBUG_POSTFIX "d")
