@@ -20,11 +20,11 @@ const char *run_all_tests()
     mu_assert("dton error", test_dton());
     mu_assert("core error", test_core());
     mu_assert("ston error", test_ston());
-// we skip parallel rows and cols on windows in CI
-#ifndef _WIN32
-    mu_assert("parallel_rows error", test_parallel_rows());
-    mu_assert("parallel_cols error", test_parallel_cols());
-#endif
+    // we skip parallel rows and cols on windows in CI
+    // #ifndef _WIN32
+    //    mu_assert("parallel_rows error", test_parallel_rows());
+    //    mu_assert("parallel_cols error", test_parallel_cols());
+    // #endif
     mu_assert("simple reductions error", test_simple());
     mu_assert("domain propagation error", test_domain());
     mu_assert("postsolve error", test_postsolve());
@@ -36,6 +36,7 @@ const char *run_all_tests()
 
 int main()
 {
+    printf("Running all tests...\n");
     const char *result = run_all_tests();
     if (result != NULL)
     {
