@@ -1502,7 +1502,7 @@ static char *test_16_dton()
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 32));
     mu_assert("error row starts", check_row_starts(A, Ap_correct));
 
-    PS_FREE(stgs); // check new AT
+    PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
     free_presolver(presolver);
