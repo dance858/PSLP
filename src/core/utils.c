@@ -65,7 +65,7 @@ void colTagPtr_shrink(ColTag *ptr, const int *map, int len)
 
 void shrink_idx_vector(iVec *vec, const int *map)
 {
-    int len = vec->len;
+    int len = (int) vec->len;
     int curr = 0;
 
     for (int i = 0; i < len; ++i)

@@ -504,7 +504,7 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
 {
     const int *col_map = info->col_map;
     const int *row_map = info->row_map;
-    int n_reductions = info->type->len;
+    int n_reductions = (int) info->type->len;
     ReductionType *reductions = info->type->data;
     const int *indices = info->indices->data;
     const double *vals = info->vals->data;
@@ -664,7 +664,7 @@ void save_retrieval_fixed_col(PostsolveInfo *info, int col, double val, double c
     dVec_append(info->vals, val);
     dVec_append(info->vals, ck);
     dVec_append_array(info->vals, vals, len);
-    iVec_append(info->starts, info->indices->len);
+    iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);
 }
@@ -705,7 +705,7 @@ void save_retrieval_fixed_col_inf(PostsolveInfo *info, int col, int pos_inf,
         assert(HAS_TAG(row_tags[row], (R_TAG_LHS_INF | R_TAG_RHS_INF)));
     }
 
-    iVec_append(info->starts, info->indices->len);
+    iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);
 }
@@ -720,7 +720,7 @@ void save_retrieval_sub_col(PostsolveInfo *info, int col, int *cols, double *coe
     dVec_append(info->vals, rhs);
     dVec_append_array(info->vals, coeffs, len);
     dVec_append(info->vals, ck);
-    iVec_append(info->starts, info->indices->len);
+    iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->indices->len == info->vals->len);
 }
@@ -740,7 +740,7 @@ void save_retrieval_parallel_col(PostsolveInfo *info, double ub_j, double lb_j,
     dVec_append(info->vals, lb_k);
     dVec_append(info->vals, ub_k);
     dVec_append(info->vals, ratio);
-    iVec_append(info->starts, info->indices->len);
+    iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);
 }
@@ -750,7 +750,7 @@ void save_retrieval_deleted_row(PostsolveInfo *info, int row, double val)
     u16Vec_append(info->type, DELETED_ROW);
     iVec_append(info->indices, row);
     dVec_append(info->vals, val);
-    iVec_append(info->starts, info->indices->len);
+    iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);
 }
@@ -762,7 +762,7 @@ void save_retrieval_added_row(PostsolveInfo *info, int i, int j, double ratio)
     iVec_append(info->indices, j);
     dVec_append(info->vals, ratio);
     dVec_append(info->vals, DUMMY_VALUE);
-    iVec_append(info->starts, info->indices->len);
+    iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);
 }
@@ -775,7 +775,7 @@ void save_retrieval_added_rows(PostsolveInfo *info, int i, const int *rows,
     iVec_append_array(info->indices, rows, len);
     dVec_append(info->vals, aik);
     dVec_append_array(info->vals, vals, len);
-    iVec_append(info->starts, info->indices->len);
+    iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);
 }
@@ -791,7 +791,7 @@ void save_retrieval_bound_change_no_row(PostsolveInfo *info, int j,
     iVec_append(info->indices, is_original_other_bound_lower_bound);
     dVec_append(info->vals, implied_bound);
     dVec_append(info->vals, original_other_bound);
-    iVec_append(info->starts, info->indices->len);
+    iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);
 }
@@ -805,7 +805,7 @@ void save_retrieval_bound_change_the_row(PostsolveInfo *info, int i, const int *
     iVec_append_array(info->indices, cols, len);
     dVec_append(info->vals, (double) num_of_bound_changes);
     dVec_append_array(info->vals, vals, len);
-    iVec_append(info->starts, info->indices->len);
+    iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);
 }
@@ -829,7 +829,7 @@ void save_retrieval_rhs_or_lhs_change(PostsolveInfo *info, int i, const double *
     dVec_append(info->vals, new_side);
     dVec_append(info->vals, ratio);
     dVec_append_array(info->vals, vals, len);
-    iVec_append(info->starts, info->indices->len);
+    iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);
 }
@@ -839,7 +839,7 @@ void save_retrieval_eq_to_ineq(PostsolveInfo *info, int row, double val)
     u16Vec_append(info->type, EQ_TO_INEQ);
     iVec_append(info->indices, row);
     dVec_append(info->vals, val);
-    iVec_append(info->starts, info->indices->len);
+    iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);
 }
