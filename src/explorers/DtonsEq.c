@@ -236,9 +236,9 @@ static inline void modify_bounds(Constraints *constraints, int i, double aij,
 #ifndef TESTING
 static inline
 #endif
-    Old_and_new_coeff update_row_A_dton(Matrix *A, int i, int q, int j, int k,
-                                        double aij, double aik, int *row_size,
-                                        PostsolveInfo *postsolve_info)
+    Old_and_new_coeff
+    update_row_A_dton(Matrix *A, int i, int q, int j, int k, double aij, double aik,
+                      int *row_size, PostsolveInfo *postsolve_info)
 {
     int ii, start, end, insertion;
     double old_val = 0.0;
