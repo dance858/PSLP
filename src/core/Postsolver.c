@@ -287,6 +287,7 @@ static void retrieve_parallel_col(Solution *sol, const int *indices,
         printf("j=%d, z[j]=%f, x[j]=%f, lb_j=%f, ub_j=%f\n", j, sol->z[j], sol->x[j],
                lb_j, ub_j);
         printf("HAS_TAG(cTag_j, C_TAG_LB_INF)=%d\n", HAS_TAG(cTag_j, C_TAG_LB_INF));
+        printf("\n \n");
         assert(!HAS_TAG(cTag_j, C_TAG_LB_INF) && IS_EQUAL_FEAS_TOL(sol->x[j], lb_j));
     }
     // if the multiplier is negative the variable should be at its upper bound
