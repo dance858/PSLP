@@ -216,16 +216,6 @@ if(MSVC)
   message(STATUS "[DEBUG] Expected Debug import library: ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/PSLPd.lib")
 endif()
 
-# Check if PSLPd.lib exists after build (for MSVC Debug config)
-if(MSVC)
-  set(_pslp_debug_lib "${CMAKE_BINARY_DIR}/Debug/PSLPd.lib")
-  if(EXISTS "${_pslp_debug_lib}")
-    message(STATUS "[DEBUG] PSLPd.lib exists at: ${_pslp_debug_lib}")
-  else()
-    message(WARNING "[DEBUG] PSLPd.lib NOT FOUND at: ${_pslp_debug_lib}. If build fails, check PSLP target build log.")
-  endif()
-endif()
-
 # Installation and export
 install(TARGETS PSLP
   EXPORT PSLPTargets
@@ -233,6 +223,11 @@ install(TARGETS PSLP
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PSLP
+)
+
+add_custom_command(TARGET PSLP POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E echo "[DEBUG] Listing contents of $<TARGET_FILE_DIR:PSLP>"
+  COMMAND ${CMAKE_COMMAND} -E env ls -l $<TARGET_FILE_DIR:PSLP>
 )
 
 install(FILES ${PUBLIC_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PSLP)
