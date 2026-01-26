@@ -18,7 +18,6 @@ static int counter_constraints = 0;
 
 static char *test_1_constraints()
 {
-
     // build constraints object
     double vals[] = {1, -1, 1, 2, -1, 1, 1, 1, 1};
     int cols[] = {0, 1, 2, 0, 3, 0, 1, 2, 3};
@@ -26,21 +25,21 @@ static char *test_1_constraints()
     int n_rows = 3;
     int n_cols = 4;
     int nnz = 9;
-    int work_n_cols[n_cols];
+    int work_n_cols[4];
     Matrix *A = matrix_new(vals, cols, row_starts, n_rows, n_cols, nnz);
     Matrix *AT = transpose(A, work_n_cols);
     double lhs[3] = {4, 2, -INF};
     double rhs[3] = {4, 2, 1};
-    Bound bounds[n_cols];
-    INIT_BOUNDS(bounds, -10, 10, n_cols);
+    Bound bounds[4];
+    INIT_BOUNDS(bounds, -10, 10, 4);
 
     Lock locks[] = {{.up = 3, .down = 2},
                     {.up = 2, .down = 1},
                     {.up = 2, .down = 1},
                     {.up = 2, .down = 1}};
 
-    int row_sizes[] = {3, 2, 4};
-    int col_sizes[] = {3, 2, 2, 2};
+    int row_sizes[3] = {3, 2, 4};
+    int col_sizes[4] = {3, 2, 2, 2};
     Activity activities[3] = {0};
     RowTag *row_tags = new_rowtags(lhs, rhs, n_rows);
     ColTag col_tags[4] = {0};
@@ -96,7 +95,6 @@ static char *test_1_constraints()
 
 static char *test_2_constraints()
 {
-
     // build constraints object
     double vals[] = {1.3,   -0.6,  0.26,  -0.42, -0.59, -0.9,  0.53,  1.42,
                      1.31,  0.47,  -1.47, 0.63,  -0.93, 1.54,  -1.07, -1.46,
@@ -109,17 +107,17 @@ static char *test_2_constraints()
     int n_rows = 10;
     int n_cols = 10;
     int nnz = 40;
-    int work_n_cols[n_cols];
+    int work_n_cols[10];
     Matrix *A = matrix_new(vals, cols, row_starts, n_rows, n_cols, nnz);
     Matrix *AT = transpose(A, work_n_cols);
     double lhs[10] = {0.0};
     double rhs[10] = {0.0};
-    Bound bounds[n_cols];
-    INIT_BOUNDS(bounds, -10, 10, n_cols);
+    Bound bounds[10];
+    INIT_BOUNDS(bounds, -10, 10, 10);
 
-    Lock locks[n_cols];
-    int row_sizes[] = {4, 4, 5, 2, 4, 5, 3, 5, 4, 4};
-    int col_sizes[] = {2, 6, 4, 5, 5, 4, 4, 3, 3, 4};
+    Lock locks[10];
+    int row_sizes[10] = {4, 4, 5, 2, 4, 5, 3, 5, 4, 4};
+    int col_sizes[10] = {2, 6, 4, 5, 5, 4, 4, 3, 3, 4};
     RowTag *row_tags = new_rowtags(lhs, rhs, n_rows);
     ColTag col_tags[10] = {0};
     Settings *stgs = default_settings();
@@ -130,7 +128,7 @@ static char *test_2_constraints()
         constraints_new(A, AT, lhs, rhs, bounds, data, row_tags, col_tags);
 
     // remove rows 1, 3, 5
-    iVec_append_array(data->rows_to_delete, (int[]){1, 3, 5}, 3);
+    iVec_append_array(data->rows_to_delete, (int[]) {1, 3, 5}, 3);
     delete_inactive_rows(constraints);
 
     // test for correctness
@@ -181,7 +179,6 @@ static char *test_2_constraints()
 
 static char *test_3_constraints()
 {
-
     // build constraints object
     double vals[] = {1, -1, 1, 2, -1, 1, 1, 1, 1};
     int cols[] = {0, 1, 2, 0, 3, 0, 1, 2, 3};
@@ -189,18 +186,18 @@ static char *test_3_constraints()
     int n_rows = 3;
     int n_cols = 4;
     int nnz = 9;
-    int work_n_cols[n_cols];
+    int work_n_cols[4];
     Matrix *A = matrix_new(vals, cols, row_starts, n_rows, n_cols, nnz);
     Matrix *AT = transpose(A, work_n_cols);
     double lhs[3] = {4, 2, -INF};
     double rhs[3] = {4, 2, 1};
-    Bound bounds[n_cols];
-    INIT_BOUNDS(bounds, -10, 10, n_cols);
+    Bound bounds[4];
+    INIT_BOUNDS(bounds, -10, 10, 4);
 
     Lock locks[4];
 
-    int row_sizes[] = {3, 2, 4};
-    int col_sizes[] = {3, 2, 2, 2};
+    int row_sizes[3] = {3, 2, 4};
+    int col_sizes[4] = {3, 2, 2, 2};
     RowTag *row_tags = new_rowtags(lhs, rhs, n_rows);
     Activity activities[3] = {0};
     ColTag col_tags[4] = {0};
@@ -251,7 +248,6 @@ static char *test_3_constraints()
 
 static char *test_4_constraints()
 {
-
     // build constraints object
     double vals[] = {1.12, -0.29, -1.41, 0.67,  -0.35, -1.15, -0.72, -0.03,
                      0.82, 0.32,  1.38,  2.23,  -0.44, 0.05,  1.17,  0.21,
@@ -264,18 +260,18 @@ static char *test_4_constraints()
     int n_rows = 10;
     int n_cols = 10;
     int nnz = 40;
-    int work_n_cols[n_cols];
+    int work_n_cols[10];
     Matrix *A = matrix_new(vals, cols, row_starts, n_rows, n_cols, nnz);
     Matrix *AT = transpose(A, work_n_cols);
     double lhs[10] = {0.0};
     double rhs[10] = {0.0};
-    Bound bounds[n_cols];
-    INIT_BOUNDS(bounds, -10, 10, n_cols);
+    Bound bounds[10];
+    INIT_BOUNDS(bounds, -10, 10, 10);
 
-    Lock locks[n_cols];
+    Lock locks[10];
 
-    int row_sizes[] = {3, 2, 6, 4, 1, 1, 6, 6, 7, 4};
-    int col_sizes[] = {2, 2, 4, 5, 4, 4, 6, 4, 3, 6};
+    int row_sizes[10] = {3, 2, 6, 4, 1, 1, 6, 6, 7, 4};
+    int col_sizes[10] = {2, 2, 4, 5, 4, 4, 6, 4, 3, 6};
     RowTag *row_tags = new_rowtags(lhs, rhs, n_rows);
     Activity activities[10] = {0};
     ColTag col_tags[10] = {0};
@@ -286,7 +282,7 @@ static char *test_4_constraints()
         constraints_new(A, AT, lhs, rhs, bounds, data, row_tags, col_tags);
 
     // remove cols 1, 3, 5
-    iVec_append_array(data->fixed_cols_to_delete, (int[]){1, 3, 5}, 3);
+    iVec_append_array(data->fixed_cols_to_delete, (int[]) {1, 3, 5}, 3);
     delete_inactive_cols_from_A_and_AT(constraints);
 
     // test for correctness
