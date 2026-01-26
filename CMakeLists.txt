@@ -11,7 +11,16 @@ message(STATUS "Configuring PSLP (version ${PSLP_VERSION})")
 
 include(GNUInstallDirs)
 
-#Set output directories for libraries and executables
+
+# Set output directories for all configurations
+foreach(OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES})
+  string(TOUPPER ${OUTPUTCONFIG} OUTPUTCONFIG_UPPER)
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}")
+  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
+  set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
+endforeach()
+
+# Also set for single-config generators
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
@@ -21,9 +30,11 @@ if(BUILD_SHARED_LIBS)
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
-#Set debug postfix for MSVC
+
+# Set debug postfix for MSVC libraries
 if(MSVC)
-    set(CMAKE_DEBUG_POSTFIX "d")
+  set(CMAKE_DEBUG_POSTFIX "d")
+  set_target_properties(PSLP PROPERTIES DEBUG_POSTFIX "d")
 endif()
 
 #Build position - independent code
