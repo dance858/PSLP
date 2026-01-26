@@ -32,7 +32,7 @@ static inline int ps_thread_create(ps_thread_t *t, void *attr,
 {
     (void) attr;
 
-    t->wrapper = malloc(sizeof(*t->wrapper));
+    t->wrapper = calloc(1, sizeof(*t->wrapper));
     if (!t->wrapper) return -1;
 
     t->wrapper->start_routine = start_routine;
