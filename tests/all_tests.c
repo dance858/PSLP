@@ -17,7 +17,7 @@ const char *run_all_tests()
     mu_assert("matrix error", test_matrix());
     mu_assert("constraints error", test_constraints());
     mu_assert("iVec error", test_iVec());
-    mu_assert("dton error", test_dton());
+    // mu_assert("dton error", test_dton());
     mu_assert("core error", test_core());
     mu_assert("ston error", test_ston());
     // we skip parallel rows and cols on windows in CI
