@@ -64,7 +64,7 @@ file(GLOB CORE_SOURCES CONFIGURE_DEPENDS
     src/explorers/*.c
 )
 
-message(STATUS "[DEBUG] CORE_SOURCES: ${CORE_SOURCES}")
+#message(STATUS "[DEBUG] CORE_SOURCES: ${CORE_SOURCES}")
 
 # distinguish between public and private headers
 set(PUBLIC_HEADERS
@@ -196,16 +196,16 @@ target_link_libraries(test_cpp PRIVATE PSLP)
 #endforeach()
 
 # Also set for single-config generators
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+#set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+#set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+#set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
 # Debug output for library location
-message(STATUS "PSLP library will be output to: ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
-message(STATUS "PSLP archive will be output to: ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}")
-if(MSVC)
-  message(STATUS "Expected Debug import library: ${CMAKE_BINARY_DIR}/lib/PSLPd.lib")
-endif()
+#message(STATUS "PSLP library will be output to: ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+#message(STATUS "PSLP archive will be output to: ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}")
+#if(MSVC)
+#  message(STATUS "Expected Debug import library: ${CMAKE_BINARY_DIR}/lib/PSLPd.lib")
+#endif()
 
 # Print all library and archive output directories for all configurations
 #foreach(OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES})
