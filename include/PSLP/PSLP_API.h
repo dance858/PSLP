@@ -1,3 +1,24 @@
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+#ifdef _WIN32
+#ifdef PSLP_EXPORTS
+#define PSLP_API __declspec(dllexport)
+#else
+#define PSLP_API __declspec(dllimport)
+#endif
+#else
+#define PSLP_API
+#endif
+
+    // Dummy exported function for Windows import library generation
+    PSLP_API void pslp_dummy_export(void);
+
+#ifdef __cplusplus
+}
+#endif
 /*
  * Copyright 2025 Daniel Cederberg
  *
