@@ -109,6 +109,7 @@ target_include_directories(PSLP
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/explorers>
 )
 
+
 # Common compile options
 if(MSVC)
   target_compile_options(PSLP PRIVATE /W4)
@@ -117,12 +118,22 @@ else()
 endif()
 
 # Config-specific compile options
-target_compile_options(PSLP PRIVATE
-  $<$<CONFIG:Debug>:-g -O0>
-  $<$<CONFIG:Release>:-O3 -DNDEBUG>
-  $<$<CONFIG:RelWithDebInfo>:-O2 -g -DNDEBUG>
-  $<$<CONFIG:MinSizeRel>:-Os -DNDEBUG>
-)
+if(NOT MSVC)
+  target_compile_options(PSLP PRIVATE
+    $<$<CONFIG:Debug>:-g -O0>
+    $<$<CONFIG:Release>:-O3 -DNDEBUG>
+    $<$<CONFIG:RelWithDebInfo>:-O2 -g -DNDEBUG>
+    $<$<CONFIG:MinSizeRel>:-Os -DNDEBUG>
+  )
+else()
+  # MSVC: /Od for Debug, /O2 for Release, /O2 for RelWithDebInfo, /O1 for MinSizeRel
+  target_compile_options(PSLP PRIVATE
+    $<$<CONFIG:Debug>:/Od>
+    $<$<CONFIG:Release>:/O2 /DNDEBUG>
+    $<$<CONFIG:RelWithDebInfo>:/O2 /DNDEBUG>
+    $<$<CONFIG:MinSizeRel>:/O1 /DNDEBUG>
+  )
+endif()
 
 if(ENABLE_DEBUGGER OR CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_definitions(PSLP PRIVATE DEBUGGER_ENABLED)
