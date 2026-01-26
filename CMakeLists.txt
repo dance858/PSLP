@@ -104,25 +104,19 @@ if(MSVC)
   target_compile_options(PSLP PRIVATE /W4)
   set(CMAKE_DEBUG_POSTFIX "d")
   set_target_properties(PSLP PROPERTIES DEBUG_POSTFIX "d")
-else()
-  target_compile_options(PSLP PRIVATE -Wall -Wextra -Wpedantic -Wno-sign-compare)
-endif()
-
-# Config-specific compile options
-if(NOT MSVC)
-  target_compile_options(PSLP PRIVATE
-    $<$<CONFIG:Debug>:-g -O0>
-    $<$<CONFIG:Release>:-O3 -DNDEBUG>
-    $<$<CONFIG:RelWithDebInfo>:-O2 -g -DNDEBUG>
-    $<$<CONFIG:MinSizeRel>:-Os -DNDEBUG>
-  )
-else()
-  # MSVC: /Od for Debug, /O2 for Release, /O2 for RelWithDebInfo, /O1 for MinSizeRel
   target_compile_options(PSLP PRIVATE
     $<$<CONFIG:Debug>:/Od>
     $<$<CONFIG:Release>:/O2 /DNDEBUG>
     $<$<CONFIG:RelWithDebInfo>:/O2 /DNDEBUG>
     $<$<CONFIG:MinSizeRel>:/O1 /DNDEBUG>
+  )
+else()
+  target_compile_options(PSLP PRIVATE -Wall -Wextra -Wpedantic -Wno-sign-compare)
+  target_compile_options(PSLP PRIVATE
+    $<$<CONFIG:Debug>:-g -O0>
+    $<$<CONFIG:Release>:-O3 -DNDEBUG>
+    $<$<CONFIG:RelWithDebInfo>:-O2 -g -DNDEBUG>
+    $<$<CONFIG:MinSizeRel>:-Os -DNDEBUG>
   )
 endif()
 
