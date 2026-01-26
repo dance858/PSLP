@@ -23,10 +23,11 @@ jobs:
           -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g" \
           -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g" \
           -DBUILD_TESTING=ON
+          -DPSLP_BUILD_TESTING=ON
 
       # Build
       - name: Build
-        run: cmake --build build --config Debug
+        run: cmake --build build --config Debug 
 
       # Run tests
       - name: Run tests under ASan+UBSan
