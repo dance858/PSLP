@@ -71,9 +71,9 @@ Matrix *matrix_alloc(int n_rows, int n_cols, int nnz)
     A->p = (RowRange *) ps_calloc(((size_t) (n_rows + 1)), sizeof(RowRange));
     A->x = (double *) ps_calloc(((size_t) (A->n_alloc)), sizeof(double));
 #else
-    A->i = (int *) ps_malloc(((size_t) (A->n_alloc)) * sizeof(int));
-    A->p = (RowRange *) ps_malloc(((size_t) (n_rows + 1)) * sizeof(RowRange));
-    A->x = (double *) ps_malloc(((size_t) (A->n_alloc)) * sizeof(double));
+    A->i = (int *) ps_malloc((size_t) (A->n_alloc), sizeof(int));
+    A->p = (RowRange *) ps_malloc((size_t) (n_rows + 1), sizeof(RowRange));
+    A->x = (double *) ps_malloc((size_t) (A->n_alloc), sizeof(double));
 #endif
 
     if (!A->i || !A->p || !A->x)
