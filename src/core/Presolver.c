@@ -270,9 +270,6 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
 
     ps_thread_create(&thread_id, NULL, init_thread_func, parallel_data);
 
-    // for debugging
-    ps_thread_join(&thread_id, NULL);
-
     /* main thread: transpose A and count rows */
     AT = transpose(A, work->iwork_n_cols);
     if (!AT)
@@ -284,7 +281,7 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     count_rows(AT, col_sizes);
 
     /* sync threads */
-    // ps_thread_join(&thread_id, NULL);
+    ps_thread_join(&thread_id, NULL);
 
     row_tags = parallel_data->row_tags;
     locks = parallel_data->locks;
@@ -298,8 +295,6 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     // ---------------------------------------------------------------------------
     data = new_state(row_sizes, col_sizes, locks, n_rows, n_cols, activities, work,
                      row_tags);
-
-    // free(parallel_data);
 
     if (!data) goto cleanup;
     constraints =
