@@ -128,7 +128,7 @@ static char *test_2_constraints()
         constraints_new(A, AT, lhs, rhs, bounds, data, row_tags, col_tags);
 
     // remove rows 1, 3, 5
-    iVec_append_array(data->rows_to_delete, (int[]) {1, 3, 5}, 3);
+    iVec_append_array(data->rows_to_delete, (int[]){1, 3, 5}, 3);
     delete_inactive_rows(constraints);
 
     // test for correctness
@@ -282,7 +282,7 @@ static char *test_4_constraints()
         constraints_new(A, AT, lhs, rhs, bounds, data, row_tags, col_tags);
 
     // remove cols 1, 3, 5
-    iVec_append_array(data->fixed_cols_to_delete, (int[]) {1, 3, 5}, 3);
+    iVec_append_array(data->fixed_cols_to_delete, (int[]){1, 3, 5}, 3);
     delete_inactive_cols_from_A_and_AT(constraints);
 
     // test for correctness
