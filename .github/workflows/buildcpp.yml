@@ -25,5 +25,10 @@ jobs:
     - name: Build C++ test
       run: cmake --build build_cpp --target test_cpp --config ${{ matrix.build_type }}
 
-    - name: Run C++ test
+    - name: Run C++ tests (Linux/macOS)
+      if: runner.os != 'Windows'
       run: cd build_cpp && ./bin/test_cpp
+
+    - name: Run C++ tests (Windows)
+      if: runner.os == 'Windows'
+      run: cd build_cpp; .\bin\test_cpp.exe
