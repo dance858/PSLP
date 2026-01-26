@@ -287,6 +287,7 @@ static void retrieve_parallel_col(Solution *sol, const int *indices,
         if (!IS_EQUAL_FEAS_TOL(sol->x[j], lb_j))
         {
             printf("j: %d, xj: %.12f, lb_j: %.12f\n", j, sol->x[j], lb_j);
+            fflush(stdout);
             assert(false && "sol->x[j] != lb_j");
         }
 
