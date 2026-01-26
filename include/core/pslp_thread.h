@@ -24,20 +24,15 @@ typedef struct
 static inline int ps_thread_create(ps_thread_t *t, void *attr,
                                    void *(*start_routine)(void *), void *arg)
 {
-    (void) attr;
-    if (!t) return -1;
-
-    t->wrapper.start_routine = start_routine;
-    t->wrapper.arg = arg;
-    t->wrapper.ret = start_routine(arg); // call immediately
+    (void) attr; // unused
+    (void) t;    // unused
+    start_routine(arg);
     return 0;
 }
 
 // join does nothing, function already ran
 static inline int ps_thread_join(ps_thread_t *t, void **retval)
 {
-    if (!t) return -1;
-    if (retval) *retval = t->wrapper.ret;
     return 0;
 }
 
