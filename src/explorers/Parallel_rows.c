@@ -138,7 +138,7 @@ static inline void sort_rows(int *rows, int n_rows, int *sparsity_IDs,
 {
     global_sparsity_IDs = sparsity_IDs;
     global_coeff_hashes = coeff_hashes;
-    qsort(rows, n_rows, sizeof(int), comparator);
+    qsort(rows, (size_t) n_rows, sizeof(int), comparator);
 }
 
 static inline int get_bin_size(int start, int n_rows, const int *rows,

@@ -115,13 +115,14 @@ if (MSVC)
     $<$<CONFIG:MinSizeRel>:/O1 /DNDEBUG>
   )
 else()
-  target_compile_options(PSLP PRIVATE -Wall -Wextra -Wpedantic -Wno-sign-compare)
+  target_compile_options(PSLP PRIVATE -Wall -Wextra -Wpedantic -Wno-sign-compare -Wconversion)
   target_compile_options(PSLP PRIVATE
     $<$<CONFIG:Debug>:-g -O0>
     $<$<CONFIG:Release>:-O3 -DNDEBUG>
     $<$<CONFIG:RelWithDebInfo>:-O2 -g -DNDEBUG>
     $<$<CONFIG:MinSizeRel>:-Os -DNDEBUG>
   )
+
 endif()
 
 if(ENABLE_DEBUGGER OR CMAKE_BUILD_TYPE STREQUAL "Debug")

@@ -94,7 +94,7 @@ void verify_empty_rows(const Constraints *constraints)
     const iVec *empty_rows = constraints->state->empty_rows;
     const int *row_sizes = constraints->state->row_sizes;
     int n_rows = constraints->m;
-    char *lookup = ps_calloc(n_rows, sizeof(char));
+    char *lookup = ps_calloc((size_t) n_rows, sizeof(char));
 
     // verify that all appended rows are empty rows
     for (int i = 0; i < empty_rows->len; ++i)
@@ -121,7 +121,7 @@ void verify_empty_cols(const Constraints *constraints)
     const iVec *empty_cols = constraints->state->empty_cols;
     const int *col_sizes = constraints->state->col_sizes;
     int n_cols = constraints->n;
-    char *lookup = ps_calloc(n_cols, sizeof(char));
+    char *lookup = ps_calloc((size_t) n_cols, sizeof(char));
 
     // verify that all appended columns are empty columns
     for (int i = 0; i < empty_cols->len; ++i)
@@ -148,7 +148,7 @@ void verify_ston_cols(const Constraints *constraints)
     const iVec *ston_cols = constraints->state->ston_cols;
     const int *col_sizes = constraints->state->col_sizes;
     int n_cols = constraints->n;
-    char *lookup = ps_calloc(n_cols, sizeof(char));
+    char *lookup = ps_calloc((size_t) n_cols, sizeof(char));
 
     // verify that all appended columns are ston columns or
     // empty/inactive
@@ -176,7 +176,7 @@ void verify_ston_rows(const Constraints *constraints)
     const iVec *ston_rows = constraints->state->ston_rows;
     const int *row_sizes = constraints->state->row_sizes;
     int n_rows = constraints->m;
-    char *lookup = ps_calloc(n_rows, sizeof(char));
+    char *lookup = ps_calloc((size_t) n_rows, sizeof(char));
 
     // verify that all appended rows are empty rows
     for (int i = 0; i < ston_rows->len; ++i)
@@ -205,7 +205,7 @@ void verify_doubleton_rows(const Constraints *constraints)
     const int *row_sizes = constraints->state->row_sizes;
     RowTag *row_tags = constraints->row_tags;
     int n_rows = constraints->m;
-    char *lookup = ps_calloc(n_rows, sizeof(char));
+    char *lookup = ps_calloc((size_t) n_rows, sizeof(char));
 
     // verify that all appended rows have either size 2 and are equality rows,
     // or they have been reduced to size 1 or less
@@ -260,9 +260,9 @@ void verify_no_duplicates(const iVec *vec)
 
 void verify_no_duplicates_sort_ptr(const int *data, int len)
 {
-    int *temp = (int *) ps_malloc(len, sizeof(int));
-    memcpy(temp, data, len * sizeof(int));
-    qsort(temp, len, sizeof(int), compare_ints);
+    int *temp = (int *) ps_malloc((size_t) len, sizeof(int));
+    memcpy(temp, data, (size_t) (len) * sizeof(int));
+    qsort(temp, (size_t) len, sizeof(int), compare_ints);
 
     for (int i = 0; i < len - 1; ++i)
     {
@@ -275,7 +275,7 @@ void verify_no_duplicates_sort_ptr(const int *data, int len)
 
 void verify_no_duplicates_sort(const iVec *vec)
 {
-    verify_no_duplicates_sort_ptr(vec->data, vec->len);
+    verify_no_duplicates_sort_ptr(vec->data, (int) vec->len);
 }
 
 void verify_no_duplicates_ptr(const int *data, int len)
@@ -399,7 +399,7 @@ static void verify_CSR_matrix(const Matrix *A, bool compressed)
 
 bool verify_A_and_AT_consistency(const Matrix *A, const Matrix *AT)
 {
-    int *work_n_cols = (int *) ps_malloc(A->n, sizeof(int));
+    int *work_n_cols = (int *) ps_malloc((size_t) A->n, sizeof(int));
     Matrix *real_AT = transpose(A, work_n_cols);
 
     // check that nnz and dimensions are consistent

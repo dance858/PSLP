@@ -24,7 +24,7 @@
 
 Lock *new_locks(const Matrix *A, const RowTag *row_tags)
 {
-    Lock *locks = (Lock *) ps_calloc(A->n, sizeof(Lock));
+    Lock *locks = (Lock *) ps_calloc((size_t) A->n, sizeof(Lock));
     RETURN_PTR_IF_NULL(locks, NULL);
     int i, j, start, end;
 

@@ -28,17 +28,16 @@ Work *new_work(int n_rows, int n_cols)
     Work *work = (Work *) ps_malloc(1, sizeof(Work));
     RETURN_PTR_IF_NULL(work, NULL);
 
-    work->iwork_n_cols = (int *) ps_calloc(n_cols, sizeof(int));
-    work->iwork_n_rows = (int *) ps_calloc(n_rows, sizeof(int));
+    work->iwork_n_cols = (int *) ps_calloc((size_t) n_cols, sizeof(int));
+    work->iwork_n_rows = (int *) ps_calloc((size_t) n_rows, sizeof(int));
     work->iwork1_max_nrows_ncols =
-        (int *) ps_calloc(MAX(n_rows, n_cols), sizeof(int));
+        (int *) ps_calloc((size_t) MAX(n_rows, n_cols), sizeof(int));
     work->iwork2_max_nrows_ncols =
-        (int *) ps_calloc(MAX(n_rows, n_cols), sizeof(int));
+        (int *) ps_calloc((size_t) MAX(n_rows, n_cols), sizeof(int));
     work->int_vec = iVec_new(INT_VEC_INITIALIZATION);
     work->mappings = (Mapping *) ps_malloc(1, sizeof(Mapping));
-    work->mappings->cols = (int *) ps_malloc(n_cols, sizeof(int));
-    work->mappings->rows = (int *) ps_malloc(n_rows, sizeof(int));
-
+    work->mappings->cols = (int *) ps_malloc((size_t) n_cols, sizeof(int));
+    work->mappings->rows = (int *) ps_malloc((size_t) n_rows, sizeof(int));
     if (!work->iwork_n_cols || !work->iwork_n_rows ||
         !work->iwork1_max_nrows_ncols || !work->iwork2_max_nrows_ncols ||
         !work->int_vec || !work->mappings || !work->mappings->cols ||

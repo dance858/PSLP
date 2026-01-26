@@ -77,7 +77,7 @@ void shrink_idx_vector(iVec *vec, const int *map)
         }
     }
 
-    vec->len = curr;
+    vec->len = (size_t) curr;
 }
 
 double get_max_abs(const double *vals, int len)

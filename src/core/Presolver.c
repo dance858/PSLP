@@ -234,14 +234,14 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     //   workspace, see the workspace class. The problem object owns all the
     //   memory that is allocated in this block of code (and therefore frees it).
     //  ---------------------------------------------------------------------------
-    int n_rows = m;
-    int n_cols = n;
+    size_t n_rows = (size_t) m;
+    size_t n_cols = (size_t) n;
     lhs_copy = (double *) ps_malloc(n_rows, sizeof(double));
     rhs_copy = (double *) ps_malloc(n_rows, sizeof(double));
     c_copy = (double *) ps_malloc(n_cols, sizeof(double));
     col_tags = (ColTag *) ps_calloc(n_cols, sizeof(ColTag));
     bounds = (Bound *) ps_malloc(n_cols, sizeof(Bound));
-    work = new_work(n_rows, n_cols);
+    work = new_work((int) n_rows, (int) n_cols);
     row_sizes = (int *) ps_malloc(n_rows, sizeof(int));
     col_sizes = (int *) ps_malloc(n_cols, sizeof(int));
     ParallelInitData *parallel_data = calloc(1, sizeof(*parallel_data));
@@ -252,21 +252,21 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
         goto cleanup;
     }
 
-    memcpy(lhs_copy, lhs, n_rows * sizeof(double));
-    memcpy(rhs_copy, rhs, n_rows * sizeof(double));
-    memcpy(c_copy, c, n_cols * sizeof(double));
+    memcpy(lhs_copy, lhs, ((size_t) (n_rows)) * sizeof(double));
+    memcpy(rhs_copy, rhs, ((size_t) (n_rows)) * sizeof(double));
+    memcpy(c_copy, c, ((size_t) (n_cols)) * sizeof(double));
 
     // ---------------------------------------------------------------------------
     //  Build bounds, row tags, A and AT. We first build A, then in parallel
     //  we build AT (main thread) and some other things (second thread).
     // ---------------------------------------------------------------------------
-    A = matrix_new_no_extra_space(Ax, Ai, Ap, n_rows, n_cols, nnz);
+    A = matrix_new_no_extra_space(Ax, Ai, Ap, (int) n_rows, (int) n_cols, nnz);
     if (!A) goto cleanup;
 
     ps_thread_t thread_id;
     *parallel_data = (ParallelInitData) {
-        A,        work,   n_cols,   n_rows, lbs,  ubs,  lhs_copy,
-        rhs_copy, bounds, col_tags, NULL,   NULL, NULL, row_sizes};
+        A,        work,   (int) n_cols, (int) n_rows, lbs,  ubs,  lhs_copy,
+        rhs_copy, bounds, col_tags,     NULL,         NULL, NULL, row_sizes};
 
     ps_thread_create(&thread_id, NULL, init_thread_func, parallel_data);
 
@@ -293,8 +293,8 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     // ---------------------------------------------------------------------------
     //  Initialize internal data and constraints
     // ---------------------------------------------------------------------------
-    data = new_state(row_sizes, col_sizes, locks, n_rows, n_cols, activities, work,
-                     row_tags);
+    data = new_state(row_sizes, col_sizes, locks, ((int) n_rows), ((int) n_cols),
+                     activities, work, row_tags);
 
     if (!data) goto cleanup;
     constraints =
@@ -320,11 +320,11 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     // ---------------------------------------------------------------------------
     presolver->sol = (Solution *) ps_malloc(1, sizeof(Solution));
     if (!presolver->sol) goto cleanup;
-    presolver->sol->x = (double *) ps_malloc(n_cols, sizeof(double));
-    presolver->sol->y = (double *) ps_malloc(n_rows, sizeof(double));
-    presolver->sol->z = (double *) ps_malloc(n_cols, sizeof(double));
-    presolver->sol->dim_x = n_cols;
-    presolver->sol->dim_y = n_rows;
+    presolver->sol->x = (double *) ps_malloc((size_t) n_cols, sizeof(double));
+    presolver->sol->y = (double *) ps_malloc((size_t) n_rows, sizeof(double));
+    presolver->sol->z = (double *) ps_malloc((size_t) n_cols, sizeof(double));
+    presolver->sol->dim_x = (int) n_cols;
+    presolver->sol->dim_y = (int) n_rows;
     if (!presolver->sol->x || !presolver->sol->y || !presolver->sol->z)
     {
         goto cleanup;
@@ -580,8 +580,8 @@ void populate_presolved_problem(Presolver *presolver)
     reduced_prob->obj_offset = presolver->prob->obj->offset;
 
     // create bounds arrays
-    reduced_prob->lbs = (double *) malloc(A->n * sizeof(double));
-    reduced_prob->ubs = (double *) malloc(A->n * sizeof(double));
+    reduced_prob->lbs = (double *) malloc(((size_t) A->n) * sizeof(double));
+    reduced_prob->ubs = (double *) malloc(((size_t) A->n) * sizeof(double));
     for (int i = 0; i < A->n; i++)
     {
         reduced_prob->lbs[i] = constraints->bounds[i].lb;
@@ -589,7 +589,7 @@ void populate_presolved_problem(Presolver *presolver)
     }
 
     // create row pointers
-    reduced_prob->Ap = (int *) malloc((A->m + 1) * sizeof(int));
+    reduced_prob->Ap = (int *) malloc(((size_t) (A->m + 1)) * sizeof(int));
     for (int i = 0; i < A->m + 1; i++)
     {
         reduced_prob->Ap[i] = A->p[i].start;

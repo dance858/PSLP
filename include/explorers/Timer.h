@@ -52,9 +52,13 @@ typedef struct
 {
     struct timespec start, end;
 } Timer;
+// #define GET_ELAPSED_SECONDS(timer)
+//     (((timer).end.tv_sec - (timer).start.tv_sec) +
+//      ((double) ((timer).end.tv_nsec - (timer).start.tv_nsec) * 1e-9))
+
 #define GET_ELAPSED_SECONDS(timer)                                                  \
-    (((timer).end.tv_sec - (timer).start.tv_sec) +                                  \
-     ((double) ((timer).end.tv_nsec - (timer).start.tv_nsec) * 1e-9))
+    ((double) ((timer).end.tv_sec - (timer).start.tv_sec) +                         \
+     (double) ((timer).end.tv_nsec - (timer).start.tv_nsec) / 1e9)
 #endif
 
 #define RUN_AND_TIME(func, timer, time_variable, result_var, ...)                   \

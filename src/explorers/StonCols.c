@@ -565,7 +565,7 @@ static inline void refresh_ston_cols(const int *col_sizes, iVec *ston_cols)
         }
     }
 
-    ston_cols->len = n_ston_cols;
+    ston_cols->len = (size_t) n_ston_cols;
 }
 
 PresolveStatus remove_ston_cols__(Problem *prob)

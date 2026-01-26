@@ -59,27 +59,27 @@ State *new_state(int *row_sizes, int *col_sizes, Lock *col_locks, int n_rows,
     // --------------------------------------------------------------------------
     //                    allocate a bunch of vectors
     // --------------------------------------------------------------------------
-    data->ston_rows =
-        iVec_new(MAX(MIN_INIT_STON_ROWS, (int) (n_rows * INIT_STON_ROWS_FRACTION)));
-    data->ston_cols =
-        iVec_new(MAX(MIN_INIT_STON_COLS, (int) (n_cols * INIT_STON_COLS_FRACTION)));
-    data->dton_rows =
-        iVec_new(MAX(MIN_INIT_DTON_ROWS, (int) (n_rows * INIT_DTON_ROWS_FRACTION)));
+    data->ston_rows = iVec_new(
+        MAX(MIN_INIT_STON_ROWS, (size_t) (n_rows * INIT_STON_ROWS_FRACTION)));
+    data->ston_cols = iVec_new(
+        MAX(MIN_INIT_STON_COLS, (size_t) (n_cols * INIT_STON_COLS_FRACTION)));
+    data->dton_rows = iVec_new(
+        MAX(MIN_INIT_DTON_ROWS, (size_t) (n_rows * INIT_DTON_ROWS_FRACTION)));
     data->empty_cols = iVec_new(
-        MAX(MIN_INIT_EMPTY_COLS, (int) (n_cols * INIT_EMPTY_COLS_FRACTION)));
+        MAX(MIN_INIT_EMPTY_COLS, (size_t) (n_cols * INIT_EMPTY_COLS_FRACTION)));
     data->empty_rows = iVec_new(
-        MAX(MIN_INIT_EMPTY_ROWS, (int) (n_rows * INIT_EMPTY_ROWS_FRACTION)));
+        MAX(MIN_INIT_EMPTY_ROWS, (size_t) (n_rows * INIT_EMPTY_ROWS_FRACTION)));
     data->updated_activities =
         iVec_new(MAX(MIN_INIT_UPDATED_ACTIVITIES,
-                     (int) (n_rows * INIT_UPDATED_ACTIVITIES_FRACTION)));
+                     (size_t) (n_rows * INIT_UPDATED_ACTIVITIES_FRACTION)));
     data->fixed_cols_to_delete =
         iVec_new(MAX(MIN_INIT_FIXED_COLS_TO_DELETE,
-                     (int) (n_cols * INIT_FIXED_COLS_TO_DELETE_FRACTION)));
+                     (size_t) (n_cols * INIT_FIXED_COLS_TO_DELETE_FRACTION)));
     data->sub_cols_to_delete =
         iVec_new(MAX(MIN_INIT_SUB_COLS_TO_DELETE,
-                     (int) (n_cols * INIT_SUB_COLS_TO_DELETE_FRACTION)));
-    data->rows_to_delete = iVec_new(
-        MAX(MIN_INIT_ROWS_TO_DELETE, (int) (n_rows * INIT_ROWS_TO_DELETE_FRACTION)));
+                     (size_t) (n_cols * INIT_SUB_COLS_TO_DELETE_FRACTION)));
+    data->rows_to_delete = iVec_new(MAX(
+        MIN_INIT_ROWS_TO_DELETE, (size_t) (n_rows * INIT_ROWS_TO_DELETE_FRACTION)));
     data->postsolve_info = postsolve_info_new(n_rows, n_cols);
 
     if (!data->ston_rows || !data->ston_cols || !data->dton_rows ||

@@ -28,7 +28,7 @@
 Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, int n_rows,
                    int n_cols, int nnz)
 {
-    DEBUG(ASSERT_NO_ZEROS_D(Ax, nnz));
+    DEBUG(ASSERT_NO_ZEROS_D(Ax, ((size_t) (nnz))));
     Matrix *A = matrix_alloc(n_rows, n_cols, nnz);
     RETURN_PTR_IF_NULL(A, NULL);
     int offset, i, row_size, row_alloc;
@@ -38,9 +38,10 @@ Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, int n_rows,
     {
         A->p[i].start = Ap[i] + offset;
         memcpy(A->x + A->p[i].start, Ax + Ap[i],
-               (Ap[i + 1] - Ap[i]) * sizeof(double));
+               ((size_t) (Ap[i + 1] - Ap[i])) * sizeof(double));
 
-        memcpy(A->i + A->p[i].start, Ai + Ap[i], (Ap[i + 1] - Ap[i]) * sizeof(int));
+        memcpy(A->i + A->p[i].start, Ai + Ap[i],
+               ((size_t) (Ap[i + 1] - Ap[i])) * sizeof(int));
 
         A->p[i].end = Ap[i + 1] + offset;
         row_size = A->p[i].end - A->p[i].start;
@@ -66,13 +67,13 @@ Matrix *matrix_alloc(int n_rows, int n_cols, int nnz)
     A->n_alloc = calc_memory(nnz, n_rows, EXTRA_ROW_SPACE, EXTRA_MEMORY_RATIO);
 
 #ifdef TESTING
-    A->i = (int *) ps_calloc(A->n_alloc, sizeof(int));
-    A->p = (RowRange *) ps_calloc(n_rows + 1, sizeof(RowRange));
-    A->x = (double *) ps_calloc(A->n_alloc, sizeof(double));
+    A->i = (int *) ps_calloc(((size_t) (A->n_alloc)), sizeof(int));
+    A->p = (RowRange *) ps_calloc(((size_t) (n_rows + 1)), sizeof(RowRange));
+    A->x = (double *) ps_calloc(((size_t) (A->n_alloc)), sizeof(double));
 #else
-    A->i = (int *) ps_malloc(A->n_alloc, sizeof(int));
-    A->p = (RowRange *) ps_malloc(n_rows + 1, sizeof(RowRange));
-    A->x = (double *) ps_malloc(A->n_alloc, sizeof(double));
+    A->i = (int *) ps_malloc(((size_t) (A->n_alloc)) * sizeof(int));
+    A->p = (RowRange *) ps_malloc(((size_t) (n_rows + 1)) * sizeof(RowRange));
+    A->x = (double *) ps_malloc(((size_t) (A->n_alloc)) * sizeof(double));
 #endif
 
     if (!A->i || !A->p || !A->x)
@@ -94,9 +95,9 @@ Matrix *matrix_new_no_extra_space(const double *Ax, const int *Ai, const int *Ap
     A->n = n_cols;
     A->nnz = nnz;
     A->n_alloc = nnz;
-    A->i = (int *) ps_malloc(A->n_alloc, sizeof(int));
-    A->p = (RowRange *) ps_malloc(n_rows + 1, sizeof(RowRange));
-    A->x = (double *) ps_malloc(A->n_alloc, sizeof(double));
+    A->i = (int *) ps_malloc((size_t) A->n_alloc, sizeof(int));
+    A->p = (RowRange *) ps_malloc((size_t) (n_rows + 1), sizeof(RowRange));
+    A->x = (double *) ps_malloc((size_t) A->n_alloc, sizeof(double));
 
     if (!A->i || !A->p || !A->x)
     {
@@ -104,8 +105,8 @@ Matrix *matrix_new_no_extra_space(const double *Ax, const int *Ai, const int *Ap
         return NULL;
     }
 
-    memcpy(A->x, Ax, nnz * sizeof(double));
-    memcpy(A->i, Ai, nnz * sizeof(int));
+    memcpy(A->x, Ax, ((size_t) (nnz)) * sizeof(double));
+    memcpy(A->i, Ai, ((size_t) (nnz)) * sizeof(int));
 
     for (int i = 0; i <= n_rows; ++i)
     {
@@ -122,7 +123,7 @@ Matrix *transpose(const Matrix *A, int *work_n_cols)
     RETURN_PTR_IF_NULL(AT, NULL);
     int i, j, start;
     int *count = work_n_cols;
-    memset(count, 0, A->n * sizeof(int));
+    memset(count, 0, ((size_t) (A->n)) * sizeof(int));
 
     // -------------------------------------------------------------------
     //  compute nnz in each column of A
@@ -213,8 +214,8 @@ void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_sizes,
         end = A->p[i].end;
         len = end - start;
         row_alloc = calc_memory_row(len, extra_row_space, extra_mem_ratio);
-        memmove(A->x + curr, A->x + start, len * sizeof(double));
-        memmove(A->i + curr, A->i + start, len * sizeof(int));
+        memmove(A->x + curr, A->x + start, ((size_t) (len)) * sizeof(double));
+        memmove(A->i + curr, A->i + start, ((size_t) (len)) * sizeof(int));
         A->p[i - n_deleted_rows].start = curr;
         A->p[i - n_deleted_rows].end = curr + len;
         curr += row_alloc;
@@ -225,9 +226,9 @@ void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_sizes,
     A->p[A->m].end = curr;
 
     // shrink size
-    A->x = (double *) ps_realloc(A->x, MAX(curr, 1), sizeof(double));
-    A->i = (int *) ps_realloc(A->i, MAX(curr, 1), sizeof(int));
-    A->p = (RowRange *) ps_realloc(A->p, A->m + 1, sizeof(RowRange));
+    A->x = (double *) ps_realloc(A->x, (size_t) MAX(curr, 1), sizeof(double));
+    A->i = (int *) ps_realloc(A->i, (size_t) MAX(curr, 1), sizeof(int));
+    A->p = (RowRange *) ps_realloc(A->p, (size_t) (A->m + 1), sizeof(RowRange));
 
     // -------------------------------------------------------------------------
     //                      compute new column indices
@@ -378,9 +379,9 @@ bool shift_row(Matrix *A, int row, int extra_space, int max_shift)
         if (len > 0)
         {
             memmove(A->x + next_start, A->x + row_r[left + 1].start,
-                    len * sizeof(double));
+                    ((size_t) (len)) * sizeof(double));
             memmove(A->i + next_start, A->i + row_r[left + 1].start,
-                    len * sizeof(int));
+                    ((size_t) (len)) * sizeof(int));
         }
         row_r[left + 1].start = next_start;
         row_r[left + 1].end = next_start + len;
@@ -397,9 +398,9 @@ bool shift_row(Matrix *A, int row, int extra_space, int max_shift)
         if (len > 0)
         {
             memmove(A->x + next_end - len, A->x + row_r[right - 1].start,
-                    len * sizeof(double));
+                    ((size_t) (len)) * sizeof(double));
             memmove(A->i + next_end - len, A->i + row_r[right - 1].start,
-                    len * sizeof(int));
+                    ((size_t) (len)) * sizeof(int));
         }
         row_r[right - 1].start = next_end - len;
         row_r[right - 1].end = next_end;
@@ -462,9 +463,9 @@ double insert_or_update_coeff(Matrix *A, int row, int col, double val, int *row_
         else
         {
             memmove(A->x + insertion + 1, A->x + insertion,
-                    (end - insertion) * sizeof(double));
+                    ((size_t) (end - insertion)) * sizeof(double));
             memmove(A->i + insertion + 1, A->i + insertion,
-                    (end - insertion) * sizeof(int));
+                    ((size_t) (end - insertion)) * sizeof(int));
 
             // insert new value
             A->x[insertion] = val;
@@ -485,9 +486,9 @@ double insert_or_update_coeff(Matrix *A, int row, int col, double val, int *row_
         if (insertion != end - 1)
         {
             memmove(A->x + insertion, A->x + insertion + 1,
-                    (end - insertion - 1) * sizeof(double));
+                    ((size_t) (end - insertion - 1)) * sizeof(double));
             memmove(A->i + insertion, A->i + insertion + 1,
-                    (end - insertion - 1) * sizeof(int));
+                    ((size_t) (end - insertion - 1)) * sizeof(int));
         }
 
         A->p[row].end -= 1;
@@ -533,9 +534,9 @@ Matrix *random_matrix_new(int n_rows, int n_cols, double density)
 {
     // allocate memory
     int n_alloc_nnz = (int) (density * n_rows * n_cols);
-    double *Ax = (double *) ps_malloc(n_alloc_nnz, sizeof(double));
-    int *Ai = (int *) ps_malloc(n_alloc_nnz, sizeof(int));
-    int *Ap = (int *) ps_malloc(n_rows + 1, sizeof(int));
+    double *Ax = (double *) ps_malloc((size_t) n_alloc_nnz, sizeof(double));
+    int *Ai = (int *) ps_malloc((size_t) n_alloc_nnz, sizeof(int));
+    int *Ap = (int *) ps_malloc((size_t) (n_rows + 1), sizeof(int));
     if (!Ax || !Ai || !Ap)
     {
         PS_FREE(Ax);

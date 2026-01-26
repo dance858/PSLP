@@ -37,11 +37,14 @@
 PostsolveInfo *postsolve_info_new(int n_rows, int n_cols)
 {
     PostsolveInfo *info = (PostsolveInfo *) ps_malloc(1, sizeof(PostsolveInfo));
-    info->starts = iVec_new((int) (MAX(1, INIT_FRAC_POSTSOLVE * (n_rows + n_cols))));
+    info->starts =
+        iVec_new((size_t) (MAX(1, INIT_FRAC_POSTSOLVE * (n_rows + n_cols))));
     info->indices =
-        iVec_new((int) (MAX(1, INIT_FRAC_POSTSOLVE * (n_rows + n_cols))));
-    info->vals = dVec_new((int) (MAX(1, INIT_FRAC_POSTSOLVE * (n_rows + n_cols))));
-    info->type = u16Vec_new((int) (MAX(1, INIT_FRAC_POSTSOLVE * (n_rows + n_cols))));
+        iVec_new((size_t) (MAX(1, INIT_FRAC_POSTSOLVE * (n_rows + n_cols))));
+    info->vals =
+        dVec_new((size_t) (MAX(1, INIT_FRAC_POSTSOLVE * (n_rows + n_cols))));
+    info->type =
+        u16Vec_new((size_t) (MAX(1, INIT_FRAC_POSTSOLVE * (n_rows + n_cols))));
     if (!info->starts || !info->indices || !info->vals || !info->type)
     {
         PS_FREE(info->starts);
@@ -660,10 +663,10 @@ void save_retrieval_fixed_col(PostsolveInfo *info, int col, double val, double c
     u16Vec_append(info->type, FIXED_COL);
     iVec_append(info->indices, col);
     iVec_append(info->indices, DUMMY_VALUE);
-    iVec_append_array(info->indices, rows, len);
+    iVec_append_array(info->indices, rows, (size_t) len);
     dVec_append(info->vals, val);
     dVec_append(info->vals, ck);
-    dVec_append_array(info->vals, vals, len);
+    dVec_append_array(info->vals, vals, (size_t) len);
     iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);
@@ -696,9 +699,11 @@ void save_retrieval_fixed_col_inf(PostsolveInfo *info, int col, int pos_inf,
         row = rows[i];
         side = (HAS_TAG(row_tags[row], R_TAG_LHS_INF)) ? rhs[row] : lhs[row];
         dVec_append(info->vals, side);
-        dVec_append_array(info->vals, A->x + A->p[row].start, row_sizes[row]);
+        dVec_append_array(info->vals, A->x + A->p[row].start,
+                          (size_t) row_sizes[row]);
         iVec_append(info->indices, row_sizes[row]);
-        iVec_append_array(info->indices, A->i + A->p[row].start, row_sizes[row]);
+        iVec_append_array(info->indices, A->i + A->p[row].start,
+                          (size_t) row_sizes[row]);
 
         assert(!(HAS_TAG(row_tags[row], R_TAG_LHS_INF) &&
                  HAS_TAG(row_tags[row], R_TAG_RHS_INF)));
@@ -715,10 +720,10 @@ void save_retrieval_sub_col(PostsolveInfo *info, int col, int *cols, double *coe
 {
     u16Vec_append(info->type, SUB_COL);
     iVec_append(info->indices, col);
-    iVec_append_array(info->indices, cols, len);
+    iVec_append_array(info->indices, cols, (size_t) len);
     iVec_append(info->indices, i);
     dVec_append(info->vals, rhs);
-    dVec_append_array(info->vals, coeffs, len);
+    dVec_append_array(info->vals, coeffs, (size_t) len);
     dVec_append(info->vals, ck);
     iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
@@ -772,9 +777,9 @@ void save_retrieval_added_rows(PostsolveInfo *info, int i, const int *rows,
 {
     u16Vec_append(info->type, ADDED_ROWS);
     iVec_append(info->indices, i);
-    iVec_append_array(info->indices, rows, len);
+    iVec_append_array(info->indices, rows, (size_t) len);
     dVec_append(info->vals, aik);
-    dVec_append_array(info->vals, vals, len);
+    dVec_append_array(info->vals, vals, (size_t) len);
     iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);
@@ -802,9 +807,9 @@ void save_retrieval_bound_change_the_row(PostsolveInfo *info, int i, const int *
 {
     u16Vec_append(info->type, BOUND_CHANGE_THE_ROW);
     iVec_append(info->indices, i);
-    iVec_append_array(info->indices, cols, len);
+    iVec_append_array(info->indices, cols, (size_t) len);
     dVec_append(info->vals, (double) num_of_bound_changes);
-    dVec_append_array(info->vals, vals, len);
+    dVec_append_array(info->vals, vals, (size_t) len);
     iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);
@@ -825,10 +830,10 @@ void save_retrieval_rhs_or_lhs_change(PostsolveInfo *info, int i, const double *
 
     iVec_append(info->indices, i);
     iVec_append(info->indices, j);
-    iVec_append_array(info->indices, cols, len);
+    iVec_append_array(info->indices, cols, (size_t) len);
     dVec_append(info->vals, new_side);
     dVec_append(info->vals, ratio);
-    dVec_append_array(info->vals, vals, len);
+    dVec_append_array(info->vals, vals, (size_t) len);
     iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);

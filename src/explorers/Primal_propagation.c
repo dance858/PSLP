@@ -653,7 +653,7 @@ PresolveStatus propagate_primal(Problem *prob, bool finite_bound_tightening)
     DEBUG(verify_row_states(acts, updated_activities));
 
 #ifndef NDEBUG
-    bool *HAVE_ROWS_BEEN_PROP = (bool *) ps_calloc(A->m, sizeof(bool));
+    bool *HAVE_ROWS_BEEN_PROP = (bool *) ps_calloc((size_t) A->m, sizeof(bool));
 #endif
 
     // -------------------------------------------------------------------------
@@ -757,7 +757,8 @@ PresolveStatus propagate_primal(Problem *prob, bool finite_bound_tightening)
     }
 
     iVec_clear_no_resize(constraints->state->updated_activities);
-    iVec_append_array(constraints->state->updated_activities, iwork_n_rows, new_len);
+    iVec_append_array(constraints->state->updated_activities, iwork_n_rows,
+                      (size_t) new_len);
     //----------------------------------------------------------------------------
 
     // delete contribution of fixed columns from rhs and lhs etc.
@@ -830,7 +831,7 @@ void remove_redundant_bounds(Constraints *constraints)
     }
 
     global_col_sizes = col_sizes;
-    qsort(col_order, n_cols, sizeof(int), compare_col_len);
+    qsort(col_order, (size_t) n_cols, sizeof(int), compare_col_len);
     global_col_sizes = NULL;
 
     for (jj = 0; jj < n_cols; jj++)

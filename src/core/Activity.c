@@ -27,7 +27,7 @@
 Activity *new_activities(const Matrix *A, const ColTag *col_tags,
                          const Bound *bounds)
 {
-    Activity *activities = (Activity *) ps_malloc(A->m, sizeof(Activity));
+    Activity *activities = (Activity *) ps_malloc((size_t) A->m, sizeof(Activity));
     RETURN_PTR_IF_NULL(activities, NULL);
     int i, j, start, end;
     int *cols = A->i;

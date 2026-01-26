@@ -508,7 +508,7 @@ PresolveStatus remove_empty_cols(Problem *prob)
 {
     iVec *empty_cols = prob->constraints->state->empty_cols;
     const int *empty_cols_data = empty_cols->data;
-    int len = empty_cols->len;
+    int len = (int) empty_cols->len;
 
     double val;
     int i, k;

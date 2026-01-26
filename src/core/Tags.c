@@ -22,7 +22,7 @@
 
 RowTag *new_rowtags(double *lhs, double *rhs, int n_rows)
 {
-    RowTag *row_tags = (RowTag *) ps_calloc(n_rows, sizeof(RowTag));
+    RowTag *row_tags = (RowTag *) ps_calloc((size_t) n_rows, sizeof(RowTag));
     RETURN_PTR_IF_NULL(row_tags, NULL);
 
     for (int i = 0; i < n_rows; ++i)
