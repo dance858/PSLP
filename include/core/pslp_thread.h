@@ -20,12 +20,6 @@ typedef struct
     ps_thread_wrapper_t *wrapper;
 } ps_thread_t;
 
-typedef struct
-{
-    HANDLE handle;
-    ps_thread_wrapper_t *wrapper;
-} ps_thread_t;
-
 static DWORD WINAPI ps_thread_trampoline(LPVOID param)
 {
     ps_thread_wrapper_t *w = param;
