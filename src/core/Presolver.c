@@ -116,8 +116,10 @@ typedef struct
 static void *init_thread_func(void *arg)
 {
     ParallelInitData *data = (ParallelInitData *) arg;
+    printf("[DEBUG] [thread] init_thread_func: started\n");
 
     data->row_tags = new_rowtags(data->lhs_copy, data->rhs_copy, data->n_rows);
+    printf("[DEBUG] [thread] after new_rowtags\n");
 
     for (int i = 0; i < data->n_cols; i++)
     {
@@ -131,14 +133,17 @@ static void *init_thread_func(void *arg)
 
         if (IS_POS_INF(data->ubs[i]))
         {
-
             UPDATE_TAG(data->col_tags[i], C_TAG_UB_INF);
         }
     }
+    printf("[DEBUG] [thread] after bounds/tag loop\n");
 
     data->locks = new_locks(data->A, data->row_tags);
+    printf("[DEBUG] [thread] after new_locks\n");
     data->activities = new_activities(data->A, data->col_tags, data->bounds);
+    printf("[DEBUG] [thread] after new_activities\n");
     count_rows(data->A, data->row_sizes);
+    printf("[DEBUG] [thread] after count_rows, exiting\n");
 
     return NULL;
 }
@@ -273,25 +278,50 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     int thread_created = 0;
 
     ParallelInitData *parallel_data = malloc(sizeof(*parallel_data));
-    if (!parallel_data) goto cleanup;
+    if (!parallel_data)
+    {
+        printf("[DEBUG] malloc for parallel_data failed\n");
+        goto cleanup;
+    }
 
     *parallel_data = (ParallelInitData) {
         A,        work,   n_cols,   n_rows, lbs,  ubs,  lhs_copy,
         rhs_copy, bounds, col_tags, NULL,   NULL, NULL, row_sizes};
 
+    printf("[DEBUG] before ps_thread_create\n");
     if (ps_thread_create(&thread_id, NULL, init_thread_func, parallel_data) == 0)
+    {
         thread_created = 1;
+        printf("[DEBUG] after ps_thread_create (success)\n");
+    }
+    else
+    {
+        printf("[DEBUG] after ps_thread_create (failure)\n");
+    }
 
+    printf("[DEBUG] before transpose\n");
     AT = transpose(A, work->iwork_n_cols);
+    printf("[DEBUG] after transpose\n");
     if (!AT)
     {
-        if (thread_created) ps_thread_join(thread_id, NULL);
+        if (thread_created)
+        {
+            printf("[DEBUG] joining thread after transpose failure\n");
+            ps_thread_join(thread_id, NULL);
+        }
         goto cleanup;
     }
 
+    printf("[DEBUG] before count_rows(AT)\n");
     count_rows(AT, col_sizes);
+    printf("[DEBUG] after count_rows(AT)\n");
 
-    if (thread_created) ps_thread_join(thread_id, NULL);
+    if (thread_created)
+    {
+        printf("[DEBUG] before ps_thread_join\n");
+        ps_thread_join(thread_id, NULL);
+        printf("[DEBUG] after ps_thread_join\n");
+    }
 
     row_tags = parallel_data->row_tags;
     locks = parallel_data->locks;
