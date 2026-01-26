@@ -144,7 +144,7 @@ static void *init_thread_func(void *arg)
     printf("[DEBUG] [thread] after new_activities\n");
     printf("data->A: %p\n", (void *) data->A);
     printf("data->row_sizes: %p\n", (void *) data->row_sizes);
-    count_rows(data->A, data->row_sizes);
+    // count_rows(data->A, data->row_sizes);
     printf("[DEBUG] [thread] after count_rows, exiting\n");
 
     return NULL;
@@ -279,7 +279,7 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     ps_thread_t thread_id;
     int thread_created = 0;
 
-    ParallelInitData *parallel_data = malloc(sizeof(*parallel_data));
+    ParallelInitData *parallel_data = calloc(1, sizeof(*parallel_data));
     if (!parallel_data)
     {
         printf("[DEBUG] malloc for parallel_data failed\n");
@@ -302,6 +302,7 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     }
 
     printf("[DEBUG] before transpose\n");
+    count_rows(A, row_sizes);
     AT = transpose(A, work->iwork_n_cols);
     printf("[DEBUG] after transpose\n");
     if (!AT)
