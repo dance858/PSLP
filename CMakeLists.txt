@@ -11,39 +11,29 @@ message(STATUS "Configuring PSLP (version ${PSLP_VERSION})")
 
 include(GNUInstallDirs)
 
-#Set output directories for libraries and executables
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
-
-#Enable export of all symbols on Windows for shared libraries
+# Enable export of all symbols on Windows for shared libraries
 if(BUILD_SHARED_LIBS)
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
-#Set debug postfix for MSVC
-if(MSVC)
-    set(CMAKE_DEBUG_POSTFIX "d")
-endif()
-
-#Build position - independent code
+# Build position - independent code
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-#Disable C compiler extensions
+# Disable C compiler extensions
 set(CMAKE_C_EXTENSIONS OFF)
 
-#This is needed for clock_gettime on Linux without compiler extensions
+# This is needed for clock_gettime on Linux without compiler extensions
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_compile_definitions(_POSIX_C_SOURCE=200809L)
 endif()
 
-#Append custom CMake modules
+# Append custom CMake modules
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-#Option for shared / static libraries
+# Option for shared / static libraries
 option(BUILD_SHARED_LIBS "Build libraries as shared as opposed to static" ON)
 
-#Enable RPATH support
+# Enable RPATH support
 include(AddInstallRPATHSupport)
 add_install_rpath_support(
   BIN_DIRS "${CMAKE_INSTALL_FULL_BINDIR}"
@@ -52,7 +42,7 @@ add_install_rpath_support(
   USE_LINK_PATH
 )
 
-#Set default build type to Release if not specified
+# Set default build type to Release if not specified
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Setting build type to 'Release' as none was specified.")
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
@@ -62,7 +52,7 @@ endif()
 # Add uninstall target
 include(AddUninstallTarget)
 
-#Specify the C standard
+# Specify the C standard
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
@@ -110,17 +100,28 @@ target_include_directories(PSLP
 )
 
 # Common compile options
-target_compile_options(PSLP PRIVATE
-  -Wall -Wextra -Wpedantic -Wno-sign-compare
-)
+if (MSVC)
+  target_compile_options(PSLP PRIVATE /W4)
+  set(CMAKE_DEBUG_POSTFIX "d")
+  set_target_properties(PSLP PROPERTIES DEBUG_POSTFIX "d")
+  set_target_properties(PSLP PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+  target_compile_definitions(PSLP PRIVATE PSLP_EXPORTS)
+  target_compile_options(PSLP PRIVATE
+    $<$<CONFIG:Debug>:/Od>
+    $<$<CONFIG:Release>:/O2 /DNDEBUG>
+    $<$<CONFIG:RelWithDebInfo>:/O2 /DNDEBUG>
+    $<$<CONFIG:MinSizeRel>:/O1 /DNDEBUG>
+  )
+else()
+  target_compile_options(PSLP PRIVATE -Wall -Wextra -Wpedantic -Wno-sign-compare -Wconversion)
+  target_compile_options(PSLP PRIVATE
+    $<$<CONFIG:Debug>:-g -O0>
+    $<$<CONFIG:Release>:-O3 -DNDEBUG>
+    $<$<CONFIG:RelWithDebInfo>:-O2 -g -DNDEBUG>
+    $<$<CONFIG:MinSizeRel>:-Os -DNDEBUG>
+  )
 
-# Config-specific compile options
-target_compile_options(PSLP PRIVATE
-  $<$<CONFIG:Debug>:-g -O0>
-  $<$<CONFIG:Release>:-O3 -DNDEBUG>
-  $<$<CONFIG:RelWithDebInfo>:-O2 -g -DNDEBUG>
-  $<$<CONFIG:MinSizeRel>:-Os -DNDEBUG>
-)
+endif()
 
 if(ENABLE_DEBUGGER OR CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_definitions(PSLP PRIVATE DEBUGGER_ENABLED)
@@ -128,9 +129,11 @@ else()
     target_compile_definitions(PSLP PRIVATE NDEBUG)
 endif()
 
-# Link pthread library
-find_package(Threads REQUIRED)
-target_link_libraries(PSLP PRIVATE Threads::Threads)
+# Link pthread library or compatibility layer
+if(NOT WIN32)
+    find_package(Threads REQUIRED)
+    target_link_libraries(PSLP PRIVATE Threads::Threads)
+endif()
 
 # Testing
 option(PSLP_BUILD_TESTING "Build PSLP tests" OFF)
