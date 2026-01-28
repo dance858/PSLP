@@ -112,6 +112,7 @@ if (MSVC)
     $<$<CONFIG:RelWithDebInfo>:/O2 /DNDEBUG>
     $<$<CONFIG:MinSizeRel>:/O1 /DNDEBUG>
   )
+  add_compile_options(/FS)
 else()
   target_compile_options(PSLP PRIVATE -Wall -Wextra -Wpedantic -Wno-sign-compare -Wconversion)
   target_compile_options(PSLP PRIVATE
