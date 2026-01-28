@@ -607,13 +607,13 @@ static inline void print_start_message(const PresolveStats *stats)
     printf("\n\t       PSLP v%s - LP presolver \n\t(c) Daniel "
            "Cederberg, Stanford University, 2025\n",
            PSLP_VERSION);
-    printf("Original problem:  %ld rows, %ld columns, %ld nnz\n",
+    printf("Original problem:  %zu rows, %zu columns, %zu nnz\n",
            stats->n_rows_original, stats->n_cols_original, stats->nnz_original);
 }
 
 static inline void print_end_message(const Matrix *A, const PresolveStats *stats)
 {
-    printf("Presolved problem: %ld rows, %ld columns, %ld nnz\n", A->m, A->n,
+    printf("Presolved problem: %zu rows, %zu columns, %zu nnz\n", A->m, A->n,
            A->nnz);
     printf("PSLP init & run time : %.3f seconds, %.3f \n", stats->time_init,
            stats->time_presolve);
@@ -678,6 +678,7 @@ PresolveStatus run_presolver(Presolver *presolver)
     // complexity class. The cycle resets after the medium presolvers.
     // ------------------------------------------------------------------------
     nnz_before_cycle = A->nnz;
+    nnz_after_cycle = A->nnz; /* to avoid unitialized variable warning */
     while (!terminate)
     {
         // before each phase we run the trivial presolvers
