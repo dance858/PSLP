@@ -25,7 +25,7 @@ jobs:
 
     - name: Run C++ tests (Linux/macOS)
       if: runner.os != 'Windows'
-      run: cd build_cpp && ./bin/test_cpp
+      run: cd build_cpp && ./test_cpp
 
     - name: Run C++ tests (Windows)
       if: runner.os == 'Windows'
