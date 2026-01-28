@@ -45,7 +45,7 @@
 #include "dVec.h"
 #include "glbopts.h"
 #include "iVec.h"
-#include <pthread.h>
+#include <pslp_thread.h>
 #include <stdio.h>
 #include <stdlib.h>
 
