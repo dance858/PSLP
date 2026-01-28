@@ -11,6 +11,10 @@ message(STATUS "Configuring PSLP (version ${PSLP_VERSION})")
 
 include(GNUInstallDirs)
 
+if (MSVC)
+    add_compile_options(/FS)
+endif()
+
 # Enable export of all symbols on Windows for shared libraries
 if(BUILD_SHARED_LIBS)
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
@@ -112,7 +116,6 @@ if (MSVC)
     $<$<CONFIG:RelWithDebInfo>:/O2 /DNDEBUG>
     $<$<CONFIG:MinSizeRel>:/O1 /DNDEBUG>
   )
-  add_compile_options(/FS)
 else()
   target_compile_options(PSLP PRIVATE -Wall -Wextra -Wpedantic -Wno-sign-compare -Wconversion)
   target_compile_options(PSLP PRIVATE

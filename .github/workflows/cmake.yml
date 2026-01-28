@@ -22,7 +22,7 @@ jobs:
       run: cmake -B build -S . -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DPSLP_BUILD_TESTING=ON -DCMAKE_VERBOSE_MAKEFILE=ON
       
     - name: Build
-      run: cmake --build build --config ${{ matrix.build_type }} -- /verbosity:detailed
+      run: cmake --build build --config ${{ matrix.build_type }}
       
     - name: Run tests
       run: cd build && ctest -C ${{ matrix.build_type }} --verbose
