@@ -269,24 +269,24 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     //     clean_small_coeff_A(A, bounds, row_tags, col_tags, rhs_copy, lhs_copy);
     // }
 
-    pthread_t thread_id;
+    ps_thread_t thread_id;
     ParallelInitData parallel_data = {A,    work,     n_cols,   n_rows,   lbs,
                                       ubs,  lhs_copy, rhs_copy, bounds,   col_tags,
                                       NULL, NULL,     NULL,     row_sizes};
 
-    pthread_create(&thread_id, NULL, init_thread_func, &parallel_data);
+    ps_thread_create(&thread_id, NULL, init_thread_func, &parallel_data);
 
     // Main thread: Transpose A and count rows
     AT = transpose(A, work->iwork_n_cols);
     if (!AT)
     {
-        pthread_cancel(thread_id);
+        ps_thread_join(&thread_id, NULL);
         goto cleanup;
     }
     count_rows(AT, col_sizes);
 
     // sync threads
-    pthread_join(thread_id, NULL);
+    ps_thread_join(&thread_id, NULL);
 
     row_tags = parallel_data.row_tags;
     if (!row_tags) goto cleanup;
