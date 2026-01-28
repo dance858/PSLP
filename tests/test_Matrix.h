@@ -64,7 +64,7 @@ static char *test_1_matrix()
     mu_assert("error, vals not equal",
               ARRAYS_EQUAL_DOUBLE(AT_vals_correct, AT->x, 11));
     mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(AT_cols_correct, AT->i, 11));
-    CHECK_ROW_STARTS(AT, AT_row_starts_correct);
+    mu_assert("row starts", check_row_starts(AT, AT_row_starts_correct));
 
     free_matrix(A);
     free_matrix(AT);
@@ -152,8 +152,8 @@ static char *test_4_matrix()
     int row_starts_correct[] = {0, 8, 11, 14, 18};
     int row_ends_correct[] = {3, 11, 13, 16, 18};
 
-    CHECK_ROW_STARTS(A, row_starts_correct);
-    CHECK_ROW_ENDS(A, row_ends_correct);
+    mu_assert("rows", check_row_starts(A, row_starts_correct));
+    mu_assert("rows", check_row_ends(A, row_ends_correct));
 
     free_matrix(A);
 
@@ -212,8 +212,8 @@ static char *test_6_matrix()
     int row_starts_correct[] = {0, 5, 9, 11, 18};
     int row_ends_correct[] = {3, 8, 11, 13, 18};
 
-    CHECK_ROW_STARTS(A, row_starts_correct);
-    CHECK_ROW_ENDS(A, row_ends_correct);
+    mu_assert("rows", check_row_starts(A, row_starts_correct));
+    mu_assert("rows", check_row_ends(A, row_ends_correct));
 
     free_matrix(A);
 
@@ -252,8 +252,8 @@ static char *test_7_matrix()
     int row_starts_correct[] = {0, 5, 10, 17, 18, 20};
     int row_ends_correct[] = {3, 8, 12, 18, 19, 20};
 
-    CHECK_ROW_STARTS(A, row_starts_correct);
-    CHECK_ROW_ENDS(A, row_ends_correct);
+    mu_assert("rows", check_row_starts(A, row_starts_correct));
+    mu_assert("rows", check_row_ends(A, row_ends_correct));
 
     free_matrix(A);
 
@@ -292,8 +292,8 @@ static char *test_8_matrix()
     int row_starts_correct[] = {0, 5, 9, 18, 19, 20};
     int row_ends_correct[] = {3, 8, 11, 19, 20, 20};
 
-    CHECK_ROW_STARTS(A, row_starts_correct);
-    CHECK_ROW_ENDS(A, row_ends_correct);
+    mu_assert("rows", check_row_starts(A, row_starts_correct));
+    mu_assert("rows", check_row_ends(A, row_ends_correct));
 
     free_matrix(A);
 
@@ -337,8 +337,8 @@ static char *test_9_matrix()
     int row_starts_correct[] = {0, 5, 10, 19, 19, 20};
     int row_ends_correct[] = {3, 8, 12, 19, 20, 20};
 
-    CHECK_ROW_STARTS(A, row_starts_correct);
-    CHECK_ROW_ENDS(A, row_ends_correct);
+    mu_assert("rows", check_row_starts(A, row_starts_correct));
+    mu_assert("rows", check_row_ends(A, row_ends_correct));
 
     free_matrix(A);
 
@@ -383,8 +383,8 @@ static char *test_10_matrix()
     int row_starts_correct[] = {0, 5, 10, 23, 23, 23, 26, 30};
     int row_ends_correct[] = {3, 8, 12, 23, 23, 23, 28, 30};
 
-    CHECK_ROW_STARTS(A, row_starts_correct);
-    CHECK_ROW_ENDS(A, row_ends_correct);
+    mu_assert("rows", check_row_starts(A, row_starts_correct));
+    mu_assert("rows", check_row_ends(A, row_ends_correct));
 
     free_matrix(A);
 
@@ -429,8 +429,8 @@ static char *test_11_matrix()
     int row_starts_correct[] = {0, 5, 10, 10, 26, 26, 26};
     int row_ends_correct[] = {3, 5, 10, 12, 26, 26, 26};
 
-    CHECK_ROW_STARTS(A, row_starts_correct);
-    CHECK_ROW_ENDS(A, row_ends_correct);
+    mu_assert("rows", check_row_starts(A, row_starts_correct));
+    mu_assert("rows", check_row_ends(A, row_ends_correct));
 
     free_matrix(A);
 
@@ -471,8 +471,8 @@ static char *test_12_matrix()
     int row_starts_correct[] = {0, 3, 4, 12, 17, 21};
     int row_ends_correct[] = {0, 4, 6, 15, 19, 21};
 
-    CHECK_ROW_STARTS(A, row_starts_correct);
-    CHECK_ROW_ENDS(A, row_ends_correct);
+    mu_assert("rows", check_row_starts(A, row_starts_correct));
+    mu_assert("rows", check_row_ends(A, row_ends_correct));
 
     free_matrix(A);
 
@@ -513,8 +513,8 @@ static char *test_13_matrix()
     int row_starts_correct[] = {0, 5, 10, 18, 19, 20};
     int row_ends_correct[] = {3, 8, 12, 19, 19, 20};
 
-    CHECK_ROW_STARTS(A, row_starts_correct);
-    CHECK_ROW_ENDS(A, row_ends_correct);
+    mu_assert("rows", check_row_starts(A, row_starts_correct));
+    mu_assert("rows", check_row_ends(A, row_ends_correct));
 
     free_matrix(A);
 
@@ -572,8 +572,8 @@ static char *test_14_matrix()
     int row_starts_correct[] = {0, 5, 10, 32, 34, 34, 37, 37, 39, 39, 42, 46};
     int row_ends_correct[] = {5, 10, 11, 34, 34, 37, 37, 39, 39, 39, 44, 46};
 
-    CHECK_ROW_STARTS(A, row_starts_correct);
-    CHECK_ROW_ENDS(A, row_ends_correct);
+    mu_assert("rows", check_row_starts(A, row_starts_correct));
+    mu_assert("rows", check_row_ends(A, row_ends_correct));
 
     free_matrix(A);
     printf("%d", EXTRA_ROW_SPACE);
@@ -632,8 +632,8 @@ static char *test_15_matrix()
     int row_starts_correct[] = {0, 3, 5, 7, 10};
     int row_ends_correct[] = {3, 5, 7, 10, 10};
 
-    CHECK_ROW_STARTS(A, row_starts_correct);
-    CHECK_ROW_ENDS(A, row_ends_correct);
+    mu_assert("rows", check_row_starts(A, row_starts_correct));
+    mu_assert("rows", check_row_ends(A, row_ends_correct));
 
     free_matrix(A);
     return 0;
@@ -678,8 +678,8 @@ static char *test_16_matrix()
     int row_starts_correct[] = {0, 3, 6, 7, 9};
     int row_ends_correct[] = {3, 6, 7, 9, 9};
 
-    CHECK_ROW_STARTS(A, row_starts_correct);
-    CHECK_ROW_ENDS(A, row_ends_correct);
+    mu_assert("rows", check_row_starts(A, row_starts_correct));
+    mu_assert("rows", check_row_ends(A, row_ends_correct));
 
     free_matrix(A);
     return 0;
@@ -721,8 +721,8 @@ static char *test_17_matrix()
     int row_starts_correct[] = {0, 3, 5, 7};
     int row_ends_correct[] = {3, 5, 7, 7};
 
-    CHECK_ROW_STARTS(A, row_starts_correct);
-    CHECK_ROW_ENDS(A, row_ends_correct);
+    mu_assert("rows", check_row_starts(A, row_starts_correct));
+    mu_assert("rows", check_row_ends(A, row_ends_correct));
 
     free_matrix(A);
     return 0;
@@ -764,8 +764,8 @@ static char *test_18_matrix()
 
     int row_ends_correct[] = {3, 6, 8, 8};
 
-    CHECK_ROW_STARTS(A, row_starts);
-    CHECK_ROW_ENDS(A, row_ends_correct);
+    check_row_starts(A, row_starts);
+    mu_assert("rows", check_row_ends(A, row_ends_correct));
 
     free_matrix(A);
     return 0;

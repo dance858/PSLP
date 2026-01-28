@@ -46,13 +46,13 @@ static char *test_1_parallel_cols()
     int Ap_correct[] = {0, 2};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0};
     double ubs_correct[] = {11, 5};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 2));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 2));
 
     // check that the objective function is correct
     double obj_correct[] = {2, 1};
@@ -101,13 +101,13 @@ static char *test_2_parallel_cols()
     int Ap_correct[] = {0, 2};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0};
     double ubs_correct[] = {INF, 5};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 2));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 2));
 
     // check that the objective function is correct
     double obj_correct[] = {2, 1};
@@ -156,13 +156,13 @@ static char *test_3_parallel_cols()
     int Ap_correct[] = {0, 2};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0};
     double ubs_correct[] = {INF, 5};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 2));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 2));
 
     // check that the objective function is correct
     double obj_correct[] = {2, 1};
@@ -211,13 +211,13 @@ static char *test_4_parallel_cols()
     int Ap_correct[] = {0, 2};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {0, 0};
     double ubs_correct[] = {11, 5};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 2));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 2));
 
     // check that the objective function is correct
     double obj_correct[] = {2, 1};
@@ -266,13 +266,13 @@ static char *test_5_parallel_cols()
     int Ap_correct[] = {0, 2};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {-INF, 0};
     double ubs_correct[] = {11, 5};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 2));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 2));
 
     // check that the objective function is correct
     double obj_correct[] = {2, 1};
@@ -321,13 +321,13 @@ static char *test_6_parallel_cols()
     int Ap_correct[] = {0, 1};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 1));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 1));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {-INF};
     double ubs_correct[] = {11};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 1));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 1));
 
     // check that the objective function is correct
     double obj_correct[] = {2};
@@ -375,13 +375,13 @@ static char *test_5_negated_parallel_cols()
     int Ap_correct[] = {0, 2};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {-8, 0};
     double ubs_correct[] = {INF, 5};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 2));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 2));
 
     // check that the objective function is correct
     double obj_correct[] = {-2, 1};
@@ -430,13 +430,13 @@ static char *test_6_negated_parallel_cols()
     int Ap_correct[] = {0, 2};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {-INF, 0};
     double ubs_correct[] = {INF, 5};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 2));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 2));
 
     // check that the objective function is correct
     double obj_correct[] = {-2, 1};
@@ -554,13 +554,13 @@ static char *test_8_parallel_cols()
 #ifdef __linux__
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, A->nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, A->nnz));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check that new variable bounds are correct
     double lbs_correct[] = {-2, -3.5, -14, -6, -7, -8};
     double ubs_correct[] = {2, 3.5, 14, 6, 7, 8};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 6));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 6));
 
     // check that the objective function is correct
     double obj_correct[] = {3, -4, -3, 6, 3, 1};

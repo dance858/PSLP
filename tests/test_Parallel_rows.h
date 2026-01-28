@@ -505,7 +505,7 @@ static char *test_6_parallel_rows()
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
-    CHECK_ROW_STARTS(A, Ap);
+    mu_assert("rows", check_row_starts(A, Ap));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -547,7 +547,7 @@ static char *test_7_parallel_rows()
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
-    CHECK_ROW_STARTS(A, Ap);
+    mu_assert("rows", check_row_starts(A, Ap));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -589,7 +589,7 @@ static char *test_8_parallel_rows()
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
-    CHECK_ROW_STARTS(A, Ap);
+    mu_assert("rows", check_row_starts(A, Ap));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -631,7 +631,7 @@ static char *test_9_parallel_rows()
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
-    CHECK_ROW_STARTS(A, Ap);
+    mu_assert("rows", check_row_starts(A, Ap));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -673,7 +673,7 @@ static char *test_10_parallel_rows()
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
-    CHECK_ROW_STARTS(A, Ap);
+    mu_assert("rows", check_row_starts(A, Ap));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -715,7 +715,7 @@ static char *test_11_parallel_rows()
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
-    CHECK_ROW_STARTS(A, Ap);
+    mu_assert("rows", check_row_starts(A, Ap));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -757,7 +757,7 @@ static char *test_12_parallel_rows()
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
-    CHECK_ROW_STARTS(A, Ap);
+    mu_assert("rows", check_row_starts(A, Ap));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -799,7 +799,7 @@ static char *test_13_parallel_rows()
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
-    CHECK_ROW_STARTS(A, Ap);
+    mu_assert("rows", check_row_starts(A, Ap));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -937,7 +937,7 @@ static char *test_14_parallel_rows()
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 12));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 12));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check row tags
     RowTag row_tags_correct[] = {R_TAG_NONE, R_TAG_EQ, R_TAG_LHS_INF};
@@ -1090,7 +1090,7 @@ static char *test_15_parallel_rows()
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 15));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 15));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check row tags
     RowTag row_tags_correct[] = {R_TAG_NONE, R_TAG_NONE, R_TAG_NONE, R_TAG_LHS_INF};
@@ -1239,7 +1239,7 @@ static char *test_16_parallel_rows()
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 15));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 15));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check row tags
     RowTag row_tags_correct[] = {R_TAG_NONE, R_TAG_NONE, R_TAG_NONE, R_TAG_LHS_INF};
