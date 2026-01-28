@@ -34,14 +34,14 @@
    equality row is only implied free from above. */
 static void handle_impl_free_from_above_eq(RowView *row, int k, double Aik,
                                            double lb, double ub, ColTag *col_tag,
-                                           Activity *act, Lock *locks, int *A_nnz,
+                                           Activity *act, Lock *locks, size_t *A_nnz,
                                            const Bound *bounds,
                                            PostsolveInfo *postsolve_info, double ck)
 {
     /* dual postsolve */
     save_retrieval_eq_to_ineq(postsolve_info, row->i, ck / Aik);
-    save_retrieval_sub_col(postsolve_info, k, row->cols, row->vals, *row->len,
-                           *row->rhs, row->i, 0.0);
+    save_retrieval_sub_col(postsolve_info, k, row->cols, row->vals,
+                           (size_t) *row->len, *row->rhs, row->i, 0.0);
 
     assert(!IS_ABS_INF(lb) && !HAS_TAG(*col_tag, C_TAG_LB_INF));
 
@@ -125,13 +125,13 @@ static void handle_impl_free_from_above_eq(RowView *row, int k, double Aik,
    equality row is only implied free from below. */
 static void handle_impl_free_from_below_eq(RowView *row, int k, double Aik,
                                            double lb, double ub, ColTag *col_tag,
-                                           Activity *act, Lock *locks, int *A_nnz,
+                                           Activity *act, Lock *locks, size_t *A_nnz,
                                            const Bound *bounds,
                                            PostsolveInfo *postsolve_info, double ck)
 {
     save_retrieval_eq_to_ineq(postsolve_info, row->i, ck / Aik);
-    save_retrieval_sub_col(postsolve_info, k, row->cols, row->vals, *row->len,
-                           *row->rhs, row->i, 0.0);
+    save_retrieval_sub_col(postsolve_info, k, row->cols, row->vals,
+                           (size_t) *row->len, *row->rhs, row->i, 0.0);
     assert(!IS_ABS_INF(ub) && !HAS_TAG(*col_tag, C_TAG_UB_INF));
 
     /* remove coefficient from A */
@@ -213,7 +213,7 @@ static PresolveStatus process_colston_eq(RowView *row, ColView *col, Objective *
                                          double Aik, bool impl_free_from_above,
                                          bool impl_free_from_below, Activity *act,
                                          Lock *locks, iVec *rows_to_delete,
-                                         int *A_nnz, const Bound *bounds,
+                                         size_t *A_nnz, const Bound *bounds,
                                          iVec *ston_rows, iVec *dton_rows,
                                          PostsolveInfo *postsolve_info)
 {
@@ -244,7 +244,7 @@ static PresolveStatus process_colston_eq(RowView *row, ColView *col, Objective *
     if (impl_free_from_above && impl_free_from_below)
     {
         save_retrieval_sub_col(postsolve_info, col->k, row->cols, row->vals,
-                               *row->len, *row->rhs, row->i, ck);
+                               (size_t) *row->len, *row->rhs, row->i, ck);
         set_row_to_inactive(row->i, row->tag, rows_to_delete, postsolve_info,
                             ck / Aik);
         return REDUCED;
@@ -307,7 +307,7 @@ static PresolveStatus process_colston_eq(RowView *row, ColView *col, Objective *
             bounds.
  */
 static void fix_col_ston(double val, double Aik, RowView *row, ColView *col,
-                         Activity *act, Objective *obj, int *A_nnz,
+                         Activity *act, Objective *obj, size_t *A_nnz,
                          const Bound *bounds, PostsolveInfo *postsolve_info)
 {
     // remove coefficient from A (which removes the variable from A)
@@ -376,7 +376,7 @@ static void fix_col_ston(double val, double Aik, RowView *row, ColView *col,
 static inline PresolveStatus
 process_colston_ineq(RowView *row, ColView *col, Objective *obj, double Aik,
                      bool impl_free_from_above, bool impl_free_from_below,
-                     Activity *act, Lock *locks, iVec *rows_to_delete, int *A_nnz,
+                     Activity *act, Lock *locks, iVec *rows_to_delete, size_t *A_nnz,
                      const Bound *bounds, iVec *ston_rows, iVec *dton_rows,
                      PostsolveInfo *postsolve_info)
 {
@@ -477,7 +477,7 @@ process_colston_ineq(RowView *row, ColView *col, Objective *obj, double Aik,
         *col->len = SIZE_INACTIVE_COL;
 
         save_retrieval_sub_col(postsolve_info, col->k, row->cols, row->vals,
-                               *row->len, new_side, row->i, ck);
+                               (size_t) *row->len, new_side, row->i, ck);
         set_row_to_inactive(row->i, row->tag, rows_to_delete, postsolve_info,
                             ck / Aik);
 
@@ -548,9 +548,9 @@ process_colston_ineq(RowView *row, ColView *col, Objective *obj, double Aik,
 */
 static inline void refresh_ston_cols(const int *col_sizes, iVec *ston_cols)
 {
-    int n_ston_cols = 0;
+    size_t n_ston_cols = 0;
     int shift = 0;
-    int len = ston_cols->len;
+    int len = (int) ston_cols->len;
 
     for (int i = 0; i < len; i++)
     {
@@ -573,7 +573,7 @@ PresolveStatus remove_ston_cols__(Problem *prob)
     Constraints *constraints = prob->constraints;
     PostsolveInfo *postsolve_info = constraints->state->postsolve_info;
     const Matrix *A = constraints->A;
-    int *A_nnz = &(constraints->A->nnz);
+    size_t *A_nnz = &(constraints->A->nnz);
     const Matrix *AT = constraints->AT;
     RowTag *row_tags = constraints->row_tags;
     ColTag *col_tags = constraints->col_tags;

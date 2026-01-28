@@ -60,7 +60,7 @@ enum Complexity
     MEDIUM = 1 << 0
 };
 
-PresolveStats *init_stats(int n_rows, int n_cols, int nnz)
+PresolveStats *init_stats(size_t n_rows, size_t n_cols, size_t nnz)
 {
     PresolveStats *stats = (PresolveStats *) ps_calloc(1, sizeof(PresolveStats));
     stats->n_rows_original = n_rows;
@@ -98,8 +98,8 @@ typedef struct
 {
     Matrix *A;
     Work *work;
-    int n_cols;
-    int n_rows;
+    size_t n_cols;
+    size_t n_rows;
     const double *lbs;
     const double *ubs;
     double *lhs_copy;
@@ -209,8 +209,8 @@ void presolver_clean_up(clean_up_scope scope)
     free_presolver(scope.presolver);
 }
 
-Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
-                         int n, int nnz, const double *lhs, const double *rhs,
+Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t m,
+                         size_t n, size_t nnz, const double *lhs, const double *rhs,
                          const double *lbs, const double *ubs, const double *c,
                          const Settings *stgs)
 {
@@ -235,8 +235,8 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
     //   workspace, see the workspace class. The problem object owns all the
     //   memory that is allocated in this block of code (and therefore frees it).
     //  ---------------------------------------------------------------------------
-    int n_rows = m;
-    int n_cols = n;
+    size_t n_rows = m;
+    size_t n_cols = n;
     lhs_copy = (double *) ps_malloc(n_rows, sizeof(double));
     rhs_copy = (double *) ps_malloc(n_rows, sizeof(double));
     c_copy = (double *) ps_malloc(n_cols, sizeof(double));
@@ -357,9 +357,10 @@ cleanup:
      (1 - NNZ_REMOVED_CYCLE)%.
    3. A maximum time limit is reached.
 */
-static inline bool update_termination(int nnz_after_cycle, int nnz_before_cycle,
-                                      Complexity complexity, PresolveStatus status,
-                                      double max_time, Timer outer_timer)
+static inline bool update_termination(size_t nnz_after_cycle,
+                                      size_t nnz_before_cycle, Complexity complexity,
+                                      PresolveStatus status, double max_time,
+                                      Timer outer_timer)
 {
     if (HAS_STATUS(status, UNBNDORINFEAS))
     {
@@ -367,7 +368,7 @@ static inline bool update_termination(int nnz_after_cycle, int nnz_before_cycle,
     }
 
     if (complexity == MEDIUM &&
-        nnz_after_cycle >= NNZ_REMOVED_CYCLE * nnz_before_cycle)
+        (double) nnz_after_cycle >= NNZ_REMOVED_CYCLE * (double) nnz_before_cycle)
     {
         return true;
     }
@@ -392,11 +393,12 @@ static inline bool update_termination(int nnz_after_cycle, int nnz_before_cycle,
       fast.
 */
 static inline Complexity update_complexity(Complexity curr_complexity,
-                                           int nnz_before_phase, int nnz_after_phase)
+                                           size_t nnz_before_phase,
+                                           size_t nnz_after_phase)
 {
     if (curr_complexity == FAST)
     {
-        if (nnz_after_phase < NNZ_REMOVED_FAST * nnz_before_phase)
+        if ((double) nnz_after_phase < NNZ_REMOVED_FAST * (double) nnz_before_phase)
         {
             return FAST;
         }
@@ -496,8 +498,8 @@ run_medium_explorers(Problem *prob, const Settings *stgs, PresolveStats *stats)
     assert(prob->constraints->state->empty_rows->len == 0);
     assert(prob->constraints->state->empty_cols->len == 0);
     DEBUG(verify_no_duplicates_sort(prob->constraints->state->updated_activities));
-    int nnz_before;
-    int *nnz = &prob->constraints->A->nnz;
+    size_t nnz_before;
+    size_t *nnz = &prob->constraints->A->nnz;
     PresolveStatus status = UNCHANGED;
     Timer timer;
 
@@ -605,13 +607,14 @@ static inline void print_start_message(const PresolveStats *stats)
     printf("\n\t       PSLP v%s - LP presolver \n\t(c) Daniel "
            "Cederberg, Stanford University, 2025\n",
            PSLP_VERSION);
-    printf("Original problem:  %d rows, %d columns, %d nnz\n",
+    printf("Original problem:  %ld rows, %ld columns, %ld nnz\n",
            stats->n_rows_original, stats->n_cols_original, stats->nnz_original);
 }
 
 static inline void print_end_message(const Matrix *A, const PresolveStats *stats)
 {
-    printf("Presolved problem: %d rows, %d columns, %d nnz\n", A->m, A->n, A->nnz);
+    printf("Presolved problem: %ld rows, %ld columns, %ld nnz\n", A->m, A->n,
+           A->nnz);
     printf("PSLP init & run time : %.3f seconds, %.3f \n", stats->time_init,
            stats->time_presolve);
 }
@@ -650,9 +653,9 @@ static inline PresolveStatus final_status(PresolveStats *stats)
 PresolveStatus run_presolver(Presolver *presolver)
 {
     Timer inner_timer, outer_timer;
-    int nnz_before_cycle, nnz_after_cycle;
-    int nnz_before_phase, nnz_after_phase;
-    int nnz_before_reduction;
+    size_t nnz_before_cycle, nnz_after_cycle;
+    size_t nnz_before_phase, nnz_after_phase;
+    size_t nnz_before_reduction;
     Problem *prob = presolver->prob;
     PresolveStats *stats = presolver->stats;
     Matrix *A = presolver->prob->constraints->A;

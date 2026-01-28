@@ -308,10 +308,9 @@ static inline
     // -------------------------------------------------------------------
     //          remove variable that is substituted
     // -------------------------------------------------------------------
-    memmove(A->x + subst_idx, A->x + subst_idx + 1,
-            (end - subst_idx - 1) * sizeof(double));
-    memmove(A->i + subst_idx, A->i + subst_idx + 1,
-            (end - subst_idx - 1) * sizeof(int));
+    size_t len = (size_t) (end - subst_idx - 1);
+    memmove(A->x + subst_idx, A->x + subst_idx + 1, len * sizeof(double));
+    memmove(A->i + subst_idx, A->i + subst_idx + 1, len * sizeof(int));
     end -= 1;
     diff_row_size += 1;
     insertion -= (subst_idx < insertion);
@@ -322,10 +321,9 @@ static inline
     // -------------------------------------------------------------------
     if (ABS(new_val) <= ZERO_TOL)
     {
-        memmove(A->x + insertion, A->x + insertion + 1,
-                (end - insertion - 1) * sizeof(double));
-        memmove(A->i + insertion, A->i + insertion + 1,
-                (end - insertion - 1) * sizeof(int));
+        size_t len = (size_t) (end - insertion - 1);
+        memmove(A->x + insertion, A->x + insertion + 1, len * sizeof(double));
+        memmove(A->i + insertion, A->i + insertion + 1, len * sizeof(int));
         end -= 1;
         diff_row_size += 1;
     }
@@ -348,10 +346,9 @@ static inline
         }
         else
         {
-            memmove(A->x + insertion + 1, A->x + insertion,
-                    (end - insertion) * sizeof(double));
-            memmove(A->i + insertion + 1, A->i + insertion,
-                    (end - insertion) * sizeof(int));
+            size_t len = (size_t) (end - insertion);
+            memmove(A->x + insertion + 1, A->x + insertion, len * sizeof(double));
+            memmove(A->i + insertion + 1, A->i + insertion, len * sizeof(int));
             A->x[insertion] = new_val;
             A->i[insertion] = j;
             end += 1;
@@ -361,11 +358,11 @@ static inline
 
     A->p[q].end = end;
     *row_size -= diff_row_size;
-    A->nnz -= diff_row_size;
+    A->nnz -= (size_t) diff_row_size;
 
     assert(*row_size == end - start);
-    DEBUG(ASSERT_INCREASING_I(A->i + start, *row_size););
-    DEBUG(ASSERT_NO_ZEROS_D(A->x + start, *row_size););
+    DEBUG(ASSERT_INCREASING_I(A->i + start, (size_t) *row_size););
+    DEBUG(ASSERT_NO_ZEROS_D(A->x + start, (size_t) *row_size););
     assert(A->p[q].end <= A->p[q + 1].start);
     return old_and_new_coeff;
 }
@@ -734,9 +731,9 @@ static PresolveStatus remove_dton_eq_rows__(Problem *prob, int max_shift_per_row
     // append the new dton rows
     if (n_new_dton_rows > 0)
     {
-        DEBUG(verify_no_duplicates_sort_ptr(iwork_n_rows, n_new_dton_rows));
+        DEBUG(verify_no_duplicates_sort_ptr(iwork_n_rows, (size_t) n_new_dton_rows));
         iVec_append_array(constraints->state->dton_rows, iwork_n_rows,
-                          n_new_dton_rows);
+                          (size_t) n_new_dton_rows);
     }
 
     return status;

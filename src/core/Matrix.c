@@ -20,28 +20,28 @@
 #include "Debugger.h"
 #include "Memory_wrapper.h"
 #include "Numerics.h"
+#include "PSLP_warnings.h"
 #include "RowColViews.h"
 #include "glbopts.h"
 #include "stdlib.h"
 #include "string.h"
 
-Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, int n_rows,
-                   int n_cols, int nnz)
+Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, size_t n_rows,
+                   size_t n_cols, size_t nnz)
 {
     DEBUG(ASSERT_NO_ZEROS_D(Ax, nnz));
     Matrix *A = matrix_alloc(n_rows, n_cols, nnz);
     RETURN_PTR_IF_NULL(A, NULL);
-    int offset, i, row_size, row_alloc;
+    size_t i, len;
+    int offset, row_size, row_alloc;
 
     offset = 0;
     for (i = 0; i < n_rows; ++i)
     {
         A->p[i].start = Ap[i] + offset;
-        memcpy(A->x + A->p[i].start, Ax + Ap[i],
-               (Ap[i + 1] - Ap[i]) * sizeof(double));
-
-        memcpy(A->i + A->p[i].start, Ai + Ap[i], (Ap[i + 1] - Ap[i]) * sizeof(int));
-
+        len = (size_t) (Ap[i + 1] - Ap[i]);
+        memcpy(A->x + A->p[i].start, Ax + Ap[i], len * sizeof(double));
+        memcpy(A->i + A->p[i].start, Ai + Ap[i], len * sizeof(int));
         A->p[i].end = Ap[i + 1] + offset;
         row_size = A->p[i].end - A->p[i].start;
         row_alloc = calc_memory_row(row_size, EXTRA_ROW_SPACE, EXTRA_MEMORY_RATIO);
@@ -55,7 +55,7 @@ Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, int n_rows,
 }
 
 // needed for the transpose function
-Matrix *matrix_alloc(int n_rows, int n_cols, int nnz)
+Matrix *matrix_alloc(size_t n_rows, size_t n_cols, size_t nnz)
 {
     Matrix *A = (Matrix *) ps_malloc(1, sizeof(Matrix));
     RETURN_PTR_IF_NULL(A, NULL);
@@ -85,7 +85,7 @@ Matrix *matrix_alloc(int n_rows, int n_cols, int nnz)
 }
 
 Matrix *matrix_new_no_extra_space(const double *Ax, const int *Ai, const int *Ap,
-                                  int n_rows, int n_cols, int nnz)
+                                  size_t n_rows, size_t n_cols, size_t nnz)
 {
     Matrix *A = (Matrix *) ps_malloc(1, sizeof(Matrix));
     RETURN_PTR_IF_NULL(A, NULL);
@@ -147,8 +147,8 @@ Matrix *transpose(const Matrix *A, int *work_n_cols)
         count[i] = start;
     }
 
-    AT->p[A->n].start = AT->n_alloc;
-    AT->p[A->n].end = AT->n_alloc;
+    AT->p[A->n].start = (int) AT->n_alloc;
+    AT->p[A->n].end = (int) AT->n_alloc;
 
     // ------------------------------------------------------------------
     //  fill transposed matrix (this is a bottleneck)
@@ -166,9 +166,19 @@ Matrix *transpose(const Matrix *A, int *work_n_cols)
     return AT;
 }
 
-int calc_memory(int nnz, int n_rows, int extra_row_space, double memory_ratio)
+size_t calc_memory(size_t nnz, size_t n_rows, size_t extra_row_space,
+                   double memory_ratio)
 {
-    return (int) (nnz * memory_ratio) + n_rows * extra_row_space;
+    /* disable conversion compiler warning*/
+    PSLP_DIAG_PUSH();
+    PSLP_DIAG_IGNORE_CONVERSION();
+
+    /* intentional truncation */
+    size_t result = (size_t) (nnz * memory_ratio) + n_rows * extra_row_space;
+
+    /* enable conversion compiler warnings */
+    PSLP_DIAG_POP();
+    return result;
 }
 
 int calc_memory_row(int size, int extra_row_space, double memory_ratio)
@@ -191,16 +201,17 @@ void free_matrix(Matrix *A)
 void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_sizes,
                         bool remove_all, int *col_idxs_map)
 {
-    int i, j, start, end, len, row_alloc, curr, n_deleted_rows, col_count;
-    double extra_row_space = (remove_all) ? 0.0 : EXTRA_ROW_SPACE;
+    int j, start, end, len, row_alloc, curr;
+    int extra_row_space = (remove_all) ? 0 : EXTRA_ROW_SPACE;
     double extra_mem_ratio = (remove_all) ? 1.0 : EXTRA_MEMORY_RATIO;
     curr = 0;
-    n_deleted_rows = 0;
+    size_t i, n_deleted_rows, col_count;
 
     // --------------------------------------------------------------------------
     // loop through the rows and remove redundant space, including inactive
     // rows.
     // --------------------------------------------------------------------------
+    n_deleted_rows = 0;
     for (i = 0; i < A->m; ++i)
     {
         if (row_sizes[i] == SIZE_INACTIVE_ROW)
@@ -212,11 +223,11 @@ void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_sizes,
         start = A->p[i].start;
         end = A->p[i].end;
         len = end - start;
-        row_alloc = calc_memory_row(len, extra_row_space, extra_mem_ratio);
-        memmove(A->x + curr, A->x + start, len * sizeof(double));
-        memmove(A->i + curr, A->i + start, len * sizeof(int));
+        memmove(A->x + curr, A->x + start, (size_t) (len) * sizeof(double));
+        memmove(A->i + curr, A->i + start, (size_t) (len) * sizeof(int));
         A->p[i - n_deleted_rows].start = curr;
         A->p[i - n_deleted_rows].end = curr + len;
+        row_alloc = calc_memory_row(len, extra_row_space, extra_mem_ratio);
         curr += row_alloc;
     }
 
@@ -225,9 +236,9 @@ void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_sizes,
     A->p[A->m].end = curr;
 
     // shrink size
-    A->x = (double *) ps_realloc(A->x, MAX(curr, 1), sizeof(double));
-    A->i = (int *) ps_realloc(A->i, MAX(curr, 1), sizeof(int));
-    A->p = (RowRange *) ps_realloc(A->p, A->m + 1, sizeof(RowRange));
+    A->x = (double *) ps_realloc(A->x, (size_t) MAX(curr, 1), sizeof(double));
+    A->i = (int *) ps_realloc(A->i, (size_t) MAX(curr, 1), sizeof(int));
+    A->p = (RowRange *) ps_realloc(A->p, (size_t) (A->m + 1), sizeof(RowRange));
 
     // -------------------------------------------------------------------------
     //                      compute new column indices
@@ -241,7 +252,7 @@ void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_sizes,
         }
         else
         {
-            col_idxs_map[i] = (col_count++);
+            col_idxs_map[i] = (int) (col_count++);
         }
     }
     A->n = col_count;
@@ -378,9 +389,9 @@ bool shift_row(Matrix *A, int row, int extra_space, int max_shift)
         if (len > 0)
         {
             memmove(A->x + next_start, A->x + row_r[left + 1].start,
-                    len * sizeof(double));
+                    ((size_t) len) * sizeof(double));
             memmove(A->i + next_start, A->i + row_r[left + 1].start,
-                    len * sizeof(int));
+                    ((size_t) len) * sizeof(int));
         }
         row_r[left + 1].start = next_start;
         row_r[left + 1].end = next_start + len;
@@ -397,9 +408,9 @@ bool shift_row(Matrix *A, int row, int extra_space, int max_shift)
         if (len > 0)
         {
             memmove(A->x + next_end - len, A->x + row_r[right - 1].start,
-                    len * sizeof(double));
+                    ((size_t) len) * sizeof(double));
             memmove(A->i + next_end - len, A->i + row_r[right - 1].start,
-                    len * sizeof(int));
+                    ((size_t) len) * sizeof(int));
         }
         row_r[right - 1].start = next_end - len;
         row_r[right - 1].end = next_end;
@@ -461,10 +472,9 @@ double insert_or_update_coeff(Matrix *A, int row, int col, double val, int *row_
         }
         else
         {
-            memmove(A->x + insertion + 1, A->x + insertion,
-                    (end - insertion) * sizeof(double));
-            memmove(A->i + insertion + 1, A->i + insertion,
-                    (end - insertion) * sizeof(int));
+            size_t len = (size_t) (end - insertion);
+            memmove(A->x + insertion + 1, A->x + insertion, len * sizeof(double));
+            memmove(A->i + insertion + 1, A->i + insertion, len * sizeof(int));
 
             // insert new value
             A->x[insertion] = val;
@@ -484,10 +494,9 @@ double insert_or_update_coeff(Matrix *A, int row, int col, double val, int *row_
         // we only have to shift values if the zero is not in the end
         if (insertion != end - 1)
         {
-            memmove(A->x + insertion, A->x + insertion + 1,
-                    (end - insertion - 1) * sizeof(double));
-            memmove(A->i + insertion, A->i + insertion + 1,
-                    (end - insertion - 1) * sizeof(int));
+            size_t len = (size_t) (end - insertion - 1);
+            memmove(A->x + insertion, A->x + insertion + 1, len * sizeof(double));
+            memmove(A->i + insertion, A->i + insertion + 1, len * sizeof(int));
         }
 
         A->p[row].end -= 1;
@@ -529,10 +538,18 @@ void count_rows(const Matrix *A, int *row_sizes)
 
 #ifdef TESTING
 // Function to create a random CSR matrix
-Matrix *random_matrix_new(int n_rows, int n_cols, double density)
+Matrix *random_matrix_new(size_t n_rows, size_t n_cols, double density)
 {
     // allocate memory
-    int n_alloc_nnz = (int) (density * n_rows * n_cols);
+
+    /* disable conversion compiler warning*/
+    PSLP_DIAG_PUSH();
+    PSLP_DIAG_IGNORE_CONVERSION();
+    /* intentional truncation */
+    size_t n_alloc_nnz = (size_t) (density * n_rows * n_cols);
+
+    /* enable conversion compiler warnings */
+    PSLP_DIAG_POP();
     double *Ax = (double *) ps_malloc(n_alloc_nnz, sizeof(double));
     int *Ai = (int *) ps_malloc(n_alloc_nnz, sizeof(int));
     int *Ap = (int *) ps_malloc(n_rows + 1, sizeof(int));
@@ -547,15 +564,15 @@ Matrix *random_matrix_new(int n_rows, int n_cols, double density)
     // Initialize random number generator
     srand(1);
 
-    int nnz_count = 0; // Counter for nonzero elements
+    size_t nnz_count = 0; // Counter for nonzero elements
     Ap[0] = 0;
 
-    for (int i = 0; i < n_rows; ++i)
+    for (size_t i = 0; i < n_rows; ++i)
     {
-        int row_nnz = 0;
+        size_t row_nnz = 0;
 
         // Randomly determine the number of nonzeros in this row
-        for (int j = 0; j < n_cols; ++j)
+        for (size_t j = 0; j < n_cols; ++j)
         {
             if ((double) rand() / RAND_MAX < density)
             {
@@ -565,12 +582,12 @@ Matrix *random_matrix_new(int n_rows, int n_cols, double density)
                 }
 
                 Ax[nnz_count] = ((double) (rand() - rand()) / RAND_MAX) * 20.0;
-                Ai[nnz_count] = j;
+                Ai[nnz_count] = (int) j;
                 ++nnz_count;
                 ++row_nnz;
             }
         }
-        Ap[i + 1] = Ap[i] + row_nnz;
+        Ap[i + 1] = Ap[i] + (int) row_nnz;
     }
 
     // create matrix in modified CSR format

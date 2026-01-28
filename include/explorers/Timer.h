@@ -28,8 +28,8 @@ typedef struct
 
 // Macro to compute elapsed time in seconds
 #define GET_ELAPSED_SECONDS(timer)                                                  \
-    (((timer).end.tv_sec - (timer).start.tv_sec) +                                  \
-     ((double) ((timer).end.tv_nsec - (timer).start.tv_nsec) * 1e-9))
+    ((double) ((timer).end.tv_sec - (timer).start.tv_sec) +                         \
+     (double) ((timer).end.tv_nsec - (timer).start.tv_nsec) * 1e-9)
 
 #define RUN_AND_TIME(func, timer, time_variable, result_var, ...)                   \
     do                                                                              \

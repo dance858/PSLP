@@ -49,7 +49,7 @@ typedef struct Work
     Mapping *mappings;
 } Work;
 
-Work *new_work(int n_rows, int n_col);
+Work *new_work(size_t n_rows, size_t n_col);
 void free_work(Work *work);
 
 #endif // CORE_WORKSPACE_H

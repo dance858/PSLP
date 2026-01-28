@@ -29,6 +29,7 @@
 #include "iVec.h"
 #include "limits.h" // for INT_MAX
 #include "utils.h"
+#include <PSLP_warnings.h>
 #include <math.h> // For round()
 #include <stdint.h>
 
@@ -39,12 +40,18 @@ static int *global_coeff_hashes;
 // djb2 hash function
 static inline uint32_t hash_int_array(const int *arr, int size)
 {
+    /* disable sign-conversion compiler warning*/
+    PSLP_DIAG_PUSH();
+    PSLP_DIAG_IGNORE_SIGN_CONVERSION();
+
     uint32_t hash = 5381;
     for (int i = 0; i < size; i++)
     {
         hash = ((hash << 5) + hash) + arr[i];
     }
 
+    /* enable sign-conversion compiler warnings */
+    PSLP_DIAG_POP();
     return hash;
 }
 
@@ -78,10 +85,9 @@ static inline uint32_t hash_double_array_with_scale(const double *arr, int size)
 #ifndef TESTING
 static inline
 #endif
-    void
-    compute_supp_and_coeff_hash(const Matrix *A, const RowTag *rowtags,
-                                int *sparsity_IDs, int *coeff_hashes,
-                                RowTag INACTIVE_TAG)
+    void compute_supp_and_coeff_hash(const Matrix *A, const RowTag *rowtags,
+                                     int *sparsity_IDs, int *coeff_hashes,
+                                     RowTag INACTIVE_TAG)
 {
 
     for (int i = 0; i < A->m; i++)
@@ -134,7 +140,7 @@ int comparator(const void *a, const void *b)
 }
 
 // Sort function
-static inline void sort_rows(int *rows, int n_rows, int *sparsity_IDs,
+static inline void sort_rows(int *rows, size_t n_rows, int *sparsity_IDs,
                              int *coeff_hashes)
 {
     global_sparsity_IDs = sparsity_IDs;
@@ -142,7 +148,7 @@ static inline void sort_rows(int *rows, int n_rows, int *sparsity_IDs,
     qsort(rows, n_rows, sizeof(int), comparator);
 }
 
-static inline int get_bin_size(int start, int n_rows, const int *rows,
+static inline int get_bin_size(int start, size_t n_rows, const int *rows,
                                const int *sparsity_IDs, const int *coeff_hashes)
 {
     int sparsity_ID = sparsity_IDs[rows[start]];
@@ -181,8 +187,14 @@ void ASSERT_BIN_CORRECT(const int *coeff_hashes, const int *sparsity_IDs,
 void VERIFY_PARALLEL_ROWS(const Matrix *A, const RowTag *rows_tags,
                           const int *parallel_rows, const iVec *group_starts)
 {
-    int i, j, k, start, end, n_rows_this_group, len1;
-    int n_groups = group_starts->len - 1;
+    int j, k, start, end, n_rows_this_group, len1;
+    size_t i;
+    if (group_starts->len == 0)
+    {
+        return;
+    }
+
+    size_t n_groups = group_starts->len - 1;
 
     for (i = 0; i < n_groups; ++i)
     {
@@ -572,9 +584,14 @@ static inline PresolveStatus process_single_bin(const Constraints *constraints,
 static PresolveStatus process_all_bins(const Constraints *constraints,
                                        const int *parallel_rows, const iVec *groups)
 {
-    int n_groups = groups->len - 1;
+    if (groups->len == 0)
+    {
+        return UNCHANGED;
+    }
 
-    for (int i = 0; i < n_groups; ++i)
+    size_t n_groups = groups->len - 1;
+
+    for (size_t i = 0; i < n_groups; ++i)
     {
         int n_rows_this_group = groups->data[i + 1] - groups->data[i];
         if (process_single_bin(constraints, parallel_rows + groups->data[i],

@@ -288,10 +288,15 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
 static PresolveStatus process_all_bins(const Problem *prob, const int *parallel_cols,
                                        const iVec *groups)
 {
-    int n_groups = groups->len - 1;
+    if (groups->len <= 1)
+    {
+        return UNCHANGED;
+    }
+
+    size_t n_groups = groups->len - 1;
     PresolveStatus status = UNCHANGED;
 
-    for (int i = 0; i < n_groups; ++i)
+    for (size_t i = 0; i < n_groups; ++i)
     {
         int n_cols_this_group = groups->data[i + 1] - groups->data[i];
         status |= process_single_bin(prob, parallel_cols + groups->data[i],

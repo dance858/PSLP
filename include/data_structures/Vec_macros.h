@@ -26,6 +26,13 @@
 
 #include "Memory_wrapper.h"
 
+// Portable UNUSED macro
+#if defined(_MSC_VER)
+#define PSLP_UNUSED
+#else
+#define PSLP_UNUSED __attribute__((unused))
+#endif
+
 // Macro to define a generic vector class
 #define DEFINE_VECTOR(TYPE, TYPE_NAME)                                              \
     typedef struct TYPE_NAME##Vec                                                   \
@@ -35,8 +42,7 @@
         size_t capacity;                                                            \
     } TYPE_NAME##Vec;                                                               \
                                                                                     \
-    __attribute__((unused)) static TYPE_NAME##Vec *TYPE_NAME##Vec_new(              \
-        size_t capacity)                                                            \
+    PSLP_UNUSED static TYPE_NAME##Vec *TYPE_NAME##Vec_new(size_t capacity)          \
     {                                                                               \
         assert(capacity > 0);                                                       \
         TYPE_NAME##Vec *vec =                                                       \
@@ -113,8 +119,8 @@
         memcpy(vec->data + vec->len, values, n * sizeof(TYPE));                     \
         vec->len += n;                                                              \
     }                                                                               \
-    __attribute__((unused)) static int TYPE_NAME##Vec_contains(                     \
-        const TYPE_NAME##Vec *vec, TYPE value)                                      \
+    PSLP_UNUSED static int TYPE_NAME##Vec_contains(const TYPE_NAME##Vec *vec,       \
+                                                   TYPE value)                      \
     {                                                                               \
         for (size_t i = 0; i < vec->len; ++i)                                       \
         {                                                                           \

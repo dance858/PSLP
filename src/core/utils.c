@@ -19,9 +19,9 @@
 #include "utils.h"
 #include "Numerics.h"
 
-void dPtr_shrink(double *ptr, const int *map, int len)
+void dPtr_shrink(double *ptr, const int *map, size_t len)
 {
-    for (int i = 0; i < len; ++i)
+    for (size_t i = 0; i < len; ++i)
     {
         if (map[i] != -1)
         {
@@ -30,9 +30,9 @@ void dPtr_shrink(double *ptr, const int *map, int len)
     }
 }
 
-void iPtr_shrink(int *ptr, const int *map, int len)
+void iPtr_shrink(int *ptr, const int *map, size_t len)
 {
-    for (int i = 0; i < len; ++i)
+    for (size_t i = 0; i < len; ++i)
     {
         if (map[i] != -1)
         {
@@ -41,9 +41,9 @@ void iPtr_shrink(int *ptr, const int *map, int len)
     }
 }
 
-void rowTagPtr_shrink(RowTag *ptr, const int *map, int len)
+void rowTagPtr_shrink(RowTag *ptr, const int *map, size_t len)
 {
-    for (int i = 0; i < len; ++i)
+    for (size_t i = 0; i < len; ++i)
     {
         if (map[i] != -1)
         {
@@ -52,9 +52,9 @@ void rowTagPtr_shrink(RowTag *ptr, const int *map, int len)
     }
 }
 
-void colTagPtr_shrink(ColTag *ptr, const int *map, int len)
+void colTagPtr_shrink(ColTag *ptr, const int *map, size_t len)
 {
-    for (int i = 0; i < len; ++i)
+    for (size_t i = 0; i < len; ++i)
     {
         if (map[i] != -1)
         {
@@ -65,10 +65,10 @@ void colTagPtr_shrink(ColTag *ptr, const int *map, int len)
 
 void shrink_idx_vector(iVec *vec, const int *map)
 {
-    int len = vec->len;
-    int curr = 0;
+    size_t len = vec->len;
+    size_t curr = 0;
 
-    for (int i = 0; i < len; ++i)
+    for (size_t i = 0; i < len; ++i)
     {
         if (map[vec->data[i]] != -1)
         {
@@ -80,10 +80,10 @@ void shrink_idx_vector(iVec *vec, const int *map)
     vec->len = curr;
 }
 
-double get_max_abs(const double *vals, int len)
+double get_max_abs(const double *vals, size_t len)
 {
     double max_abs = 0.0;
-    for (int i = 0; i < len; ++i)
+    for (size_t i = 0; i < len; ++i)
     {
         double abs_val = ABS(vals[i]);
         max_abs = MAX(max_abs, abs_val);

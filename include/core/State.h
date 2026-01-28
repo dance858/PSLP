@@ -52,13 +52,14 @@ typedef struct State
 } State;
 
 /* Constructor and destructor */
-State *new_state(int *row_sizes, int *col_sizes, struct Lock *col_locks, int n_rows,
-                 int n_cols, struct Activity *activities, struct Work *work,
-                 const RowTag *row_tags);
+State *new_state(int *row_sizes, int *col_sizes, struct Lock *col_locks,
+                 size_t n_rows, size_t n_cols, struct Activity *activities,
+                 struct Work *work, const RowTag *row_tags);
 void free_state(State *data);
 
 /* Maintains consistency of all internal data structures when columns and
    removes are deleted */
-void clean_state(State *data, const struct Mapping *maps, int n_rows, int n_cols);
+void clean_state(State *data, const struct Mapping *maps, size_t n_rows,
+                 size_t n_cols);
 
 #endif // CORE_INTERNALDATA_H

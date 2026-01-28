@@ -93,7 +93,7 @@ void verify_row_and_col_sizes(const struct Constraints *constraints);
 void verify_no_duplicates_lists(const struct State *data);
 // void verify_no_duplicates_ptr(const int *data, int len);
 void verify_no_duplicates_sort(const struct iVec *vec);
-void verify_no_duplicates_sort_ptr(const int *data, int len);
+void verify_no_duplicates_sort_ptr(const int *data, size_t len);
 
 /* verifies that the input is a valid CSR matrix, no explicit zeros are
    allowed, nnz are counted (compressed equal to true means that there

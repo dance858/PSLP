@@ -22,12 +22,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static inline void *ps_malloc(int n, size_t size)
+static inline void *ps_malloc(size_t n, size_t size)
 {
     return malloc(n * size);
 }
 
-static inline void *ps_calloc(int n, size_t size)
+static inline void *ps_calloc(size_t n, size_t size)
 {
     return calloc(n, size);
 }
@@ -39,7 +39,7 @@ static inline void *ps_calloc(int n, size_t size)
         p = NULL;                                                                   \
     } while (0)
 
-static inline void *ps_realloc(void *p, int n, size_t size)
+static inline void *ps_realloc(void *p, size_t n, size_t size)
 {
     return realloc(p, n * size);
 }
