@@ -321,7 +321,7 @@ static inline
     // -------------------------------------------------------------------
     if (ABS(new_val) <= ZERO_TOL)
     {
-        size_t len = (size_t) (end - insertion - 1);
+        len = (size_t) (end - insertion - 1);
         memmove(A->x + insertion, A->x + insertion + 1, len * sizeof(double));
         memmove(A->i + insertion, A->i + insertion + 1, len * sizeof(int));
         end -= 1;
@@ -346,7 +346,7 @@ static inline
         }
         else
         {
-            size_t len = (size_t) (end - insertion);
+            len = (size_t) (end - insertion);
             memmove(A->x + insertion + 1, A->x + insertion, len * sizeof(double));
             memmove(A->i + insertion + 1, A->i + insertion, len * sizeof(int));
             A->x[insertion] = new_val;

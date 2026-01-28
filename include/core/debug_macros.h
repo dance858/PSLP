@@ -87,9 +87,9 @@ static inline bool ARRAYS_EQUAL_COLTAG(ColTag *arr1, const ColTag *arr2, int siz
 #define ASSERT_NO_INACTIVE_ROWS(rows, row_tags, len)                                \
     do                                                                              \
     {                                                                               \
-        for (int i = 0; i < (len); i++)                                             \
+        for (int iii = 0; iii < (len); iii++)                                       \
         {                                                                           \
-            assert(!HAS_TAG(row_tags[rows[i]], R_TAG_INACTIVE));                    \
+            assert(!HAS_TAG(row_tags[rows[iii]], R_TAG_INACTIVE));                  \
         }                                                                           \
     } while (0)
 
