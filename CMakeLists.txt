@@ -11,8 +11,14 @@ message(STATUS "Configuring PSLP (version ${PSLP_VERSION})")
 
 include(GNUInstallDirs)
 
+# fix compiler bug?
 if (MSVC)
-    add_compile_options(/FS)
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
+        $<$<CONFIG:Debug>:ProgramDatabase>
+        $<$<CONFIG:RelWithDebInfo>:ProgramDatabase>
+        $<$<CONFIG:Release>:None>
+        $<$<CONFIG:MinSizeRel>:None>
+    )
 endif()
 
 # Enable export of all symbols on Windows for shared libraries
