@@ -134,15 +134,20 @@ static const char *test_unbounded_sol()
 
 static const char *test_no_linear_constraints_infeasible()
 {
-    double Ax[] = {};
-    int Ai[] = {};
-    int Ap[] = {};
+    // double Ax[] = {};
+    double *Ax = NULL;
+    int *Ai = NULL;
+    int *Ap = NULL;
+    // int Ai[] = {};
+    // int Ap[] = {};
     int nnz = 0;
     int n_rows = 0;
     int n_cols = 4;
 
-    double lhs[] = {};
-    double rhs[] = {};
+    // double lhs[] = {};
+    // double rhs[] = {};
+    double *lhs = NULL;
+    double *rhs = NULL;
     double lbs[] = {1, 2, 3, 4};
     double ubs[] = {-1, -2, -3, -4};
     double c[] = {1, -1, 1, -1};
