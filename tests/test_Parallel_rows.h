@@ -111,15 +111,15 @@ static char *test_3_parallel_rows()
 #endif
 
     int group_start_correct[] = {0, 2, 4};
-    printf("parallel rows found:\n");
-    print_int_array(parallel_rows, 4);
-    fflush(stdout);
     mu_assert("error", ARRAYS_EQUAL_INT(parallel_rows_correct, parallel_rows, 4));
     mu_assert("error", group_start->len == 3);
     mu_assert("error", ARRAYS_EQUAL_INT(group_start_correct, group_start->data, 3));
 
+    printf("end of test_3_parallel_rows\n");
+
     free_matrix(A);
     iVec_free(group_start);
+    printf("finished freeing memory test 3 \n");
     return 0;
 }
 
