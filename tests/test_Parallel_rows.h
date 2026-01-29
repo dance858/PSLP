@@ -1271,13 +1271,11 @@ static char *test_16_parallel_rows()
     return 0;
 }
 
-// windows build seems to fail on 14, 15, 16?
-
 static const char *all_tests_parallel_rows()
 {
     mu_run_test(test_1_parallel_rows, counter_parallel_rows);
     mu_run_test(test_2_parallel_rows, counter_parallel_rows);
-    // mu_run_test(test_3_parallel_rows, counter_parallel_rows);
+    mu_run_test(test_3_parallel_rows, counter_parallel_rows);
     mu_run_test(test_4_parallel_rows, counter_parallel_rows);
     mu_run_test(test_5_parallel_rows, counter_parallel_rows);
     mu_run_test(test_6_parallel_rows, counter_parallel_rows);
@@ -1288,9 +1286,9 @@ static const char *all_tests_parallel_rows()
     mu_run_test(test_11_parallel_rows, counter_parallel_rows);
     mu_run_test(test_12_parallel_rows, counter_parallel_rows);
     mu_run_test(test_13_parallel_rows, counter_parallel_rows);
-    // mu_run_test(test_14_parallel_rows, counter_parallel_rows);
-    // mu_run_test(test_15_parallel_rows, counter_parallel_rows);
-    // mu_run_test(test_16_parallel_rows, counter_parallel_rows);
+    mu_run_test(test_14_parallel_rows, counter_parallel_rows);
+    mu_run_test(test_15_parallel_rows, counter_parallel_rows);
+    mu_run_test(test_16_parallel_rows, counter_parallel_rows);
 
     return 0;
 }
