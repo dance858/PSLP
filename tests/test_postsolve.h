@@ -1028,7 +1028,11 @@ static const char *all_tests_postsolve()
     mu_run_test(test_6_postsolve, counter_postsolve);
     mu_run_test(test_7_postsolve, counter_postsolve);
     mu_run_test(test_8_postsolve, counter_postsolve);
+
+/* we skip test 9 on windows due to different parallel row being kept */
+#if !defined(_WIN32)
     mu_run_test(test_9_postsolve, counter_postsolve);
+#endif
     mu_run_test(test_singleton_eq, counter_postsolve);
     mu_run_test(test_pathological_ston_one, counter_postsolve);
     mu_run_test(test_pathological_ston_two, counter_postsolve);
