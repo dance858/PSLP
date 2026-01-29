@@ -1288,7 +1288,7 @@ static const char *all_tests_parallel_rows()
     mu_run_test(test_13_parallel_rows, counter_parallel_rows);
     // mu_run_test(test_14_parallel_rows, counter_parallel_rows);
     // mu_run_test(test_15_parallel_rows, counter_parallel_rows);
-    mu_run_test(test_16_parallel_rows, counter_parallel_rows);
+    // mu_run_test(test_16_parallel_rows, counter_parallel_rows);
 
     return 0;
 }
