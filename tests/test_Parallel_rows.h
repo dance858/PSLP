@@ -1271,6 +1271,8 @@ static char *test_16_parallel_rows()
     return 0;
 }
 
+// windows build seems to fail on 14, 15, 16?
+
 static const char *all_tests_parallel_rows()
 {
     mu_run_test(test_1_parallel_rows, counter_parallel_rows);
