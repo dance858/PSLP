@@ -134,18 +134,13 @@ static const char *test_unbounded_sol()
 
 static const char *test_no_linear_constraints_infeasible()
 {
-    // double Ax[] = {};
     double *Ax = NULL;
     int *Ai = NULL;
     int *Ap = NULL;
-    // int Ai[] = {};
-    // int Ap[] = {};
     int nnz = 0;
     int n_rows = 0;
     int n_cols = 4;
 
-    // double lhs[] = {};
-    // double rhs[] = {};
     double *lhs = NULL;
     double *rhs = NULL;
     double lbs[] = {1, 2, 3, 4};
@@ -164,18 +159,17 @@ static const char *test_no_linear_constraints_infeasible()
     return 0;
 }
 
-/*
 static const char *test_no_linear_constraints_feasible()
 {
-    double Ax[] = {};
-    int Ai[] = {};
-    int Ap[] = {};
+    double *Ax = NULL;
+    int *Ai = NULL;
+    int *Ap = NULL;
     int nnz = 0;
     int n_rows = 0;
     int n_cols = 4;
 
-    double lhs[] = {};
-    double rhs[] = {};
+    double *lhs = NULL;
+    double *rhs = NULL;
     double lbs[] = {-1, -2, -3, -4};
     double ubs[] = {1, 2, 3, 4};
     double c[] = {1, -1, 1, -1};
@@ -192,7 +186,7 @@ static const char *test_no_linear_constraints_feasible()
     postsolve(presolver, NULL, NULL, NULL);
 
     double correct_x[] = {-1, 2, -3, 4};
-    double correct_y[] = {};
+    double *correct_y = NULL;
     mu_assert("postsolve error",
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, c, n_rows, n_cols,
@@ -204,15 +198,15 @@ static const char *test_no_linear_constraints_feasible()
 
 static const char *test_zedongs_example()
 {
-    double Ax[] = {};
-    int Ai[] = {};
-    int Ap[] = {};
+    double *Ax = NULL;
+    int *Ai = NULL;
+    int *Ap = NULL;
     int nnz = 0;
     int n_rows = 0;
     int n_cols = 1;
 
-    double lhs[] = {};
-    double rhs[] = {};
+    double *lhs = NULL;
+    double *rhs = NULL;
     double lbs[] = {-INF};
     double ubs[] = {2};
     double c[] = {-3};
@@ -255,9 +249,9 @@ static const char *test_unbounded_Zedongs_example()
     free_settings(stgs);
     return 0;
 }
-    */
+*/
 
-static const char *all_tests_pathological()
+    static const char *all_tests_pathological()
 {
     // mu_run_test(test_zedongs_example, counter_pathological);
     // mu_run_test(test_unbounded_Zedongs_example, counter_pathological);
