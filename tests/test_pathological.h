@@ -136,7 +136,7 @@ static const char *test_no_linear_constraints_infeasible()
 {
     double *Ax = NULL;
     int *Ai = NULL;
-    int *Ap = NULL;
+    int Ap[] = {0};
     int nnz = 0;
     int n_rows = 0;
     int n_cols = 4;
@@ -163,7 +163,7 @@ static const char *test_no_linear_constraints_feasible()
 {
     double *Ax = NULL;
     int *Ai = NULL;
-    int *Ap = NULL;
+    int Ap[] = {0};
     int nnz = 0;
     int n_rows = 0;
     int n_cols = 4;
@@ -200,7 +200,7 @@ static const char *test_zedongs_example()
 {
     double *Ax = NULL;
     int *Ai = NULL;
-    int *Ap = NULL;
+    int Ap[] = {0};
     int nnz = 0;
     int n_rows = 0;
     int n_cols = 1;
@@ -249,13 +249,12 @@ static const char *test_unbounded_Zedongs_example()
     free_settings(stgs);
     return 0;
 }
-*/
 
-    static const char *all_tests_pathological()
+static const char *all_tests_pathological()
 {
-    // mu_run_test(test_zedongs_example, counter_pathological);
-    // mu_run_test(test_unbounded_Zedongs_example, counter_pathological);
-    // mu_run_test(test_no_linear_constraints_feasible, counter_pathological);
+    mu_run_test(test_zedongs_example, counter_pathological);
+    mu_run_test(test_unbounded_Zedongs_example, counter_pathological);
+    mu_run_test(test_no_linear_constraints_feasible, counter_pathological);
     mu_run_test(test_unbounded_sol, counter_pathological);
     mu_run_test(test_infeasible_parallel_rows, counter_pathological);
     mu_run_test(test_infeasible_bounds_after_stonrow, counter_pathological);

@@ -26,7 +26,7 @@ const char *run_all_tests()
     //     mu_assert("parallel_cols error", test_parallel_cols());
     //     mu_assert("postsolve error", test_postsolve());
     //     mu_assert("presolver error", test_presolver());
-    //  mu_assert("pathological error", test_pathological());
+    mu_assert("pathological error", test_pathological());
 
     return NULL;
 }
