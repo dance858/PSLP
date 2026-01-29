@@ -104,9 +104,13 @@ static char *test_3_parallel_rows()
     find_parallel_rows(A, row_tags, group_start, parallel_rows, sparsity_IDs,
                        coeff_hashes, R_TAG_INACTIVE);
 
+#ifdef _WIN32
+    int parallel_rows_correct[] = {0, 4, 1, 3};
+#else
     int parallel_rows_correct[] = {4, 0, 3, 1};
-    int group_start_correct[] = {0, 2, 4};
+#endif
 
+    int group_start_correct[] = {0, 2, 4};
     printf("parallel rows found:\n");
     print_int_array(parallel_rows, 4);
     fflush(stdout);
@@ -938,6 +942,12 @@ static char *test_14_parallel_rows()
                         row5_cols[0], row5_cols[1], row5_cols[2], row5_cols[3]};
     int Ap_correct[] = {0, 5, 8, 12};
 
+    printf("A->x:\n");
+    print_double_array(A->x, A->nnz);
+    printf("Ax-correct:\n");
+    print_double_array(Ax_correct, 12);
+    fflush(stdout);
+
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 12));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 12));
     mu_assert("rows", check_row_starts(A, Ap_correct));
@@ -1265,7 +1275,7 @@ static const char *all_tests_parallel_rows()
 {
     mu_run_test(test_1_parallel_rows, counter_parallel_rows);
     mu_run_test(test_2_parallel_rows, counter_parallel_rows);
-    // mu_run_test(test_3_parallel_rows, counter_parallel_rows);
+    mu_run_test(test_3_parallel_rows, counter_parallel_rows);
     mu_run_test(test_4_parallel_rows, counter_parallel_rows);
     mu_run_test(test_5_parallel_rows, counter_parallel_rows);
     mu_run_test(test_6_parallel_rows, counter_parallel_rows);
