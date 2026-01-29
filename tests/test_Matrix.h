@@ -576,7 +576,7 @@ static char *test_14_matrix()
     mu_assert("rows", check_row_ends(A, row_ends_correct));
 
     free_matrix(A);
-    printf("%d", EXTRA_ROW_SPACE);
+    // printf("%d", EXTRA_ROW_SPACE);
 
     return 0;
 }
