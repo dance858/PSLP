@@ -2,7 +2,11 @@
 #define TEST_PATHOLOGICAL_H
 
 #include "Debugger.h"
+#include "Numerics.h"
 #include "PSLP_API.h"
+#include "PSLP_sol.h"
+#include "glbopts.h"
+#include "test_macros.h"
 
 #include "Problem.h"
 #include "Workspace.h"
