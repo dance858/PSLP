@@ -152,7 +152,12 @@ if(PSLP_BUILD_TESTING)
   enable_testing()
   message(STATUS "PSLP testing enabled (this should be disabled for production builds!!!)")
 
-  add_executable(all_tests tests/all_tests.c tests/test_macros.c)
+  #add_executable(all_tests tests/all_tests.c tests/test_macros.c)
+
+  add_executable(all_tests
+    tests/all_tests.c
+  )
+  target_sources(all_tests PRIVATE tests/test_macros.c)
 
   if (MSVC)
     set_target_properties(all_tests PROPERTIES
