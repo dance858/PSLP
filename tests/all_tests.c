@@ -2,7 +2,7 @@
 #include "test_CoreTransformations.h"
 #include "test_Matrix.h"
 #include "test_Parallel_cols.h"
-// #include "test_Parallel_rows.h" // this seems to cause some weird issues for the
+#include "test_Parallel_rows.h" // this seems to cause some weird issues for the
 // windows build
 #include "test_Presolver.h"
 #include "test_SimpleReductions.h"
@@ -21,10 +21,13 @@ const char *run_all_tests()
     mu_assert("dton error", test_dton());
     mu_assert("core error", test_core());
     mu_assert("ston error", test_ston());
-    // mu_assert("parallel_rows error", test_parallel_rows());
+
+#ifndef _WIN32
+    mu_assert("parallel_rows error", test_parallel_rows());
+    mu_assert("parallel_cols error", test_parallel_cols());
+#endif
     mu_assert("simple reductions error", test_simple());
     mu_assert("domain propagation error", test_domain());
-    mu_assert("parallel_cols error", test_parallel_cols());
     //     mu_assert("postsolve error", test_postsolve());
     mu_assert("presolver error", test_presolver());
     mu_assert("pathological error", test_pathological());
