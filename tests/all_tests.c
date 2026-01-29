@@ -2,7 +2,7 @@
 #include "test_CoreTransformations.h"
 #include "test_Matrix.h"
 #include "test_Parallel_cols.h"
-#include "test_Parallel_rows.h" // this seems to cause some weird issues for the
+#include "test_Parallel_rows.h" // this seems to cause weird issues for
 // windows build
 #include "test_Presolver.h"
 #include "test_SimpleReductions.h"

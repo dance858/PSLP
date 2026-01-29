@@ -631,9 +631,9 @@ static char *test_6_postsolve()
     run_presolver(presolver);
 
     // construct optimal primal solution to reduced problem (computed offline).
-    // on linux vs mac the parallel column kept is different, leading to
+    // on linux/windows vs mac the parallel column kept is different, leading to
     // different postsolved solutions
-#ifdef __linux__
+#ifdef __linux__ or _WIN32
     double x[] = {-2., 12.5, 21., -8.};
     double y[] = {0., 0., 0., 0., 0., 0., 0., 0.};
     double z[] = {3., -4., -3., 1.};
