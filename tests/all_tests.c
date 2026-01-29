@@ -10,7 +10,7 @@
 #include "test_dton.h"
 #include "test_iVec.h"
 #include "test_pathological.h"
-//  #include "test_postsolve.h"
+#include "test_postsolve.h"
 #include "test_ston.h"
 
 const char *run_all_tests()
@@ -28,7 +28,9 @@ const char *run_all_tests()
 #endif
     mu_assert("simple reductions error", test_simple());
     mu_assert("domain propagation error", test_domain());
-    //     mu_assert("postsolve error", test_postsolve());
+#ifndef _WIN32
+    mu_assert("postsolve error", test_postsolve());
+#endif
     mu_assert("presolver error", test_presolver());
     mu_assert("pathological error", test_pathological());
 
