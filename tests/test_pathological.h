@@ -132,7 +132,6 @@ static const char *test_unbounded_sol()
     return 0;
 }
 
-/*
 static const char *test_no_linear_constraints_infeasible()
 {
     double Ax[] = {};
@@ -160,6 +159,7 @@ static const char *test_no_linear_constraints_infeasible()
     return 0;
 }
 
+/*
 static const char *test_no_linear_constraints_feasible()
 {
     double Ax[] = {};
