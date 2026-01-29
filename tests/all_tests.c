@@ -20,7 +20,7 @@ const char *run_all_tests()
     mu_assert("dton error", test_dton());
     mu_assert("core error", test_core());
     mu_assert("ston error", test_ston());
-    // mu_assert("parallel_rows error", test_parallel_rows());
+    mu_assert("parallel_rows error", test_parallel_rows());
     mu_assert("simple reductions error", test_simple());
     mu_assert("domain propagation error", test_domain());
     //     mu_assert("parallel_cols error", test_parallel_cols());
