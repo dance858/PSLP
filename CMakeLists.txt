@@ -154,6 +154,12 @@ if(PSLP_BUILD_TESTING)
 
   add_executable(all_tests tests/all_tests.c tests/test_macros.c)
 
+  if (MSVC)
+    set_target_properties(all_tests PROPERTIES
+      MSVC_DEBUG_INFORMATION_FORMAT None
+    )
+  endif()
+
   # Link PSLP library
   target_link_libraries(all_tests PRIVATE PSLP)
   target_compile_definitions(PSLP PRIVATE TESTING)
