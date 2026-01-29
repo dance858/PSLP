@@ -107,6 +107,9 @@ static char *test_3_parallel_rows()
     int parallel_rows_correct[] = {4, 0, 3, 1};
     int group_start_correct[] = {0, 2, 4};
 
+    printf("parallel rows found:\n");
+    print_int_array(parallel_rows, 4);
+    fflush(stdout);
     mu_assert("error", ARRAYS_EQUAL_INT(parallel_rows_correct, parallel_rows, 4));
     mu_assert("error", group_start->len == 3);
     mu_assert("error", ARRAYS_EQUAL_INT(group_start_correct, group_start->data, 3));
