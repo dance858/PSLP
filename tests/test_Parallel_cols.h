@@ -40,6 +40,12 @@ static char *test_1_parallel_cols()
     remove_parallel_cols(prob);
     problem_clean(prob, true);
 
+    // print A->x
+    for (size_t i = 0; i < A->nnz; ++i)
+    {
+        printf("A->x[%zu] = %f\n", i, A->x[i]);
+    }
+
     // check that new A is correct
     double Ax_correct[] = {-1, -1};
     int Ai_correct[] = {0, 1};
