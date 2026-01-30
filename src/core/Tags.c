@@ -20,7 +20,7 @@
 #include "Memory_wrapper.h"
 #include "glbopts.h"
 
-RowTag *new_rowtags(double *lhs, double *rhs, size_t n_rows)
+RowTag *new_rowtags(double *lhs, double *rhs, PSLP_uint n_rows)
 {
     RowTag *row_tags = (RowTag *) ps_calloc(n_rows, sizeof(RowTag));
     RETURN_PTR_IF_NULL(row_tags, NULL);

@@ -31,8 +31,8 @@ extern "C"
         double *x;
         double *y;
         double *z;
-        size_t dim_x;
-        size_t dim_y;
+        int dim_x;
+        int dim_y;
     } Solution;
 
 #ifdef __cplusplus

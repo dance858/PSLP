@@ -140,7 +140,7 @@ int comparator(const void *a, const void *b)
 }
 
 // Sort function
-static inline void sort_rows(int *rows, size_t n_rows, int *sparsity_IDs,
+static inline void sort_rows(int *rows, PSLP_uint n_rows, int *sparsity_IDs,
                              int *coeff_hashes)
 {
     global_sparsity_IDs = sparsity_IDs;
@@ -148,7 +148,7 @@ static inline void sort_rows(int *rows, size_t n_rows, int *sparsity_IDs,
     qsort(rows, n_rows, sizeof(int), comparator);
 }
 
-static inline int get_bin_size(int start, size_t n_rows, const int *rows,
+static inline int get_bin_size(int start, PSLP_uint n_rows, const int *rows,
                                const int *sparsity_IDs, const int *coeff_hashes)
 {
     int sparsity_ID = sparsity_IDs[rows[start]];
@@ -188,14 +188,14 @@ void VERIFY_PARALLEL_ROWS(const Matrix *A, const RowTag *rows_tags,
                           const int *parallel_rows, const iVec *group_starts)
 {
     int j, k, start, end, n_rows_this_group, len1;
-    size_t i;
+    PSLP_uint i;
     assert(group_starts->len > 0);
     // if (group_starts->len == 0)
     //{
     //     return;
     // }
 
-    size_t n_groups = group_starts->len - 1;
+    PSLP_uint n_groups = group_starts->len - 1;
 
     for (i = 0; i < n_groups; ++i)
     {
@@ -590,9 +590,9 @@ static PresolveStatus process_all_bins(const Constraints *constraints,
         return UNCHANGED;
     }
 
-    size_t n_groups = groups->len - 1;
+    PSLP_uint n_groups = groups->len - 1;
 
-    for (size_t i = 0; i < n_groups; ++i)
+    for (PSLP_uint i = 0; i < n_groups; ++i)
     {
         int n_rows_this_group = groups->data[i + 1] - groups->data[i];
         if (process_single_bin(constraints, parallel_rows + groups->data[i],

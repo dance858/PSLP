@@ -44,8 +44,8 @@
 #define MIN_INIT_UPDATED_ACTS 1000
 #define INIT_UPDATED_ACTS_FRACTION 0.01
 
-State *new_state(int *row_sizes, int *col_sizes, Lock *col_locks, size_t n_rows,
-                 size_t n_cols, Activity *activities, Work *work,
+State *new_state(int *row_sizes, int *col_sizes, Lock *col_locks, PSLP_uint n_rows,
+                 PSLP_uint n_cols, Activity *activities, Work *work,
                  const RowTag *row_tags)
 {
     State *data = (State *) ps_malloc(1, sizeof(State));
@@ -60,15 +60,15 @@ State *new_state(int *row_sizes, int *col_sizes, Lock *col_locks, size_t n_rows,
     PSLP_DIAG_PUSH();
     PSLP_DIAG_IGNORE_CONVERSION();
 
-    size_t len_ston_rows = (size_t) (n_rows * INIT_STON_ROWS_FRACTION);
-    size_t len_ston_cols = (size_t) (n_cols * INIT_STON_COLS_FRACTION);
-    size_t len_dton_rows = (size_t) (n_rows * INIT_DTON_ROWS_FRACTION);
-    size_t len_empty_rows = (size_t) (n_rows * INIT_EMPTY_ROWS_FRACTION);
-    size_t len_updated_act = (size_t) (n_rows * INIT_UPDATED_ACTS_FRACTION);
-    size_t len_empty_cols = (size_t) (n_cols * INIT_EMPTY_COLS_FRACTION);
-    size_t len_fixed_cols = (size_t) (n_cols * INIT_FIXED_COLS_FRACTION);
-    size_t len_sub_cols = (size_t) (n_cols * INIT_SUB_COLS_FRACTION);
-    size_t len_rows_delete = (size_t) (n_rows * INIT_ROWS_TO_DELETE_FRACTION);
+    PSLP_uint len_ston_rows = (PSLP_uint) (n_rows * INIT_STON_ROWS_FRACTION);
+    PSLP_uint len_ston_cols = (PSLP_uint) (n_cols * INIT_STON_COLS_FRACTION);
+    PSLP_uint len_dton_rows = (PSLP_uint) (n_rows * INIT_DTON_ROWS_FRACTION);
+    PSLP_uint len_empty_rows = (PSLP_uint) (n_rows * INIT_EMPTY_ROWS_FRACTION);
+    PSLP_uint len_updated_act = (PSLP_uint) (n_rows * INIT_UPDATED_ACTS_FRACTION);
+    PSLP_uint len_empty_cols = (PSLP_uint) (n_cols * INIT_EMPTY_COLS_FRACTION);
+    PSLP_uint len_fixed_cols = (PSLP_uint) (n_cols * INIT_FIXED_COLS_FRACTION);
+    PSLP_uint len_sub_cols = (PSLP_uint) (n_cols * INIT_SUB_COLS_FRACTION);
+    PSLP_uint len_rows_delete = (PSLP_uint) (n_rows * INIT_ROWS_TO_DELETE_FRACTION);
 
     /* enable conversion compiler warnings */
     PSLP_DIAG_POP();
@@ -171,9 +171,9 @@ void free_state(State *data)
     PS_FREE(data);
 }
 
-static void shrink_locks(Lock *ptr, const int *map, size_t len)
+static void shrink_locks(Lock *ptr, const int *map, PSLP_uint len)
 {
-    for (size_t i = 0; i < len; ++i)
+    for (PSLP_uint i = 0; i < len; ++i)
     {
         if (map[i] != -1)
         {
@@ -182,9 +182,9 @@ static void shrink_locks(Lock *ptr, const int *map, size_t len)
     }
 }
 
-static void shrink_activities(Activity *ptr, const int *map, size_t len)
+static void shrink_activities(Activity *ptr, const int *map, PSLP_uint len)
 {
-    for (size_t i = 0; i < len; ++i)
+    for (PSLP_uint i = 0; i < len; ++i)
     {
         if (map[i] != -1)
         {
@@ -193,7 +193,8 @@ static void shrink_activities(Activity *ptr, const int *map, size_t len)
     }
 }
 
-void clean_state(State *data, const Mapping *maps, size_t n_rows, size_t n_cols)
+void clean_state(State *data, const Mapping *maps, PSLP_uint n_rows,
+                 PSLP_uint n_cols)
 {
     iPtr_shrink(data->row_sizes, maps->rows, n_rows);
     shrink_activities(data->activities, maps->rows, n_rows);

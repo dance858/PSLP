@@ -73,7 +73,7 @@ void free_objective(Objective *obj)
     PS_FREE(obj);
 }
 
-void objective_shrink(double *c, int *map, size_t len)
+void objective_shrink(double *c, int *map, PSLP_uint len)
 {
     dPtr_shrink(c, map, len);
 }
@@ -85,8 +85,8 @@ void fix_var_in_obj(Objective *obj, int col, double value)
 void problem_clean(Problem *prob, bool remove_all)
 {
     Mapping *maps = prob->constraints->state->work->mappings;
-    size_t n_cols_old = prob->constraints->n;
-    size_t n_rows_old = prob->constraints->m;
+    PSLP_uint n_cols_old = prob->constraints->n;
+    PSLP_uint n_rows_old = prob->constraints->m;
     constraints_clean(prob->constraints, maps, remove_all);
     clean_state(prob->constraints->state, maps, n_rows_old, n_cols_old);
     objective_shrink(prob->obj->c, maps->cols, n_cols_old);

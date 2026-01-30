@@ -100,7 +100,7 @@ void delete_inactive_rows(Constraints *constraints)
             continue;
         }
 
-        A->nnz -= (size_t) row_sizes[row];
+        A->nnz -= (PSLP_uint) row_sizes[row];
         row_sizes[row] = SIZE_INACTIVE_ROW;
         is_rhs_inf = HAS_TAG(row_tags[row], R_TAG_RHS_INF);
         is_lhs_inf = HAS_TAG(row_tags[row], R_TAG_LHS_INF);
@@ -248,7 +248,7 @@ void delete_inactive_cols_from_A_and_AT(Constraints *constraints)
             case 0:
                 assert(!iVec_contains(empty_rows, row));
                 iVec_append(empty_rows, row);
-                A->nnz -= (size_t) (row_r[row].end - row_r[row].start);
+                A->nnz -= (PSLP_uint) (row_r[row].end - row_r[row].start);
                 row_r[row].end = row_r[row].start;
                 break;
             case 1:
@@ -282,7 +282,7 @@ void delete_inactive_cols_from_A_and_AT(Constraints *constraints)
 
         // update end of row
         row_r[row].end -= shift;
-        A->nnz -= (size_t) shift;
+        A->nnz -= (PSLP_uint) shift;
         assert(row_r[row].start + row_sizes[row] == row_r[row].end);
     }
 
@@ -291,9 +291,9 @@ void delete_inactive_cols_from_A_and_AT(Constraints *constraints)
     iVec_clear_no_resize(sub_cols_to_delete);
 }
 
-static void bounds_shrink(Bound *ptr, int *map, size_t len)
+static void bounds_shrink(Bound *ptr, int *map, PSLP_uint len)
 {
-    for (size_t i = 0; i < len; ++i)
+    for (PSLP_uint i = 0; i < len; ++i)
     {
         if (map[i] != -1)
         {

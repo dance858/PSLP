@@ -35,11 +35,11 @@ struct PresolveStats;
 #include "Activity.h"
 #include "Tags.h"
 
-int ASSERT_NO_ZEROS_D(const double *x, size_t len);
-int ASSERT_INCREASING_I(const int *x, size_t len);
+int ASSERT_NO_ZEROS_D(const double *x, PSLP_uint len);
+int ASSERT_INCREASING_I(const int *x, PSLP_uint len);
 void ASSERT_NO_ACTIVE_STON_ROWS(const struct Matrix *A, const RowTag *row_tags);
-void print_int_array(const int *arr, size_t len);
-void print_double_array(const double *arr, size_t len);
+void print_int_array(const int *arr, PSLP_uint len);
+void print_double_array(const double *arr, PSLP_uint len);
 
 // runs all functions below
 void run_debugger(const struct Constraints *constraints, bool finished);
@@ -93,7 +93,7 @@ void verify_row_and_col_sizes(const struct Constraints *constraints);
 void verify_no_duplicates_lists(const struct State *data);
 // void verify_no_duplicates_ptr(const int *data, int len);
 void verify_no_duplicates_sort(const struct iVec *vec);
-void verify_no_duplicates_sort_ptr(const int *data, size_t len);
+void verify_no_duplicates_sort_ptr(const int *data, PSLP_uint len);
 
 /* verifies that the input is a valid CSR matrix, no explicit zeros are
    allowed, nnz are counted (compressed equal to true means that there

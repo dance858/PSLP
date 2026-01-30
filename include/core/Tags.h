@@ -18,6 +18,7 @@
 
 #ifndef CORE_TAGS_H
 #define CORE_TAGS_H
+#include "PSLP_types.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -50,7 +51,7 @@ enum ColTag
     C_TAG_INACTIVE = (C_TAG_FIXED | C_TAG_SUBSTITUTED)
 };
 
-RowTag *new_rowtags(double *lhs, double *rhs, size_t n_rows);
+RowTag *new_rowtags(double *lhs, double *rhs, PSLP_uint n_rows);
 
 // #define UPDATE_TAG(tag, new_tag) (tag |= new_tag)
 // #define REMOVE_TAG(tag, old_tag) (tag &= ~old_tag)

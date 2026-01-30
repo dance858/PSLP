@@ -35,8 +35,8 @@ typedef struct Constraints
     // left and right hand sides for each row
     double *lhs;
     double *rhs;
-    size_t m; // number of constraints
-    size_t n; // number of variables
+    PSLP_uint m; // number of constraints
+    PSLP_uint n; // number of variables
     RowTag *row_tags;
     ColTag *col_tags;
 

@@ -19,15 +19,16 @@
 #ifndef MEMORY_WRAPPER_H
 #define MEMORY_WRAPPER_H
 
+#include "PSLP_types.h"
 #include <stdio.h>
 #include <stdlib.h>
 
-static inline void *ps_malloc(size_t n, size_t size)
+static inline void *ps_malloc(PSLP_uint n, PSLP_uint size)
 {
     return malloc(n * size);
 }
 
-static inline void *ps_calloc(size_t n, size_t size)
+static inline void *ps_calloc(PSLP_uint n, PSLP_uint size)
 {
     return calloc(n, size);
 }
@@ -39,7 +40,7 @@ static inline void *ps_calloc(size_t n, size_t size)
         p = NULL;                                                                   \
     } while (0)
 
-static inline void *ps_realloc(void *p, size_t n, size_t size)
+static inline void *ps_realloc(void *p, PSLP_uint n, PSLP_uint size)
 {
     return realloc(p, n * size);
 }

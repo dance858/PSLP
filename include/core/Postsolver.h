@@ -24,6 +24,7 @@
 
 #include "PSLP_sol.h"
 #include "Tags.h"
+#include "glbopts.h"
 
 struct u16Vec;
 struct dVec;
@@ -53,8 +54,8 @@ enum ReductionTypes
 
 typedef struct PostsolveInfo
 {
-    size_t n_cols_reduced;
-    size_t n_rows_reduced;
+    PSLP_uint n_cols_reduced;
+    PSLP_uint n_rows_reduced;
 
     // contains the type of reduction
     struct u16Vec *type;
@@ -75,10 +76,10 @@ typedef struct PostsolveInfo
     const int *row_map;
 } PostsolveInfo;
 
-PostsolveInfo *postsolve_info_new(size_t n_rows, size_t n_cols);
+PostsolveInfo *postsolve_info_new(PSLP_uint n_rows, PSLP_uint n_cols);
 void postsolve_info_free(PostsolveInfo *info);
-void postsolver_update(PostsolveInfo *info, size_t n_cols_reduced,
-                       size_t n_rows_reduced, const int *col_map,
+void postsolver_update(PostsolveInfo *info, PSLP_uint n_cols_reduced,
+                       PSLP_uint n_rows_reduced, const int *col_map,
                        const int *row_map);
 void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
                     const double *y, const double *z);
@@ -89,7 +90,7 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
    * info->indices stores [col, dummy, rows[0], rows[1], ... rows[len - 1]].
 */
 void save_retrieval_fixed_col(PostsolveInfo *info, int col, double val, double ck,
-                              const double *vals, const int *rows, size_t len);
+                              const double *vals, const int *rows, PSLP_uint len);
 
 /* Saves the information required to retrieve variable xk that was fixed
    to either +INF or -INF.
@@ -111,7 +112,7 @@ void save_retrieval_fixed_col_inf(PostsolveInfo *info, int col, int pos_inf,
    info->indices stores [k  , cols[0], cols[1], ... cols[len - 1], i].
  */
 void save_retrieval_sub_col(PostsolveInfo *info, int col, int *cols, double *coeffs,
-                            size_t len, double rhs, int i, double ck);
+                            PSLP_uint len, double rhs, int i, double ck);
 
 /* This function saves the information required to retrieve variable xj
    and xk that were replaced with a new variable x_new = xj + ratio * xk
@@ -141,8 +142,9 @@ void save_retrieval_added_row(PostsolveInfo *info, int i, int j, double ratio);
    where vals and cols correspond to row i.
 */
 void save_retrieval_rhs_or_lhs_change(PostsolveInfo *info, int i, const double *vals,
-                                      const int *cols, size_t len, double new_side,
-                                      int j, double ratio, bool is_lhs_change);
+                                      const int *cols, PSLP_uint len,
+                                      double new_side, int j, double ratio,
+                                      bool is_lhs_change);
 
 /* This function saves the information required to retrieve yi when
    row i has been added to many other rows. In this case we have
@@ -152,7 +154,7 @@ void save_retrieval_rhs_or_lhs_change(PostsolveInfo *info, int i, const double *
    * info->indices stores [i, rows[0], rows[1], ... rows[len - 1]].
 */
 void save_retrieval_added_rows(PostsolveInfo *info, int i, const int *rows,
-                               const double *vals, size_t len, double aik);
+                               const double *vals, PSLP_uint len, double aik);
 
 /* This function saves the information required to undo the effect of a bound
    change. Suppose we use row 'i' to update one bound on variable 'j'.
@@ -173,7 +175,7 @@ void save_retrieval_bound_change_no_row(PostsolveInfo *info, int j,
    info->indices stores [i, cols]
 */
 void save_retrieval_bound_change_the_row(PostsolveInfo *info, int i, const int *cols,
-                                         const double *vals, size_t len,
+                                         const double *vals, PSLP_uint len,
                                          int num_of_bound_changes);
 
 /* This function saves the information required to retrieve yi when

@@ -35,10 +35,10 @@ typedef struct
 // The modification is that every row includes some extra space.
 typedef struct Matrix
 {
-    size_t m;
-    size_t n;
-    size_t nnz;
-    size_t n_alloc;
+    PSLP_uint m;
+    PSLP_uint n;
+    PSLP_uint nnz;
+    PSLP_uint n_alloc;
 
     int *i;
     RowRange *p;
@@ -47,14 +47,14 @@ typedef struct Matrix
 
 // Constructs a new matrix with the given values but extra space.
 // Assumes that (Ax, Ai, Ap) are CSR.
-Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, size_t n_rows,
-                   size_t n_cols, size_t nnz);
+Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, PSLP_uint n_rows,
+                   PSLP_uint n_cols, PSLP_uint nnz);
 
 Matrix *matrix_new_no_extra_space(const double *Ax, const int *Ai, const int *Ap,
-                                  size_t n_rows, size_t n_cols, size_t nnz);
+                                  PSLP_uint n_rows, PSLP_uint n_cols, PSLP_uint nnz);
 // Allocate a new matrix with the given dimensions and nnz.
 // write matrix_alloc
-Matrix *matrix_alloc(size_t n_rows, size_t n_cols, size_t nnz);
+Matrix *matrix_alloc(PSLP_uint n_rows, PSLP_uint n_cols, PSLP_uint nnz);
 
 // Returns the transpose of the given matrix
 Matrix *transpose(const Matrix *A, int *work_n_cols);
@@ -63,8 +63,8 @@ Matrix *transpose(const Matrix *A, int *work_n_cols);
 int calc_memory_row(int size, int extra_row_space, double memory_ratio);
 
 // Computes the total number of entries allocated for A
-size_t calc_memory(size_t nnz, size_t n_rows, size_t extra_row_space,
-                   double memory_ratio);
+PSLP_uint calc_memory(PSLP_uint nnz, PSLP_uint n_rows, PSLP_uint extra_row_space,
+                      double memory_ratio);
 
 // frees all allocated memory
 void free_matrix(Matrix *A);
@@ -111,10 +111,10 @@ This is done in the end of the function (columns[j] = colsmap[columns[j]]).
 void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_sizes,
                         bool remove_all, int *col_idxs_map);
 
-void print_row_starts(const RowRange *row_ranges, size_t len);
+void print_row_starts(const RowRange *row_ranges, PSLP_uint len);
 
 #ifdef TESTING
-Matrix *random_matrix_new(size_t n_rows, size_t n_cols, double density);
+Matrix *random_matrix_new(PSLP_uint n_rows, PSLP_uint n_cols, double density);
 
 // replace_row_A assumes the matrix has sufficient with space to shift
 // rows; otherwise it throws an assertion

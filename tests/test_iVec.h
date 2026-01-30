@@ -10,7 +10,7 @@ static int counter_iVec = 0;
 #define CMP_IVEC(vec, arr)                                                          \
     do                                                                              \
     {                                                                               \
-        for (size_t i = 0; i < (vec)->len; ++i)                                     \
+        for (PSLP_uint i = 0; i < (vec)->len; ++i)                                  \
         {                                                                           \
             mu_assert("error, vec->data[i] != arr[i]", (vec)->data[i] == (arr)[i]); \
         }                                                                           \

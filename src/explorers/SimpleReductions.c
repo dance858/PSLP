@@ -173,7 +173,7 @@ static inline PresolveStatus remove_stonrow(Problem *prob, int row)
         const Matrix *AT = constrs->AT;
         const int *rows = AT->i + AT->p[k].start;
         const double *vals = AT->x + AT->p[k].start;
-        size_t len = (size_t) (AT->p[k].end - AT->p[k].start);
+        PSLP_uint len = (PSLP_uint) (AT->p[k].end - AT->p[k].start);
         save_retrieval_added_rows(postsolve_info, row, rows, vals, len, aik);
         save_retrieval_deleted_row(postsolve_info, row, prob->obj->c[k] / aik);
     }
@@ -220,7 +220,7 @@ PresolveStatus remove_ston_rows(Problem *prob)
 {
     iVec *ston_rows = prob->constraints->state->ston_rows;
     const int *ston_rows_data = ston_rows->data;
-    size_t len = ston_rows->len;
+    PSLP_uint len = ston_rows->len;
     RowTag *row_tags = prob->constraints->row_tags;
     DEBUG(verify_no_duplicates_sort(ston_rows));
 
@@ -232,7 +232,7 @@ PresolveStatus remove_ston_rows(Problem *prob)
     // first we process singleton equality rows, then singleton inequalities
     // (this ordering simplifies the dual postsolve when the same variable
     // appears in an equality and an inequality row)
-    for (size_t i = 0; i < len; ++i)
+    for (PSLP_uint i = 0; i < len; ++i)
     {
         int row = ston_rows_data[i];
 
@@ -250,7 +250,7 @@ PresolveStatus remove_ston_rows(Problem *prob)
         }
     }
 
-    for (size_t i = 0; i < len; ++i)
+    for (PSLP_uint i = 0; i < len; ++i)
     {
         int row = ston_rows_data[i];
 
@@ -468,7 +468,7 @@ PresolveStatus remove_empty_rows(const Constraints *constraints)
 {
     iVec *empty_rows = constraints->state->empty_rows;
     const int *empty_rows_data = empty_rows->data;
-    size_t len = empty_rows->len;
+    PSLP_uint len = empty_rows->len;
 
     if (len == 0)
     {
@@ -508,7 +508,7 @@ PresolveStatus remove_empty_cols(Problem *prob)
 {
     iVec *empty_cols = prob->constraints->state->empty_cols;
     const int *empty_cols_data = empty_cols->data;
-    size_t len = empty_cols->len;
+    PSLP_uint len = empty_cols->len;
 
     double val;
     int k;
@@ -525,7 +525,7 @@ PresolveStatus remove_empty_cols(Problem *prob)
     double *c = prob->obj->c;
     double *offset = &(prob->obj->offset);
 
-    for (size_t i = 0; i < len; ++i)
+    for (PSLP_uint i = 0; i < len; ++i)
     {
         k = empty_cols_data[i];
 
@@ -601,7 +601,7 @@ void clean_small_coeff_A(Matrix *A, const Bound *bounds, const RowTag *row_tags,
     int ii, col, len, *cols;
     double Aik_abs, cum_changes, diff, *vals;
     bool has_finite_bounds, set_coeff_to_zero;
-    size_t n_rows, row;
+    PSLP_uint n_rows, row;
     n_rows = A->m;
 
     for (row = 0; row < n_rows; ++row)
@@ -676,10 +676,10 @@ PresolveStatus remove_variables_with_close_bounds(Problem *prob)
     const double *c = prob->obj->c;
     const Bound *bounds = constraints->bounds;
     const ColTag *col_tags = constraints->col_tags;
-    size_t n_cols = constraints->n;
+    PSLP_uint n_cols = constraints->n;
     const int *col_sizes = constraints->state->col_sizes;
 
-    for (size_t ii = 0; ii < n_cols; ++ii)
+    for (PSLP_uint ii = 0; ii < n_cols; ++ii)
     {
         if (col_sizes[ii] < 0 ||
             HAS_TAG(col_tags[ii], (C_TAG_LB_INF | C_TAG_UB_INF)))

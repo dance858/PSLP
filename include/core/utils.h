@@ -23,13 +23,13 @@
 
 /* Functions for shrinking (ie. removing data belonging to inactive
    cols/rows) */
-void dPtr_shrink(double *ptr, const int *map, size_t len);
-void iPtr_shrink(int *ptr, const int *map, size_t len);
-void rowTagPtr_shrink(RowTag *ptr, const int *map, size_t len);
-void colTagPtr_shrink(ColTag *ptr, const int *map, size_t len);
+void dPtr_shrink(double *ptr, const int *map, PSLP_uint len);
+void iPtr_shrink(int *ptr, const int *map, PSLP_uint len);
+void rowTagPtr_shrink(RowTag *ptr, const int *map, PSLP_uint len);
+void colTagPtr_shrink(ColTag *ptr, const int *map, PSLP_uint len);
 void shrink_idx_vector(iVec *vec, const int *map);
 
 /* Other utility functions */
-double get_max_abs(const double *vals, size_t len);
+double get_max_abs(const double *vals, PSLP_uint len);
 
 #endif // CORE_UTILS_H

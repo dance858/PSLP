@@ -24,7 +24,7 @@ bool is_solution_correct(const double *x, const double *correct_x, const double 
 #define PRINT_ROW_STARTS(A)                                                         \
     do                                                                              \
     {                                                                               \
-        for (size_t i = 0; i < A->m + 1; ++i)                                       \
+        for (PSLP_uint i = 0; i < A->m + 1; ++i)                                    \
         {                                                                           \
             printf("%d ", A->p[i].start);                                           \
         }                                                                           \
@@ -34,7 +34,7 @@ bool is_solution_correct(const double *x, const double *correct_x, const double 
 #define PRINT_ROW_ENDS(A)                                                           \
     do                                                                              \
     {                                                                               \
-        for (size_t i = 0; i < A->m + 1; ++i)                                       \
+        for (PSLP_uint i = 0; i < A->m + 1; ++i)                                    \
         {                                                                           \
             printf("%d ", A->p[i].end);                                             \
         }                                                                           \
