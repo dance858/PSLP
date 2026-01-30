@@ -20,10 +20,12 @@
 #define PSLP_STATS_H
 
 #ifdef __cplusplus
+#include <cstdbool>
 #include <cstddef> // size_t
 extern "C"
 {
 #else
+#include <stdbool.h>
 #include <stddef.h> // size_t
 #endif
 
@@ -54,5 +56,9 @@ extern "C"
         double time_postsolve;
 
     } PresolveStats;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PSLP_STATS_H
