@@ -24,12 +24,12 @@
 
 #ifdef __cplusplus
 #include <cstdbool>
-#include <cstddef> // PSLP_uint
+#include <cstddef> // size_t
 extern "C"
 {
 #else
 #include <stdbool.h>
-#include <stddef.h> // PSLP_uint
+#include <stddef.h> // size_t
 #endif
 
 #include "PSLP_status.h"
@@ -62,9 +62,9 @@ extern "C"
         double *Ax;
         int *Ai;
         int *Ap;
-        PSLP_uint m;
-        PSLP_uint n;
-        PSLP_uint nnz;
+        size_t m;
+        size_t n;
+        size_t nnz;
 
         // lhs and rhs in the form lhs <= Ax <= rhs
         double *lhs;
@@ -113,10 +113,9 @@ extern "C"
        'free_presolver'. If the allocation fails, the function returns NULL.
        The matrix should be given in CSR form.*/
     Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap,
-                             PSLP_uint m, PSLP_uint n, PSLP_uint nnz,
-                             const double *lhs, const double *rhs, const double *lbs,
-                             const double *ubs, const double *c,
-                             const Settings *stgs);
+                             size_t m, size_t n, size_t nnz, const double *lhs,
+                             const double *rhs, const double *lbs, const double *ubs,
+                             const double *c, const Settings *stgs);
 
     /* Free the memory allocated for the presolver. */
     void free_presolver(Presolver *presolver);

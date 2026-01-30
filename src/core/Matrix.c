@@ -26,20 +26,20 @@
 #include "stdlib.h"
 #include "string.h"
 
-Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, PSLP_uint n_rows,
-                   PSLP_uint n_cols, PSLP_uint nnz)
+Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, size_t n_rows,
+                   size_t n_cols, size_t nnz)
 {
     DEBUG(ASSERT_NO_ZEROS_D(Ax, nnz));
     Matrix *A = matrix_alloc(n_rows, n_cols, nnz);
     RETURN_PTR_IF_NULL(A, NULL);
-    PSLP_uint i, len;
+    size_t i, len;
     int offset, row_size, row_alloc;
 
     offset = 0;
     for (i = 0; i < n_rows; ++i)
     {
         A->p[i].start = Ap[i] + offset;
-        len = (PSLP_uint) (Ap[i + 1] - Ap[i]);
+        len = (size_t) (Ap[i + 1] - Ap[i]);
         memcpy(A->x + A->p[i].start, Ax + Ap[i], len * sizeof(double));
         memcpy(A->i + A->p[i].start, Ai + Ap[i], len * sizeof(int));
         A->p[i].end = Ap[i + 1] + offset;
@@ -55,7 +55,7 @@ Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, PSLP_uint n_r
 }
 
 // needed for the transpose function
-Matrix *matrix_alloc(PSLP_uint n_rows, PSLP_uint n_cols, PSLP_uint nnz)
+Matrix *matrix_alloc(size_t n_rows, size_t n_cols, size_t nnz)
 {
     Matrix *A = (Matrix *) ps_malloc(1, sizeof(Matrix));
     RETURN_PTR_IF_NULL(A, NULL);
@@ -85,7 +85,7 @@ Matrix *matrix_alloc(PSLP_uint n_rows, PSLP_uint n_cols, PSLP_uint nnz)
 }
 
 Matrix *matrix_new_no_extra_space(const double *Ax, const int *Ai, const int *Ap,
-                                  PSLP_uint n_rows, PSLP_uint n_cols, PSLP_uint nnz)
+                                  size_t n_rows, size_t n_cols, size_t nnz)
 {
     Matrix *A = (Matrix *) ps_malloc(1, sizeof(Matrix));
     RETURN_PTR_IF_NULL(A, NULL);
@@ -166,15 +166,15 @@ Matrix *transpose(const Matrix *A, int *work_n_cols)
     return AT;
 }
 
-PSLP_uint calc_memory(PSLP_uint nnz, PSLP_uint n_rows, PSLP_uint extra_row_space,
-                      double memory_ratio)
+size_t calc_memory(size_t nnz, size_t n_rows, size_t extra_row_space,
+                   double memory_ratio)
 {
     /* disable conversion compiler warning*/
     PSLP_DIAG_PUSH();
     PSLP_DIAG_IGNORE_CONVERSION();
 
     /* intentional truncation */
-    PSLP_uint result = (PSLP_uint) (nnz * memory_ratio) + n_rows * extra_row_space;
+    size_t result = (size_t) (nnz * memory_ratio) + n_rows * extra_row_space;
 
     /* enable conversion compiler warnings */
     PSLP_DIAG_POP();
@@ -205,7 +205,7 @@ void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_sizes,
     int extra_row_space = (remove_all) ? 0 : EXTRA_ROW_SPACE;
     double extra_mem_ratio = (remove_all) ? 1.0 : EXTRA_MEMORY_RATIO;
     curr = 0;
-    PSLP_uint i, n_deleted_rows, col_count;
+    size_t i, n_deleted_rows, col_count;
 
     // --------------------------------------------------------------------------
     // loop through the rows and remove redundant space, including inactive
@@ -223,8 +223,8 @@ void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_sizes,
         start = A->p[i].start;
         end = A->p[i].end;
         len = end - start;
-        memmove(A->x + curr, A->x + start, (PSLP_uint) (len) * sizeof(double));
-        memmove(A->i + curr, A->i + start, (PSLP_uint) (len) * sizeof(int));
+        memmove(A->x + curr, A->x + start, (size_t) (len) * sizeof(double));
+        memmove(A->i + curr, A->i + start, (size_t) (len) * sizeof(int));
         A->p[i - n_deleted_rows].start = curr;
         A->p[i - n_deleted_rows].end = curr + len;
         row_alloc = calc_memory_row(len, extra_row_space, extra_mem_ratio);
@@ -236,9 +236,9 @@ void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_sizes,
     A->p[A->m].end = curr;
 
     // shrink size
-    A->x = (double *) ps_realloc(A->x, (PSLP_uint) MAX(curr, 1), sizeof(double));
-    A->i = (int *) ps_realloc(A->i, (PSLP_uint) MAX(curr, 1), sizeof(int));
-    A->p = (RowRange *) ps_realloc(A->p, (PSLP_uint) (A->m + 1), sizeof(RowRange));
+    A->x = (double *) ps_realloc(A->x, (size_t) MAX(curr, 1), sizeof(double));
+    A->i = (int *) ps_realloc(A->i, (size_t) MAX(curr, 1), sizeof(int));
+    A->p = (RowRange *) ps_realloc(A->p, (size_t) (A->m + 1), sizeof(RowRange));
 
     // -------------------------------------------------------------------------
     //                      compute new column indices
@@ -389,9 +389,9 @@ bool shift_row(Matrix *A, int row, int extra_space, int max_shift)
         if (len > 0)
         {
             memmove(A->x + next_start, A->x + row_r[left + 1].start,
-                    ((PSLP_uint) len) * sizeof(double));
+                    ((size_t) len) * sizeof(double));
             memmove(A->i + next_start, A->i + row_r[left + 1].start,
-                    ((PSLP_uint) len) * sizeof(int));
+                    ((size_t) len) * sizeof(int));
         }
         row_r[left + 1].start = next_start;
         row_r[left + 1].end = next_start + len;
@@ -408,9 +408,9 @@ bool shift_row(Matrix *A, int row, int extra_space, int max_shift)
         if (len > 0)
         {
             memmove(A->x + next_end - len, A->x + row_r[right - 1].start,
-                    ((PSLP_uint) len) * sizeof(double));
+                    ((size_t) len) * sizeof(double));
             memmove(A->i + next_end - len, A->i + row_r[right - 1].start,
-                    ((PSLP_uint) len) * sizeof(int));
+                    ((size_t) len) * sizeof(int));
         }
         row_r[right - 1].start = next_end - len;
         row_r[right - 1].end = next_end;
@@ -421,9 +421,9 @@ bool shift_row(Matrix *A, int row, int extra_space, int max_shift)
     return true;
 }
 
-void print_row_starts(const RowRange *row_ranges, PSLP_uint len)
+void print_row_starts(const RowRange *row_ranges, size_t len)
 {
-    for (PSLP_uint i = 0; i < len; ++i)
+    for (size_t i = 0; i < len; ++i)
     {
         printf("%d ", row_ranges[i].start);
     }
@@ -472,7 +472,7 @@ double insert_or_update_coeff(Matrix *A, int row, int col, double val, int *row_
         }
         else
         {
-            PSLP_uint len = (PSLP_uint) (end - insertion);
+            size_t len = (size_t) (end - insertion);
             memmove(A->x + insertion + 1, A->x + insertion, len * sizeof(double));
             memmove(A->i + insertion + 1, A->i + insertion, len * sizeof(int));
 
@@ -494,7 +494,7 @@ double insert_or_update_coeff(Matrix *A, int row, int col, double val, int *row_
         // we only have to shift values if the zero is not in the end
         if (insertion != end - 1)
         {
-            PSLP_uint len = (PSLP_uint) (end - insertion - 1);
+            size_t len = (size_t) (end - insertion - 1);
             memmove(A->x + insertion, A->x + insertion + 1, len * sizeof(double));
             memmove(A->i + insertion, A->i + insertion + 1, len * sizeof(int));
         }
@@ -538,7 +538,7 @@ void count_rows(const Matrix *A, int *row_sizes)
 
 #ifdef TESTING
 // Function to create a random CSR matrix
-Matrix *random_matrix_new(PSLP_uint n_rows, PSLP_uint n_cols, double density)
+Matrix *random_matrix_new(size_t n_rows, size_t n_cols, double density)
 {
     // allocate memory
 
@@ -546,7 +546,7 @@ Matrix *random_matrix_new(PSLP_uint n_rows, PSLP_uint n_cols, double density)
     PSLP_DIAG_PUSH();
     PSLP_DIAG_IGNORE_CONVERSION();
     /* intentional truncation */
-    PSLP_uint n_alloc_nnz = (PSLP_uint) (density * n_rows * n_cols);
+    size_t n_alloc_nnz = (size_t) (density * n_rows * n_cols);
 
     /* enable conversion compiler warnings */
     PSLP_DIAG_POP();
@@ -564,15 +564,15 @@ Matrix *random_matrix_new(PSLP_uint n_rows, PSLP_uint n_cols, double density)
     // Initialize random number generator
     srand(1);
 
-    PSLP_uint nnz_count = 0; // Counter for nonzero elements
+    size_t nnz_count = 0; // Counter for nonzero elements
     Ap[0] = 0;
 
-    for (PSLP_uint i = 0; i < n_rows; ++i)
+    for (size_t i = 0; i < n_rows; ++i)
     {
-        PSLP_uint row_nnz = 0;
+        size_t row_nnz = 0;
 
         // Randomly determine the number of nonzeros in this row
-        for (PSLP_uint j = 0; j < n_cols; ++j)
+        for (size_t j = 0; j < n_cols; ++j)
         {
             if ((double) rand() / RAND_MAX < density)
             {

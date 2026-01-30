@@ -45,7 +45,7 @@ static PresolveStatus update_lb_within_propagation(double new_lb, double *lb,
     const Matrix *AT = constraints->AT;
     const double *vals = AT->x + AT->p[col].start;
     const int *rows = AT->i + AT->p[col].start;
-    PSLP_uint len = (PSLP_uint) (AT->p[col].end - AT->p[col].start);
+    size_t len = (size_t) (AT->p[col].end - AT->p[col].start);
 
     // -----------------------------------------------------------------------
     // If ub is finite we compare it to the new lower bound (we check for
@@ -121,7 +121,7 @@ static PresolveStatus update_ub_within_propagation(double new_ub, double *ub,
     const Matrix *AT = constraints->AT;
     const double *vals = AT->x + AT->p[col].start;
     const int *rows = AT->i + AT->p[col].start;
-    PSLP_uint len = (PSLP_uint) (AT->p[col].end - AT->p[col].start);
+    size_t len = (size_t) (AT->p[col].end - AT->p[col].start);
 
     // -----------------------------------------------------------------------
     // If lb is finite we compare it to the new upper bound (we check for
@@ -619,7 +619,7 @@ PresolveStatus bound_tightening_single_row(const ConstRowView *row,
     {
         save_retrieval_bound_change_the_row(
             problem->constraints->state->postsolve_info, row->i, row->cols,
-            row->vals, (PSLP_uint) *row->len, num_of_bound_changes);
+            row->vals, (size_t) *row->len, num_of_bound_changes);
     }
     return status;
 }
@@ -644,7 +644,7 @@ PresolveStatus propagate_primal(Problem *prob, bool finite_bound_tightening)
     const double *rhs = constraints->rhs;
     const double *lhs = constraints->lhs;
     int i;
-    PSLP_uint ii, current_len;
+    size_t ii, current_len;
     PresolveStatus status = UNCHANGED;
 
     // check that updated_activities has no duplicates, and that all
@@ -736,7 +736,7 @@ PresolveStatus propagate_primal(Problem *prob, bool finite_bound_tightening)
     // Also reset the status of all activities.
     // -----------------------------------------------------------------------------
     int *iwork_n_rows = constraints->state->work->iwork_n_rows;
-    PSLP_uint new_len = 0;
+    size_t new_len = 0;
     for (ii = 0; ii < updated_activities->len; ++ii)
     {
         if (acts[updated_activities->data[ii]].status == PROPAGATE_NEXT_ROUND)
@@ -812,7 +812,7 @@ void remove_redundant_bounds(Constraints *constraints)
     RowTag *row_tags = constraints->row_tags;
     ColTag *col_tags = constraints->col_tags;
     Bound *bounds = constraints->bounds;
-    PSLP_uint n_cols = constraints->n;
+    size_t n_cols = constraints->n;
     Activity *acts = constraints->state->activities;
     const int *col_sizes = constraints->state->col_sizes;
 

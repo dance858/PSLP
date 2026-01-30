@@ -61,9 +61,9 @@ void run_debugger(const Constraints *constraints, bool finished)
     }
 }
 
-int ASSERT_NO_ZEROS_D(const double *x, PSLP_uint len)
+int ASSERT_NO_ZEROS_D(const double *x, size_t len)
 {
-    for (PSLP_uint i = 0; i < len; ++i)
+    for (size_t i = 0; i < len; ++i)
     {
         assert(x[i] != 0);
     }
@@ -71,18 +71,18 @@ int ASSERT_NO_ZEROS_D(const double *x, PSLP_uint len)
     return 0;
 }
 
-void print_int_array(const int *arr, PSLP_uint len)
+void print_int_array(const int *arr, size_t len)
 {
-    for (PSLP_uint i = 0; i < len; ++i)
+    for (size_t i = 0; i < len; ++i)
     {
         printf("%d ", arr[i]);
     }
     printf("\n");
 }
 
-void print_double_array(const double *arr, PSLP_uint len)
+void print_double_array(const double *arr, size_t len)
 {
-    for (PSLP_uint i = 0; i < len; ++i)
+    for (size_t i = 0; i < len; ++i)
     {
         printf("%f ", arr[i]);
     }
@@ -93,11 +93,11 @@ void verify_empty_rows(const Constraints *constraints)
 {
     const iVec *empty_rows = constraints->state->empty_rows;
     const int *row_sizes = constraints->state->row_sizes;
-    PSLP_uint n_rows = constraints->m;
+    size_t n_rows = constraints->m;
     char *lookup = ps_calloc(n_rows, sizeof(char));
 
     // verify that all appended rows are empty rows
-    for (PSLP_uint i = 0; i < empty_rows->len; ++i)
+    for (size_t i = 0; i < empty_rows->len; ++i)
     {
         assert(row_sizes[empty_rows->data[i]] == 0);
         lookup[empty_rows->data[i]] = 1;
@@ -105,7 +105,7 @@ void verify_empty_rows(const Constraints *constraints)
 
     // verify that all empty rows have been appended using a look-up
     // table
-    for (PSLP_uint i = 0; i < n_rows; i++)
+    for (size_t i = 0; i < n_rows; i++)
     {
         if (row_sizes[i] == 0)
         {
@@ -120,11 +120,11 @@ void verify_empty_cols(const Constraints *constraints)
 {
     const iVec *empty_cols = constraints->state->empty_cols;
     const int *col_sizes = constraints->state->col_sizes;
-    PSLP_uint n_cols = constraints->n;
+    size_t n_cols = constraints->n;
     char *lookup = ps_calloc(n_cols, sizeof(char));
 
     // verify that all appended columns are empty columns
-    for (PSLP_uint i = 0; i < empty_cols->len; ++i)
+    for (size_t i = 0; i < empty_cols->len; ++i)
     {
         assert(col_sizes[empty_cols->data[i]] == 0);
         lookup[empty_cols->data[i]] = 1;
@@ -132,7 +132,7 @@ void verify_empty_cols(const Constraints *constraints)
 
     // verify that all empty rows have been appended using a look-up
     // table
-    for (PSLP_uint i = 0; i < n_cols; i++)
+    for (size_t i = 0; i < n_cols; i++)
     {
         if (col_sizes[i] == 0)
         {
@@ -147,12 +147,12 @@ void verify_ston_cols(const Constraints *constraints)
 {
     const iVec *ston_cols = constraints->state->ston_cols;
     const int *col_sizes = constraints->state->col_sizes;
-    PSLP_uint n_cols = constraints->n;
+    size_t n_cols = constraints->n;
     char *lookup = ps_calloc(n_cols, sizeof(char));
 
     // verify that all appended columns are ston columns or
     // empty/inactive
-    for (PSLP_uint i = 0; i < ston_cols->len; ++i)
+    for (size_t i = 0; i < ston_cols->len; ++i)
     {
         assert(col_sizes[ston_cols->data[i]] <= 1);
         lookup[ston_cols->data[i]] = 1;
@@ -160,7 +160,7 @@ void verify_ston_cols(const Constraints *constraints)
 
     // verify that all ston columns have been appended using a look-up
     // table
-    for (PSLP_uint i = 0; i < constraints->n; i++)
+    for (size_t i = 0; i < constraints->n; i++)
     {
         if (col_sizes[i] == 1)
         {
@@ -175,11 +175,11 @@ void verify_ston_rows(const Constraints *constraints)
 {
     const iVec *ston_rows = constraints->state->ston_rows;
     const int *row_sizes = constraints->state->row_sizes;
-    PSLP_uint n_rows = constraints->m;
+    size_t n_rows = constraints->m;
     char *lookup = ps_calloc(n_rows, sizeof(char));
 
     // verify that all appended rows are empty rows
-    for (PSLP_uint i = 0; i < ston_rows->len; ++i)
+    for (size_t i = 0; i < ston_rows->len; ++i)
     {
         // if (!colTag.compare(ColTag::kFixed))??
         assert(row_sizes[ston_rows->data[i]] == 1);
@@ -188,7 +188,7 @@ void verify_ston_rows(const Constraints *constraints)
 
     // verify that all ston rows have been appended using a look-up
     // table
-    for (PSLP_uint i = 0; i < n_rows; i++)
+    for (size_t i = 0; i < n_rows; i++)
     {
         if (row_sizes[i] == 1)
         {
@@ -204,12 +204,12 @@ void verify_doubleton_rows(const Constraints *constraints)
     const iVec *doubleton_rows = constraints->state->dton_rows;
     const int *row_sizes = constraints->state->row_sizes;
     RowTag *row_tags = constraints->row_tags;
-    PSLP_uint n_rows = constraints->m;
+    size_t n_rows = constraints->m;
     char *lookup = ps_calloc(n_rows, sizeof(char));
 
     // verify that all appended rows have either size 2 and are equality rows,
     // or they have been reduced to size 1 or less
-    for (PSLP_uint i = 0; i < doubleton_rows->len; ++i)
+    for (size_t i = 0; i < doubleton_rows->len; ++i)
     {
         lookup[doubleton_rows->data[i]] = 1;
         assert(row_sizes[doubleton_rows->data[i]] <= 2);
@@ -230,7 +230,7 @@ void verify_doubleton_rows(const Constraints *constraints)
 
     // verify that all dton rows have been appended using a look-up
     // table
-    for (PSLP_uint i = 0; i < n_rows; i++)
+    for (size_t i = 0; i < n_rows; i++)
     {
         if (row_sizes[i] == 2 && HAS_TAG(row_tags[i], R_TAG_EQ))
         {
@@ -249,16 +249,16 @@ static int compare_ints(const void *a, const void *b)
 
 void verify_no_duplicates(const iVec *vec)
 {
-    for (PSLP_uint i = 0; i < vec->len; ++i)
+    for (size_t i = 0; i < vec->len; ++i)
     {
-        for (PSLP_uint j = i + 1; j < vec->len; ++j)
+        for (size_t j = i + 1; j < vec->len; ++j)
         {
             assert(vec->data[i] != vec->data[j]);
         }
     }
 }
 
-void verify_no_duplicates_sort_ptr(const int *data, PSLP_uint len)
+void verify_no_duplicates_sort_ptr(const int *data, size_t len)
 {
     if (len == 0)
     {
@@ -269,7 +269,7 @@ void verify_no_duplicates_sort_ptr(const int *data, PSLP_uint len)
     memcpy(temp, data, len * sizeof(int));
     qsort(temp, len, sizeof(int), compare_ints);
 
-    for (PSLP_uint i = 0; i < len - 1; ++i)
+    for (size_t i = 0; i < len - 1; ++i)
     {
         assert(temp[i] >= 0);
         assert(temp[i] != temp[i + 1]);
@@ -283,11 +283,11 @@ void verify_no_duplicates_sort(const iVec *vec)
     verify_no_duplicates_sort_ptr(vec->data, vec->len);
 }
 
-void verify_no_duplicates_ptr(const int *data, PSLP_uint len)
+void verify_no_duplicates_ptr(const int *data, size_t len)
 {
-    for (PSLP_uint i = 0; i < len; ++i)
+    for (size_t i = 0; i < len; ++i)
     {
-        for (PSLP_uint j = i + 1; j < len; ++j)
+        for (size_t j = i + 1; j < len; ++j)
         {
             assert(data[i] != data[j]);
         }
@@ -296,7 +296,7 @@ void verify_no_duplicates_ptr(const int *data, PSLP_uint len)
 
 void verify_nonnegative_iVec(const iVec *vec)
 {
-    for (PSLP_uint i = 0; i < vec->len; ++i)
+    for (size_t i = 0; i < vec->len; ++i)
     {
         assert(vec->data[i] >= 0);
     }
@@ -357,7 +357,7 @@ void verify_row_tags(const Constraints *constraints)
 
 static void verify_CSR_matrix(const Matrix *A, bool compressed)
 {
-    PSLP_uint i, nnz;
+    size_t i, nnz;
     int j;
 
     assert(A->n_alloc >= A->nnz);
@@ -390,7 +390,7 @@ static void verify_CSR_matrix(const Matrix *A, bool compressed)
             assert(A->x[j] != 0);
         }
 
-        nnz += (PSLP_uint) (A->p[i].end - A->p[i].start);
+        nnz += (size_t) (A->p[i].end - A->p[i].start);
     }
 
     assert(nnz == A->nnz);
@@ -413,7 +413,7 @@ bool verify_A_and_AT_consistency(const Matrix *A, const Matrix *AT)
     assert(real_AT->n == AT->n);
     assert(real_AT->nnz == AT->nnz);
 
-    PSLP_uint i;
+    size_t i;
     int j, k, start_AT, end_AT, start_real_AT, end_real_AT;
 
     // check that values are consistent
@@ -446,7 +446,7 @@ bool verify_A_and_AT_consistency(const Matrix *A, const Matrix *AT)
 static void verify_no_inactive_cols(const Matrix *A, ColTag *col_tags)
 {
     int start, end, j;
-    PSLP_uint i;
+    size_t i;
     for (i = 0; i < A->m; ++i)
     {
         start = A->p[i].start;
@@ -482,7 +482,7 @@ void verify_locks(const Matrix *AT, const Lock *locks, const ColTag *col_tags,
                   const RowTag *row_tags)
 {
     int up, down, i, row;
-    PSLP_uint n_cols, col;
+    size_t n_cols, col;
     n_cols = AT->m;
     double Aik;
 
@@ -721,14 +721,14 @@ void verify_activity(const ColTag *col_tags, const Bound *bounds, Activity activ
 
 void verify_activities(const Constraints *constraints)
 {
-    PSLP_uint n_rows = constraints->m;
+    size_t n_rows = constraints->m;
     const Activity *activities = constraints->state->activities;
     const RowTag *row_tags = constraints->row_tags;
     const RowRange *row_ranges = constraints->A->p;
     const int *cols = constraints->A->i;
     const double *vals = constraints->A->x;
 
-    for (PSLP_uint i = 0; i < n_rows; ++i)
+    for (size_t i = 0; i < n_rows; ++i)
     {
         verify_activity(constraints->col_tags, constraints->bounds, activities[i],
                         row_tags[i], cols + row_ranges[i].start,
@@ -746,9 +746,9 @@ void ASSERT_NO_ACTIVE_STON_ROWS(const Matrix *A, const RowTag *row_tags)
     }
 }
 
-int ASSERT_INCREASING_I(const int *x, PSLP_uint len)
+int ASSERT_INCREASING_I(const int *x, size_t len)
 {
-    for (PSLP_uint i = 1; i < len; ++i)
+    for (size_t i = 1; i < len; ++i)
     {
         assert(x[i] > x[i - 1]);
     }
@@ -797,10 +797,10 @@ void verify_row_states(const Activity *acts, const iVec *updated_activities)
 
 void run_debugger_stats_consistency_check(const PresolveStats *stats)
 {
-    PSLP_uint total_removed = stats->nnz_removed_trivial + stats->nnz_removed_fast +
-                              stats->nnz_removed_primal_propagation +
-                              stats->nnz_removed_parallel_rows +
-                              stats->nnz_removed_parallel_cols;
+    size_t total_removed = stats->nnz_removed_trivial + stats->nnz_removed_fast +
+                           stats->nnz_removed_primal_propagation +
+                           stats->nnz_removed_parallel_rows +
+                           stats->nnz_removed_parallel_cols;
 
     assert(stats->nnz_original - stats->nnz_reduced == total_removed);
 

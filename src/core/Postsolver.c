@@ -35,17 +35,17 @@
 #define ROW_NOT_RETRIEVED INF
 #define DUMMY_VALUE -382749
 
-PostsolveInfo *postsolve_info_new(PSLP_uint n_rows, PSLP_uint n_cols)
+PostsolveInfo *postsolve_info_new(size_t n_rows, size_t n_cols)
 {
     PostsolveInfo *info = (PostsolveInfo *) ps_malloc(1, sizeof(PostsolveInfo));
 
-    PSLP_uint init_size;
+    size_t init_size;
 
     /* disable conversion compiler warning*/
     PSLP_DIAG_PUSH();
     PSLP_DIAG_IGNORE_CONVERSION();
     // plus one to avoid zero size allocations
-    init_size = ((PSLP_uint) (INIT_FRAC_POSTSOLVE * (n_rows + n_cols))) + 1;
+    init_size = ((size_t) (INIT_FRAC_POSTSOLVE * (n_rows + n_cols))) + 1;
     /* enable conversion compiler warnings */
     PSLP_DIAG_POP();
 
@@ -86,8 +86,8 @@ static inline void copy_reduced_sol_to_orginal(Solution *sol, const double *x,
                                                const int *col_map,
                                                const int *row_map)
 {
-    PSLP_uint dim_x = (PSLP_uint) sol->dim_x;
-    for (PSLP_uint i = 0; i < dim_x; ++i)
+    size_t dim_x = sol->dim_x;
+    for (size_t i = 0; i < dim_x; ++i)
     {
         if (col_map[i] == -1)
         {
@@ -100,8 +100,8 @@ static inline void copy_reduced_sol_to_orginal(Solution *sol, const double *x,
         sol->z[i] = z[col_map[i]];
     }
 
-    PSLP_uint dim_y = (PSLP_uint) sol->dim_y;
-    for (PSLP_uint i = 0; i < dim_y; ++i)
+    size_t dim_y = sol->dim_y;
+    for (size_t i = 0; i < dim_y; ++i)
     {
         if (row_map[i] == -1)
         {
@@ -479,9 +479,8 @@ void retrieve_eq_to_ineq(Solution *sol, int row, double val)
     sol->y[row] += val;
 }
 
-void postsolver_update(PostsolveInfo *info, PSLP_uint n_cols_reduced,
-                       PSLP_uint n_rows_reduced, const int *col_map,
-                       const int *row_map)
+void postsolver_update(PostsolveInfo *info, size_t n_cols_reduced,
+                       size_t n_rows_reduced, const int *col_map, const int *row_map)
 {
     info->n_cols_reduced = n_cols_reduced;
     info->n_rows_reduced = n_rows_reduced;
@@ -491,10 +490,10 @@ void postsolver_update(PostsolveInfo *info, PSLP_uint n_cols_reduced,
 
 void polish_z(Solution *sol, const double *lbs, const double *ubs)
 {
-    PSLP_uint n_cols = (PSLP_uint) sol->dim_x;
+    size_t n_cols = sol->dim_x;
     double *x = sol->x;
     double *z = sol->z;
-    for (PSLP_uint k = 0; k < n_cols; ++k)
+    for (size_t k = 0; k < n_cols; ++k)
     {
         bool is_xk_equal_to_lb = IS_EQUAL_FEAS_TOL(x[k], lbs[k]);
         bool is_xk_equal_to_ub = IS_EQUAL_FEAS_TOL(x[k], ubs[k]);
@@ -667,7 +666,7 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
 // here we should probably store information so zk = ck - ak^T y
 // so must save rows and vals
 void save_retrieval_fixed_col(PostsolveInfo *info, int col, double val, double ck,
-                              const double *vals, const int *rows, PSLP_uint len)
+                              const double *vals, const int *rows, size_t len)
 {
     u16Vec_append(info->type, FIXED_COL);
     iVec_append(info->indices, col);
@@ -709,10 +708,10 @@ void save_retrieval_fixed_col_inf(PostsolveInfo *info, int col, int pos_inf,
         side = (HAS_TAG(row_tags[row], R_TAG_LHS_INF)) ? rhs[row] : lhs[row];
         dVec_append(info->vals, side);
         dVec_append_array(info->vals, A->x + A->p[row].start,
-                          (PSLP_uint) row_sizes[row]);
+                          (size_t) row_sizes[row]);
         iVec_append(info->indices, row_sizes[row]);
         iVec_append_array(info->indices, A->i + A->p[row].start,
-                          (PSLP_uint) row_sizes[row]);
+                          (size_t) row_sizes[row]);
 
         assert(!(HAS_TAG(row_tags[row], R_TAG_LHS_INF) &&
                  HAS_TAG(row_tags[row], R_TAG_RHS_INF)));
@@ -725,7 +724,7 @@ void save_retrieval_fixed_col_inf(PostsolveInfo *info, int col, int pos_inf,
 }
 
 void save_retrieval_sub_col(PostsolveInfo *info, int col, int *cols, double *coeffs,
-                            PSLP_uint len, double rhs, int i, double ck)
+                            size_t len, double rhs, int i, double ck)
 {
     u16Vec_append(info->type, SUB_COL);
     iVec_append(info->indices, col);
@@ -782,7 +781,7 @@ void save_retrieval_added_row(PostsolveInfo *info, int i, int j, double ratio)
 }
 
 void save_retrieval_added_rows(PostsolveInfo *info, int i, const int *rows,
-                               const double *vals, PSLP_uint len, double aik)
+                               const double *vals, size_t len, double aik)
 {
     u16Vec_append(info->type, ADDED_ROWS);
     iVec_append(info->indices, i);
@@ -811,7 +810,7 @@ void save_retrieval_bound_change_no_row(PostsolveInfo *info, int j,
 }
 
 void save_retrieval_bound_change_the_row(PostsolveInfo *info, int i, const int *cols,
-                                         const double *vals, PSLP_uint len,
+                                         const double *vals, size_t len,
                                          int num_of_bound_changes)
 {
     u16Vec_append(info->type, BOUND_CHANGE_THE_ROW);
@@ -825,9 +824,8 @@ void save_retrieval_bound_change_the_row(PostsolveInfo *info, int i, const int *
 }
 
 void save_retrieval_rhs_or_lhs_change(PostsolveInfo *info, int i, const double *vals,
-                                      const int *cols, PSLP_uint len,
-                                      double new_side, int j, double ratio,
-                                      bool is_lhs_change)
+                                      const int *cols, size_t len, double new_side,
+                                      int j, double ratio, bool is_lhs_change)
 {
     if (is_lhs_change)
     {

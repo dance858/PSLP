@@ -21,19 +21,19 @@
 
 typedef struct PresolveStats
 {
-    PSLP_uint n_rows_original;
-    PSLP_uint n_cols_original;
-    PSLP_uint nnz_original;
-    PSLP_uint n_rows_reduced;
-    PSLP_uint n_cols_reduced;
-    PSLP_uint nnz_reduced;
+    size_t n_rows_original;
+    size_t n_cols_original;
+    size_t nnz_original;
+    size_t n_rows_reduced;
+    size_t n_cols_reduced;
+    size_t nnz_reduced;
 
     /* reduction stats */
-    PSLP_uint nnz_removed_trivial;
-    PSLP_uint nnz_removed_fast;
-    PSLP_uint nnz_removed_primal_propagation;
-    PSLP_uint nnz_removed_parallel_rows;
-    PSLP_uint nnz_removed_parallel_cols;
+    size_t nnz_removed_trivial;
+    size_t nnz_removed_fast;
+    size_t nnz_removed_primal_propagation;
+    size_t nnz_removed_parallel_rows;
+    size_t nnz_removed_parallel_cols;
 
     /* time stats */
     double time_init;

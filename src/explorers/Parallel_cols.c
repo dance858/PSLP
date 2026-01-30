@@ -293,10 +293,10 @@ static PresolveStatus process_all_bins(const Problem *prob, const int *parallel_
         return UNCHANGED;
     }
 
-    PSLP_uint n_groups = groups->len - 1;
+    size_t n_groups = groups->len - 1;
     PresolveStatus status = UNCHANGED;
 
-    for (PSLP_uint i = 0; i < n_groups; ++i)
+    for (size_t i = 0; i < n_groups; ++i)
     {
         int n_cols_this_group = groups->data[i + 1] - groups->data[i];
         status |= process_single_bin(prob, parallel_cols + groups->data[i],

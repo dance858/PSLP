@@ -38,11 +38,11 @@
     typedef struct TYPE_NAME##Vec                                                   \
     {                                                                               \
         TYPE *data;                                                                 \
-        PSLP_uint len;                                                              \
-        PSLP_uint capacity;                                                         \
+        size_t len;                                                                 \
+        size_t capacity;                                                            \
     } TYPE_NAME##Vec;                                                               \
                                                                                     \
-    PSLP_UNUSED static TYPE_NAME##Vec *TYPE_NAME##Vec_new(PSLP_uint capacity)       \
+    PSLP_UNUSED static TYPE_NAME##Vec *TYPE_NAME##Vec_new(size_t capacity)          \
     {                                                                               \
         assert(capacity > 0);                                                       \
         TYPE_NAME##Vec *vec =                                                       \
@@ -93,11 +93,11 @@
     }                                                                               \
                                                                                     \
     static inline void TYPE_NAME##Vec_append_array(TYPE_NAME##Vec *vec,             \
-                                                   const TYPE *values, PSLP_uint n) \
+                                                   const TYPE *values, size_t n)    \
     {                                                                               \
         if (vec->len + n > vec->capacity)                                           \
         {                                                                           \
-            PSLP_uint new_capacity = vec->capacity > 0 ? vec->capacity : 1;         \
+            size_t new_capacity = vec->capacity > 0 ? vec->capacity : 1;            \
             while (vec->len + n > new_capacity)                                     \
             {                                                                       \
                 new_capacity *= 2;                                                  \
@@ -122,7 +122,7 @@
     PSLP_UNUSED static int TYPE_NAME##Vec_contains(const TYPE_NAME##Vec *vec,       \
                                                    TYPE value)                      \
     {                                                                               \
-        for (PSLP_uint i = 0; i < vec->len; ++i)                                    \
+        for (size_t i = 0; i < vec->len; ++i)                                       \
         {                                                                           \
             if (vec->data[i] == value)                                              \
             {                                                                       \

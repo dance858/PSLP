@@ -117,12 +117,12 @@ PresolveStatus simple_dual_fix(Problem *prob)
     const Bound *bounds = constraints->bounds;
     const ColTag *col_tags = constraints->col_tags;
     const Lock *locks = constraints->state->col_locks;
-    PSLP_uint n_cols = constraints->n;
+    size_t n_cols = constraints->n;
     iVec *cols_to_inf = constraints->state->work->int_vec;
     iVec_clear_no_resize(cols_to_inf);
     PresolveStatus status = UNCHANGED;
 
-    for (PSLP_uint k = 0; k < n_cols; k++)
+    for (size_t k = 0; k < n_cols; k++)
     {
         // if it is too slow to loop through all columns, we can keep a list
         // of candidate columns to process
@@ -141,7 +141,7 @@ PresolveStatus simple_dual_fix(Problem *prob)
     // now fix the columns that can be fixed to inf
     // (processing the inf columns after processing the other columns
     // simplifies the dual postsolve a lot)
-    for (PSLP_uint i = 0; i < cols_to_inf->len; ++i)
+    for (size_t i = 0; i < cols_to_inf->len; ++i)
     {
         int col = cols_to_inf->data[i];
 
