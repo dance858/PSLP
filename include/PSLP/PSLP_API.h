@@ -126,7 +126,7 @@ extern "C"
 
     /* Postsolve the problem given the primal-dual solution (x, y, z) of the
        reduced problem. The function populates presolver->sol, so if you're
-       looking for the solution to the original problem, you should look there.
+       looking for the solution to the original problem, you want to look there.
        If the solver has added the offset to the objective when solving the reduced
        problem, the optimal value of the original problem is the same as that of
        the reduced problem. */
