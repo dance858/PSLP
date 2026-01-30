@@ -35,10 +35,10 @@ typedef struct
 // The modification is that every row includes some extra space.
 typedef struct Matrix
 {
-    int m;
-    int n;
-    int nnz;
-    int n_alloc;
+    size_t m;
+    size_t n;
+    size_t nnz;
+    size_t n_alloc;
 
     int *i;
     RowRange *p;
@@ -47,15 +47,14 @@ typedef struct Matrix
 
 // Constructs a new matrix with the given values but extra space.
 // Assumes that (Ax, Ai, Ap) are CSR.
-Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, int n_rows,
-                   int n_cols, int nnz);
+Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, size_t n_rows,
+                   size_t n_cols, size_t nnz);
 
 Matrix *matrix_new_no_extra_space(const double *Ax, const int *Ai, const int *Ap,
-                                  int n_rows, int n_cols, int nnz);
-
+                                  size_t n_rows, size_t n_cols, size_t nnz);
 // Allocate a new matrix with the given dimensions and nnz.
 // write matrix_alloc
-Matrix *matrix_alloc(int n_rows, int n_cols, int nnz);
+Matrix *matrix_alloc(size_t n_rows, size_t n_cols, size_t nnz);
 
 // Returns the transpose of the given matrix
 Matrix *transpose(const Matrix *A, int *work_n_cols);
@@ -64,7 +63,8 @@ Matrix *transpose(const Matrix *A, int *work_n_cols);
 int calc_memory_row(int size, int extra_row_space, double memory_ratio);
 
 // Computes the total number of entries allocated for A
-int calc_memory(int nnz, int n_rows, int extra_row_space, double memory_ratio);
+size_t calc_memory(size_t nnz, size_t n_rows, size_t extra_row_space,
+                   double memory_ratio);
 
 // frees all allocated memory
 void free_matrix(Matrix *A);
@@ -114,7 +114,7 @@ void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_sizes,
 void print_row_starts(const RowRange *row_ranges, size_t len);
 
 #ifdef TESTING
-Matrix *random_matrix_new(int n_rows, int n_cols, double density);
+Matrix *random_matrix_new(size_t n_rows, size_t n_cols, double density);
 
 // replace_row_A assumes the matrix has sufficient with space to shift
 // rows; otherwise it throws an assertion

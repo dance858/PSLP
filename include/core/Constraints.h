@@ -22,6 +22,7 @@
 #include <stdbool.h>
 
 #include "Tags.h"
+#include <stddef.h>
 
 // forward declarations
 struct State;
@@ -34,8 +35,8 @@ typedef struct Constraints
     // left and right hand sides for each row
     double *lhs;
     double *rhs;
-    int m; // number of constraints
-    int n; // number of variables
+    size_t m; // number of constraints
+    size_t n; // number of variables
     RowTag *row_tags;
     ColTag *col_tags;
 

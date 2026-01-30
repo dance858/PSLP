@@ -23,7 +23,7 @@
 
 #define INT_VEC_INITIALIZATION 25
 
-Work *new_work(int n_rows, int n_cols)
+Work *new_work(size_t n_rows, size_t n_cols)
 {
     Work *work = (Work *) ps_malloc(1, sizeof(Work));
     RETURN_PTR_IF_NULL(work, NULL);

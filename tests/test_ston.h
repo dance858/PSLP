@@ -73,9 +73,9 @@ static char *test_01_ston()
     problem_clean(prob, true);
 
     mu_assert("error",
-              CHECK_ROW_SIZES(constraints->A, constraints->state->row_sizes));
+              check_row_sizes(constraints->A, constraints->state->row_sizes));
     mu_assert("error",
-              CHECK_COL_SIZES(constraints->AT, constraints->state->col_sizes));
+              check_col_sizes(constraints->AT, constraints->state->col_sizes));
 
     // check that new A is correct
     double Ax_correct[] = {2, 1, 1, 1, 4, 3, 2, 1};
@@ -83,7 +83,7 @@ static char *test_01_ston()
     int Ap_correct[] = {0, 3, 6, 8};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -104,7 +104,7 @@ static char *test_01_ston()
     double lbs_correct[] = {0, 0, -INF, 0};
     double ubs_correct[] = {INF, INF, INF, INF};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 4));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 4));
 
     // check that the objective function is correct
     double obj_correct[] = {0.5, -1, 0, -2};
@@ -158,9 +158,9 @@ static char *test_02_ston()
     problem_clean(prob, true);
 
     mu_assert("error",
-              CHECK_ROW_SIZES(constraints->A, constraints->state->row_sizes));
+              check_row_sizes(constraints->A, constraints->state->row_sizes));
     mu_assert("error",
-              CHECK_COL_SIZES(constraints->AT, constraints->state->col_sizes));
+              check_col_sizes(constraints->AT, constraints->state->col_sizes));
 
     // check that new A is correct
     double Ax_correct[] = {2, 1, 1, 1, 1, 4, 3, 1};
@@ -168,7 +168,7 @@ static char *test_02_ston()
     int Ap_correct[] = {0, 4, 8};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -188,7 +188,7 @@ static char *test_02_ston()
     double lbs_correct[] = {0, 0, 0, 0};
     double ubs_correct[] = {INF, INF, INF, INF};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 4));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 4));
 
     // check that the objective function is correct
     double obj_correct[] = {0.5, -1, 0, -2};
@@ -244,9 +244,9 @@ static char *test_03_ston()
     problem_clean(prob, true);
 
     mu_assert("error",
-              CHECK_ROW_SIZES(constraints->A, constraints->state->row_sizes));
+              check_row_sizes(constraints->A, constraints->state->row_sizes));
     mu_assert("error",
-              CHECK_COL_SIZES(constraints->AT, constraints->state->col_sizes));
+              check_col_sizes(constraints->AT, constraints->state->col_sizes));
 
     // check that new A is correct
     double Ax_correct[] = {8, 9, 10, 11, 12, 13};
@@ -254,7 +254,7 @@ static char *test_03_ston()
     int Ap_correct[] = {0, 3, 6};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -273,7 +273,7 @@ static char *test_03_ston()
     double lbs_correct[] = {0, 0, 0};
     double ubs_correct[] = {INF, INF, INF};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 3));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 3));
 
     // check that the objective function is correct
     double obj_correct[] = {6, 12, 13};
@@ -331,9 +331,9 @@ static char *test_04_ston()
     problem_clean(prob, true);
 
     mu_assert("error",
-              CHECK_ROW_SIZES(constraints->A, constraints->state->row_sizes));
+              check_row_sizes(constraints->A, constraints->state->row_sizes));
     mu_assert("error",
-              CHECK_COL_SIZES(constraints->AT, constraints->state->col_sizes));
+              check_col_sizes(constraints->AT, constraints->state->col_sizes));
 
     // check that new A is correct (it should containt the empty column)
     double Ax_correct[] = {5, 6, 7, 8, 9, 10, 11, 12, 13};
@@ -341,7 +341,7 @@ static char *test_04_ston()
     int Ap_correct[] = {0, 3, 6, 9};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 9));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 9));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -361,7 +361,7 @@ static char *test_04_ston()
     double lbs_correct[] = {-1, 0, 0, 0};
     double ubs_correct[] = {5, INF, INF, INF};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 3));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 3));
 
     // check that the objective function is correct
     double obj_correct[] = {1, 1, 6, 6};
@@ -418,9 +418,9 @@ static char *test_05_ston()
     problem_clean(prob, true);
 
     mu_assert("error",
-              CHECK_ROW_SIZES(constraints->A, constraints->state->row_sizes));
+              check_row_sizes(constraints->A, constraints->state->row_sizes));
     mu_assert("error",
-              CHECK_COL_SIZES(constraints->AT, constraints->state->col_sizes));
+              check_col_sizes(constraints->AT, constraints->state->col_sizes));
 
     // check that new A is correct
     double Ax_correct[] = {2, 1, 1, 1, 4, 6, 8, 1, 4, 3, 1, 2, 1};
@@ -428,7 +428,7 @@ static char *test_05_ston()
     int Ap_correct[] = {0, 3, 7, 11, 13};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 13));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 13));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -448,7 +448,7 @@ static char *test_05_ston()
     double lbs_correct[] = {0, 0, 0, 0};
     double ubs_correct[] = {INF, INF, INF, INF};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 4));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 4));
 
     // check that the objective function is correct
     double obj_correct[] = {0.5, -1, 0, -2};
@@ -505,9 +505,9 @@ static char *test_06_ston()
     problem_clean(prob, true);
 
     mu_assert("error",
-              CHECK_ROW_SIZES(constraints->A, constraints->state->row_sizes));
+              check_row_sizes(constraints->A, constraints->state->row_sizes));
     mu_assert("error",
-              CHECK_COL_SIZES(constraints->AT, constraints->state->col_sizes));
+              check_col_sizes(constraints->AT, constraints->state->col_sizes));
 
     // check that new A is correct
     double Ax_correct[] = {2, 1, 1, 1, 4, 6, 8, 1, 4, 3, 1, 2, 1};
@@ -515,7 +515,7 @@ static char *test_06_ston()
     int Ap_correct[] = {0, 3, 7, 11, 13};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 13));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 13));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -535,7 +535,7 @@ static char *test_06_ston()
     double lbs_correct[] = {0, 0, 0, 0};
     double ubs_correct[] = {INF, INF, INF, INF};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 4));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 4));
 
     // check that the objective function is correct
     double obj_correct[] = {0.5, -1, 0, -2};
@@ -593,9 +593,9 @@ static char *test_07_ston()
     problem_clean(prob, true);
 
     mu_assert("error",
-              CHECK_ROW_SIZES(constraints->A, constraints->state->row_sizes));
+              check_row_sizes(constraints->A, constraints->state->row_sizes));
     mu_assert("error",
-              CHECK_COL_SIZES(constraints->AT, constraints->state->col_sizes));
+              check_col_sizes(constraints->AT, constraints->state->col_sizes));
 
     // check that new A is correct
     double Ax_correct[] = {2, 1, 1, 1, 4, 6, 8, 1, 4, 3, 1, 2, 1};
@@ -603,7 +603,7 @@ static char *test_07_ston()
     int Ap_correct[] = {0, 3, 7, 11, 13};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 13));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 13));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -623,7 +623,7 @@ static char *test_07_ston()
     double lbs_correct[] = {0, 0, 0, -10};
     double ubs_correct[] = {INF, INF, INF, INF};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 4));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 4));
 
     // check that the objective function is correct
     double obj_correct[] = {1.5, 3, 6, 6};
@@ -680,9 +680,9 @@ static char *test_08_ston()
     problem_clean(prob, true);
 
     mu_assert("error",
-              CHECK_ROW_SIZES(constraints->A, constraints->state->row_sizes));
+              check_row_sizes(constraints->A, constraints->state->row_sizes));
     mu_assert("error",
-              CHECK_COL_SIZES(constraints->AT, constraints->state->col_sizes));
+              check_col_sizes(constraints->AT, constraints->state->col_sizes));
 
     // check that new A is correct
     double Ax_correct[] = {2, 1, 1, 1, 4, 6, -8, 1, 4, 3, 1, 2, 1};
@@ -690,7 +690,7 @@ static char *test_08_ston()
     int Ap_correct[] = {0, 3, 7, 11, 13};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 13));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 13));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -710,7 +710,7 @@ static char *test_08_ston()
     double lbs_correct[] = {0, 0, 0, 0};
     double ubs_correct[] = {INF, INF, INF, INF};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 4));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 4));
 
     // check that the objective function is correct
     double obj_correct[] = {1.5, 3, 6, -2};
@@ -768,9 +768,9 @@ static char *test_09_ston()
     problem_clean(prob, true);
 
     mu_assert("error",
-              CHECK_ROW_SIZES(constraints->A, constraints->state->row_sizes));
+              check_row_sizes(constraints->A, constraints->state->row_sizes));
     mu_assert("error",
-              CHECK_COL_SIZES(constraints->AT, constraints->state->col_sizes));
+              check_col_sizes(constraints->AT, constraints->state->col_sizes));
 
     // check that new A is correct
     double Ax_correct[] = {1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1};
@@ -778,7 +778,7 @@ static char *test_09_ston()
     int Ap_correct[] = {0, 8, 16};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 16));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 16));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -798,7 +798,7 @@ static char *test_09_ston()
     double lbs_correct[] = {0, 0, 0, 0, 0, 0, 0, -INF};
     double ubs_correct[] = {1, 2, 3, 4, 5, 6, 7, 8};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 8));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 8));
 
     // check that the objective function is correct
     double obj_correct[] = {-6, -6, -6, -6, -6, -6, -6, -6};
@@ -852,9 +852,9 @@ static char *test_10_ston()
     problem_clean(prob, true);
 
     mu_assert("error",
-              CHECK_ROW_SIZES(constraints->A, constraints->state->row_sizes));
+              check_row_sizes(constraints->A, constraints->state->row_sizes));
     mu_assert("error",
-              CHECK_COL_SIZES(constraints->AT, constraints->state->col_sizes));
+              check_col_sizes(constraints->AT, constraints->state->col_sizes));
 
     // check that new A is correct
     double Ax_correct[] = {3, 5, 2, -2, -2, 1};
@@ -862,7 +862,7 @@ static char *test_10_ston()
     int Ap_correct[] = {0, 3, 6};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -881,7 +881,7 @@ static char *test_10_ston()
     double lbs_correct[] = {0, 0, 0};
     double ubs_correct[] = {INF, INF, INF};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 3));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 3));
 
     // check that the objective function is correct
     double obj_correct[] = {3, -4, 3};
@@ -935,9 +935,9 @@ static char *test_12_ston()
     problem_clean(prob, true);
 
     mu_assert("error",
-              CHECK_ROW_SIZES(constraints->A, constraints->state->row_sizes));
+              check_row_sizes(constraints->A, constraints->state->row_sizes));
     mu_assert("error",
-              CHECK_COL_SIZES(constraints->AT, constraints->state->col_sizes));
+              check_col_sizes(constraints->AT, constraints->state->col_sizes));
 
     // check that new A is correct
     double Ax_correct[] = {3, -1, -6, 3, 5, -1, 4, 3, 4};
@@ -945,7 +945,7 @@ static char *test_12_ston()
     int Ap_correct[] = {0, 3, 6, 9};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 9));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 9));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -964,7 +964,7 @@ static char *test_12_ston()
     double lbs_correct[] = {0, 0, 0};
     double ubs_correct[] = {INF, INF, INF};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 3));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 3));
 
     // check that the objective function is correct
     double obj_correct[] = {4, -2, 7};
@@ -1018,9 +1018,9 @@ static char *test_13_ston()
     problem_clean(prob, true);
 
     mu_assert("error",
-              CHECK_ROW_SIZES(constraints->A, constraints->state->row_sizes));
+              check_row_sizes(constraints->A, constraints->state->row_sizes));
     mu_assert("error",
-              CHECK_COL_SIZES(constraints->AT, constraints->state->col_sizes));
+              check_col_sizes(constraints->AT, constraints->state->col_sizes));
 
     // check that new A is correct
     double Ax_correct[] = {3, -1, -6, -3, 5, -1, 4, 3, 4};
@@ -1028,7 +1028,7 @@ static char *test_13_ston()
     int Ap_correct[] = {0, 3, 6, 9};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 9));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 9));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     // check new AT
     DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
@@ -1047,7 +1047,7 @@ static char *test_13_ston()
     double lbs_correct[] = {0, 0, 0};
     double ubs_correct[] = {INF, INF, INF};
     mu_assert("error bounds",
-              CHECK_BOUNDS(constraints->bounds, lbs_correct, ubs_correct, 3));
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 3));
 
     // check that the objective function is correct
     double obj_correct[] = {4, -2, 7};
@@ -1093,9 +1093,9 @@ static char *test_14_ston()
     problem_clean(prob, true);
 
     mu_assert("error",
-              CHECK_ROW_SIZES(constraints->A, constraints->state->row_sizes));
+              check_row_sizes(constraints->A, constraints->state->row_sizes));
     mu_assert("error",
-              CHECK_COL_SIZES(constraints->AT, constraints->state->col_sizes));
+              check_col_sizes(constraints->AT, constraints->state->col_sizes));
 
     // check that new A is correct
     double Ax_correct[] = {1, 2, 1, 1};
@@ -1103,7 +1103,7 @@ static char *test_14_ston()
     int Ap_correct[] = {0, 2, 4};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 4));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 4));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -1138,9 +1138,9 @@ static char *test_15_ston()
     problem_clean(prob, true);
 
     mu_assert("error",
-              CHECK_ROW_SIZES(constraints->A, constraints->state->row_sizes));
+              check_row_sizes(constraints->A, constraints->state->row_sizes));
     mu_assert("error",
-              CHECK_COL_SIZES(constraints->AT, constraints->state->col_sizes));
+              check_col_sizes(constraints->AT, constraints->state->col_sizes));
 
     // check that new A is correct
     double Ax_correct[] = {1, 2, 1, 1};
@@ -1148,7 +1148,7 @@ static char *test_15_ston()
     int Ap_correct[] = {0, 2, 4};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 4));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 4));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -1188,7 +1188,7 @@ static char *test_16_ston()
     int Ap_correct[] = {0, 4, 8};
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
-    CHECK_ROW_STARTS(A, Ap_correct);
+    mu_assert("rows", check_row_starts(A, Ap_correct));
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));

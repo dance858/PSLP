@@ -52,7 +52,8 @@ PresolveStatus fix_col(Constraints *constraints, int col, double val, double ck)
     int len = AT->p[col].end - AT->p[col].start;
 
     set_col_to_fixed(col, col_tag, data->fixed_cols_to_delete);
-    save_retrieval_fixed_col(data->postsolve_info, col, val, ck, vals, rows, len);
+    save_retrieval_fixed_col(data->postsolve_info, col, val, ck, vals, rows,
+                             (size_t) len);
 
     bool ub_update = (is_ub_inf || val != old_ub);
     bool lb_update = (is_lb_inf || val != old_lb);
@@ -175,7 +176,7 @@ PresolveStatus update_lb(Constraints *constraints, int col, double new_lb,
         const Matrix *A = constraints->A;
         const double *row_vals = A->x + A->p[row].start;
         const int *row_cols = A->i + A->p[row].start;
-        int row_len = A->p[row].end - A->p[row].start;
+        size_t row_len = (size_t) (A->p[row].end - A->p[row].start);
 
         save_retrieval_bound_change_no_row(data->postsolve_info, col, new_lb, ub,
                                            false);
@@ -228,7 +229,7 @@ PresolveStatus update_ub(Constraints *constraints, int col, double new_ub,
         const Matrix *A = constraints->A;
         const double *row_vals = A->x + A->p[row].start;
         const int *row_cols = A->i + A->p[row].start;
-        int row_len = A->p[row].end - A->p[row].start;
+        size_t row_len = (size_t) (A->p[row].end - A->p[row].start);
 
         save_retrieval_bound_change_no_row(data->postsolve_info, col, new_ub, lb,
                                            true);
@@ -369,10 +370,10 @@ PresolveStatus change_rhs_of_ineq(RowView *row, double new_rhs, Lock *locks,
     // -------------------------------------------------------------------------
     //                          update locks
     // -------------------------------------------------------------------------
-    int len = *row->len;
+    size_t len = (size_t) *row->len;
     if (is_rhs_inf)
     {
-        for (int i = 0; i < len; ++i)
+        for (size_t i = 0; i < len; ++i)
         {
             if (row->vals[i] > 0)
             {
@@ -428,10 +429,10 @@ PresolveStatus change_lhs_of_ineq(RowView *row, double new_lhs, Lock *locks,
     // -------------------------------------------------------------------------
     //                          update locks
     // -------------------------------------------------------------------------
-    int len = *row->len;
+    size_t len = (size_t) *row->len;
     if (is_lhs_inf)
     {
-        for (int i = 0; i < len; ++i)
+        for (size_t i = 0; i < len; ++i)
         {
             if (row->vals[i] > 0)
             {

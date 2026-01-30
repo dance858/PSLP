@@ -21,7 +21,7 @@
 #include "Locks.h"
 #include "Numerics.h"
 #include "PSLP_API.h"
-
+#include "PSLP_warnings.h"
 #include "Workspace.h"
 #include "utils.h"
 
@@ -33,19 +33,19 @@
 #define INIT_EMPTY_ROWS_FRACTION 0.001
 #define MIN_INIT_EMPTY_COLS 50
 #define INIT_EMPTY_COLS_FRACTION 0.001
-#define MIN_INIT_FIXED_COLS_TO_DELETE 1000
-#define INIT_FIXED_COLS_TO_DELETE_FRACTION 0.01
-#define MIN_INIT_SUB_COLS_TO_DELETE 1000
-#define INIT_SUB_COLS_TO_DELETE_FRACTION 0.01
+#define MIN_INIT_FIXED_COLS 1000
+#define INIT_FIXED_COLS_FRACTION 0.01
+#define MIN_INIT_SUB_COLS 1000
+#define INIT_SUB_COLS_FRACTION 0.01
 #define MIN_INIT_ROWS_TO_DELETE 1000
 #define INIT_ROWS_TO_DELETE_FRACTION 0.01
 #define MIN_INIT_DTON_ROWS 100
 #define INIT_DTON_ROWS_FRACTION 0.01
-#define MIN_INIT_UPDATED_ACTIVITIES 1000
-#define INIT_UPDATED_ACTIVITIES_FRACTION 0.01
+#define MIN_INIT_UPDATED_ACTS 1000
+#define INIT_UPDATED_ACTS_FRACTION 0.01
 
-State *new_state(int *row_sizes, int *col_sizes, Lock *col_locks, int n_rows,
-                 int n_cols, Activity *activities, Work *work,
+State *new_state(int *row_sizes, int *col_sizes, Lock *col_locks, size_t n_rows,
+                 size_t n_cols, Activity *activities, Work *work,
                  const RowTag *row_tags)
 {
     State *data = (State *) ps_malloc(1, sizeof(State));
@@ -56,30 +56,35 @@ State *new_state(int *row_sizes, int *col_sizes, Lock *col_locks, int n_rows,
     data->activities = activities;
     data->work = work;
 
+    /* disable conversion compiler warning*/
+    PSLP_DIAG_PUSH();
+    PSLP_DIAG_IGNORE_CONVERSION();
+
+    size_t len_ston_rows = (size_t) (n_rows * INIT_STON_ROWS_FRACTION);
+    size_t len_ston_cols = (size_t) (n_cols * INIT_STON_COLS_FRACTION);
+    size_t len_dton_rows = (size_t) (n_rows * INIT_DTON_ROWS_FRACTION);
+    size_t len_empty_rows = (size_t) (n_rows * INIT_EMPTY_ROWS_FRACTION);
+    size_t len_updated_act = (size_t) (n_rows * INIT_UPDATED_ACTS_FRACTION);
+    size_t len_empty_cols = (size_t) (n_cols * INIT_EMPTY_COLS_FRACTION);
+    size_t len_fixed_cols = (size_t) (n_cols * INIT_FIXED_COLS_FRACTION);
+    size_t len_sub_cols = (size_t) (n_cols * INIT_SUB_COLS_FRACTION);
+    size_t len_rows_delete = (size_t) (n_rows * INIT_ROWS_TO_DELETE_FRACTION);
+
+    /* enable conversion compiler warnings */
+    PSLP_DIAG_POP();
+
     // --------------------------------------------------------------------------
     //                    allocate a bunch of vectors
     // --------------------------------------------------------------------------
-    data->ston_rows =
-        iVec_new(MAX(MIN_INIT_STON_ROWS, (int) (n_rows * INIT_STON_ROWS_FRACTION)));
-    data->ston_cols =
-        iVec_new(MAX(MIN_INIT_STON_COLS, (int) (n_cols * INIT_STON_COLS_FRACTION)));
-    data->dton_rows =
-        iVec_new(MAX(MIN_INIT_DTON_ROWS, (int) (n_rows * INIT_DTON_ROWS_FRACTION)));
-    data->empty_cols = iVec_new(
-        MAX(MIN_INIT_EMPTY_COLS, (int) (n_cols * INIT_EMPTY_COLS_FRACTION)));
-    data->empty_rows = iVec_new(
-        MAX(MIN_INIT_EMPTY_ROWS, (int) (n_rows * INIT_EMPTY_ROWS_FRACTION)));
-    data->updated_activities =
-        iVec_new(MAX(MIN_INIT_UPDATED_ACTIVITIES,
-                     (int) (n_rows * INIT_UPDATED_ACTIVITIES_FRACTION)));
-    data->fixed_cols_to_delete =
-        iVec_new(MAX(MIN_INIT_FIXED_COLS_TO_DELETE,
-                     (int) (n_cols * INIT_FIXED_COLS_TO_DELETE_FRACTION)));
-    data->sub_cols_to_delete =
-        iVec_new(MAX(MIN_INIT_SUB_COLS_TO_DELETE,
-                     (int) (n_cols * INIT_SUB_COLS_TO_DELETE_FRACTION)));
-    data->rows_to_delete = iVec_new(
-        MAX(MIN_INIT_ROWS_TO_DELETE, (int) (n_rows * INIT_ROWS_TO_DELETE_FRACTION)));
+    data->ston_rows = iVec_new(MAX(MIN_INIT_STON_ROWS, len_ston_rows));
+    data->ston_cols = iVec_new(MAX(MIN_INIT_STON_COLS, len_ston_cols));
+    data->dton_rows = iVec_new(MAX(MIN_INIT_DTON_ROWS, len_dton_rows));
+    data->empty_cols = iVec_new(MAX(MIN_INIT_EMPTY_COLS, len_empty_cols));
+    data->empty_rows = iVec_new(MAX(MIN_INIT_EMPTY_ROWS, len_empty_rows));
+    data->updated_activities = iVec_new(MAX(MIN_INIT_UPDATED_ACTS, len_updated_act));
+    data->fixed_cols_to_delete = iVec_new(MAX(MIN_INIT_FIXED_COLS, len_fixed_cols));
+    data->sub_cols_to_delete = iVec_new(MAX(MIN_INIT_SUB_COLS, len_sub_cols));
+    data->rows_to_delete = iVec_new(MAX(MIN_INIT_ROWS_TO_DELETE, len_rows_delete));
     data->postsolve_info = postsolve_info_new(n_rows, n_cols);
 
     if (!data->ston_rows || !data->ston_cols || !data->dton_rows ||
@@ -166,9 +171,9 @@ void free_state(State *data)
     PS_FREE(data);
 }
 
-static void shrink_locks(Lock *ptr, const int *map, int len)
+static void shrink_locks(Lock *ptr, const int *map, size_t len)
 {
-    for (int i = 0; i < len; ++i)
+    for (size_t i = 0; i < len; ++i)
     {
         if (map[i] != -1)
         {
@@ -177,9 +182,9 @@ static void shrink_locks(Lock *ptr, const int *map, int len)
     }
 }
 
-static void shrink_activities(Activity *ptr, const int *map, int len)
+static void shrink_activities(Activity *ptr, const int *map, size_t len)
 {
-    for (int i = 0; i < len; ++i)
+    for (size_t i = 0; i < len; ++i)
     {
         if (map[i] != -1)
         {
@@ -188,7 +193,7 @@ static void shrink_activities(Activity *ptr, const int *map, int len)
     }
 }
 
-void clean_state(State *data, const Mapping *maps, int n_rows, int n_cols)
+void clean_state(State *data, const Mapping *maps, size_t n_rows, size_t n_cols)
 {
     iPtr_shrink(data->row_sizes, maps->rows, n_rows);
     shrink_activities(data->activities, maps->rows, n_rows);

@@ -11,17 +11,18 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        #os: [windows-latest]
         build_type: [Release, Debug]
         
     steps:
     - uses: actions/checkout@v3
 
     - name: Configure CMake
-      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DPSLP_BUILD_TESTING=ON -DCMAKE_VERBOSE_MAKEFILE=ON
       
     - name: Build
       run: cmake --build build --config ${{ matrix.build_type }}
       
     - name: Run tests
-      run: cd build && ctest -C ${{ matrix.build_type }} --output-on-failure
+      run: cd build && ctest -C ${{ matrix.build_type }} --verbose

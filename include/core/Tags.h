@@ -18,9 +18,11 @@
 
 #ifndef CORE_TAGS_H
 #define CORE_TAGS_H
+#include <stddef.h>
 #include <stdint.h>
 
-// Parallel cols assumes these are 8 bits
+// Parallel cols assumes these are 8 bits. For the macros below
+// RowTag and ColTag should be the same too.
 typedef uint8_t RowTag;
 typedef uint8_t ColTag;
 
@@ -48,13 +50,13 @@ enum ColTag
     C_TAG_INACTIVE = (C_TAG_FIXED | C_TAG_SUBSTITUTED)
 };
 
-RowTag *new_rowtags(double *lhs, double *rhs, int n_rows);
+RowTag *new_rowtags(double *lhs, double *rhs, size_t n_rows);
 
-#define UPDATE_TAG(tag, new_tag) (tag |= new_tag)
-#define REMOVE_TAG(tag, old_tag) (tag &= ~old_tag)
-#define HAS_TAG(tag, check_tag) (tag & check_tag)
-#define RESET_TAG(tag, new_tag) (tag = new_tag)
-#define HAS_STATUS(status, check_status) (status & check_status)
+#define UPDATE_TAG(tag, new_tag) ((tag) |= (RowTag) (new_tag))
+#define REMOVE_TAG(tag, old_tag) ((tag) &= (RowTag) ~(RowTag) (old_tag))
+#define HAS_TAG(tag, check_tag) (((tag) & (RowTag) (check_tag)) != 0)
+#define RESET_TAG(tag, new_tag) ((tag) = (RowTag) (new_tag))
+#define HAS_STATUS(status, check_status) (((status) & (check_status)) != 0)
 #define HAS_INF_TAG(tag) HAS_TAG((tag), (C_TAG_LB_INF | C_TAG_UB_INF))
 
 #endif // CORE_TAGS_H

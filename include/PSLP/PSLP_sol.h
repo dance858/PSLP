@@ -24,13 +24,15 @@ extern "C"
 {
 #endif
 
+#include <stddef.h>
+
     typedef struct Solution
     {
         double *x;
         double *y;
         double *z;
-        int dim_x;
-        int dim_y;
+        size_t dim_x;
+        size_t dim_y;
     } Solution;
 
 #ifdef __cplusplus
