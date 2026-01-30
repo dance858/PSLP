@@ -11,20 +11,20 @@ message(STATUS "Configuring PSLP (version ${PSLP_VERSION})")
 
 include(GNUInstallDirs)
 
-# fix compiler bug?
-if (MSVC)
-    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
-        $<$<CONFIG:Debug>:ProgramDatabase>
-        $<$<CONFIG:RelWithDebInfo>:ProgramDatabase>
-        $<$<CONFIG:Release>:None>
-        $<$<CONFIG:MinSizeRel>:None>
-    )
-endif()
+## fix compiler bug?
+#if (MSVC)
+#    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
+#        $<$<CONFIG:Debug>:ProgramDatabase>
+#        $<$<CONFIG:RelWithDebInfo>:ProgramDatabase>
+#        $<$<CONFIG:Release>:None>
+#        $<$<CONFIG:MinSizeRel>:None>
+#    )
+#endif()
 
 # Enable export of all symbols on Windows for shared libraries
-if(BUILD_SHARED_LIBS)
-  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-endif()
+#if(BUILD_SHARED_LIBS)
+#  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+#endif()
 
 # Build position - independent code
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
