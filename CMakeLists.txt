@@ -136,57 +136,24 @@ if(PSLP_BUILD_TESTING)
   include(CTest)
   enable_testing()
   message(STATUS "PSLP testing enabled (this should be disabled for production builds!!!)")
+
+  add_executable(all_tests tests/all_tests.c tests/test_macros.c)
+
+  # Link PSLP library
+  target_link_libraries(all_tests PRIVATE PSLP)
   target_compile_definitions(PSLP PRIVATE TESTING)
 
-  # Compile test_macros.c in its own target (object library)
-  add_library(test_macros_obj OBJECT
-    tests/test_macros.c
-  )
-
-  target_include_directories(test_macros_obj PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP
-  )
-
-  target_compile_definitions(test_macros_obj PRIVATE TESTING)
-
-  # Avoid MSVC PDB / TypeServer crashes for this file
-  #if (MSVC)
-  #  set_target_properties(test_macros_obj PROPERTIES
-  #    MSVC_DEBUG_INFORMATION_FORMAT None
-  #  )
-  #endif()
-
-  #
-  # Main test executable (only all_tests.c compiled here)
-  #
-  add_executable(all_tests
-    tests/all_tests.c
-    $<TARGET_OBJECTS:test_macros_obj>
-  )
-
-  target_link_libraries(all_tests PRIVATE PSLP)
-
+    # Add include directories explicitly for the test target
   target_include_directories(all_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/core
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP
   )
 
   target_compile_definitions(all_tests PRIVATE TESTING)
 
-  # Disable debug info here too (belt + suspenders on Windows)
-  #if (MSVC)
-  #  set_target_properties(all_tests PROPERTIES
-  #    MSVC_DEBUG_INFORMATION_FORMAT None
-  #  )
-  #endif()
-
   add_test(NAME all_tests COMMAND all_tests)
-
 else()
   message(STATUS "Testing disabled")
 endif()
