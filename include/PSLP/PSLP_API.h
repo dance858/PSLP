@@ -58,9 +58,9 @@ extern "C"
         double *Ax;
         int *Ai;
         int *Ap;
-        int m;
-        int n;
-        int nnz;
+        size_t m;
+        size_t n;
+        size_t nnz;
 
         // lhs and rhs in the form lhs <= Ax <= rhs
         double *lhs;
@@ -108,10 +108,10 @@ extern "C"
        ubs, and c. The user is responsible for freeing the presolver using
        'free_presolver'. If the allocation fails, the function returns NULL.
        The matrix should be given in CSR form.*/
-    Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, int m,
-                             int n, int nnz, const double *lhs, const double *rhs,
-                             const double *lbs, const double *ubs, const double *c,
-                             const Settings *stgs);
+    Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap,
+                             size_t m, size_t n, size_t nnz, const double *lhs,
+                             const double *rhs, const double *lbs, const double *ubs,
+                             const double *c, const Settings *stgs);
 
     /* Free the memory allocated for the presolver. */
     void free_presolver(Presolver *presolver);
