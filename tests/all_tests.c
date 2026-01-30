@@ -2,8 +2,7 @@
 #include "test_CoreTransformations.h"
 #include "test_Matrix.h"
 #include "test_Parallel_cols.h"
-#include "test_Parallel_rows.h" // this seems to cause weird issues for
-// windows build
+#include "test_Parallel_rows.h"
 #include "test_Presolver.h"
 #include "test_SimpleReductions.h"
 #include "test_domain_propagation.h"
@@ -31,10 +30,7 @@ const char *run_all_tests()
     mu_assert("parallel_rows error", test_parallel_rows());
     mu_assert("parallel_cols error", test_parallel_cols());
 #endif
-
-    // #ifndef _WIN32
     mu_assert("postsolve error", test_postsolve());
-    // #endif
 
     return NULL;
 }

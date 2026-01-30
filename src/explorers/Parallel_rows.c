@@ -190,10 +190,6 @@ void VERIFY_PARALLEL_ROWS(const Matrix *A, const RowTag *rows_tags,
     int j, k, start, end, n_rows_this_group, len1;
     size_t i;
     assert(group_starts->len > 0);
-    // if (group_starts->len == 0)
-    //{
-    //     return;
-    // }
 
     size_t n_groups = group_starts->len - 1;
 
@@ -585,11 +581,7 @@ static inline PresolveStatus process_single_bin(const Constraints *constraints,
 static PresolveStatus process_all_bins(const Constraints *constraints,
                                        const int *parallel_rows, const iVec *groups)
 {
-    if (groups->len == 0)
-    {
-        return UNCHANGED;
-    }
-
+    assert(groups->len > 0);
     size_t n_groups = groups->len - 1;
 
     for (size_t i = 0; i < n_groups; ++i)

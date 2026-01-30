@@ -52,13 +52,6 @@ enum ColTag
 
 RowTag *new_rowtags(double *lhs, double *rhs, size_t n_rows);
 
-// #define UPDATE_TAG(tag, new_tag) (tag |= new_tag)
-// #define REMOVE_TAG(tag, old_tag) (tag &= ~old_tag)
-// #define HAS_TAG(tag, check_tag) (tag & check_tag)
-// #define RESET_TAG(tag, new_tag) (tag = new_tag)
-// #define HAS_STATUS(status, check_status) (status & check_status)
-// #define HAS_INF_TAG(tag) HAS_TAG((tag), (C_TAG_LB_INF | C_TAG_UB_INF))
-
 #define UPDATE_TAG(tag, new_tag) ((tag) |= (RowTag) (new_tag))
 #define REMOVE_TAG(tag, old_tag) ((tag) &= (RowTag) ~(RowTag) (old_tag))
 #define HAS_TAG(tag, check_tag) (((tag) & (RowTag) (check_tag)) != 0)
