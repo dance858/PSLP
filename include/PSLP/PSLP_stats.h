@@ -19,32 +19,40 @@
 #ifndef PSLP_STATS_H
 #define PSLP_STATS_H
 
-typedef struct PresolveStats
+#ifdef __cplusplus
+#include <cstddef> // size_t
+extern "C"
 {
-    size_t n_rows_original;
-    size_t n_cols_original;
-    size_t nnz_original;
-    size_t n_rows_reduced;
-    size_t n_cols_reduced;
-    size_t nnz_reduced;
+#else
+#include <stddef.h> // size_t
+#endif
 
-    /* reduction stats */
-    size_t nnz_removed_trivial;
-    size_t nnz_removed_fast;
-    size_t nnz_removed_primal_propagation;
-    size_t nnz_removed_parallel_rows;
-    size_t nnz_removed_parallel_cols;
+    typedef struct PresolveStats
+    {
+        size_t n_rows_original;
+        size_t n_cols_original;
+        size_t nnz_original;
+        size_t n_rows_reduced;
+        size_t n_cols_reduced;
+        size_t nnz_reduced;
 
-    /* time stats */
-    double time_init;
-    double time_fast_reductions;
-    double time_medium_reductions;
-    double time_primal_propagation;
-    double time_parallel_rows;
-    double time_parallel_cols;
-    double time_presolve;
-    double time_postsolve;
+        /* reduction stats */
+        size_t nnz_removed_trivial;
+        size_t nnz_removed_fast;
+        size_t nnz_removed_primal_propagation;
+        size_t nnz_removed_parallel_rows;
+        size_t nnz_removed_parallel_cols;
 
-} PresolveStats;
+        /* time stats */
+        double time_init;
+        double time_fast_reductions;
+        double time_medium_reductions;
+        double time_primal_propagation;
+        double time_parallel_rows;
+        double time_parallel_cols;
+        double time_presolve;
+        double time_postsolve;
+
+    } PresolveStats;
 
 #endif // PSLP_STATS_H

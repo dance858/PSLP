@@ -20,8 +20,11 @@
 #define PSLP_SOL_H
 
 #ifdef __cplusplus
+#include <cstddef> // size_t
 extern "C"
 {
+#else
+#include <stddef.h> // size_t
 #endif
 
 #include <stddef.h>
