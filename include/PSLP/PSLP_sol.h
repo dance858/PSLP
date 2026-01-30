@@ -20,8 +20,13 @@
 #define PSLP_SOL_H
 
 #ifdef __cplusplus
+#include <cstdbool>
+#include <cstddef> // size_t
 extern "C"
 {
+#else
+#include <stdbool.h>
+#include <stddef.h> // size_t
 #endif
 
 #include <stddef.h>
