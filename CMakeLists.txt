@@ -11,21 +11,6 @@ message(STATUS "Configuring PSLP (version ${PSLP_VERSION})")
 
 include(GNUInstallDirs)
 
-## fix compiler bug?
-#if (MSVC)
-#    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
-#        $<$<CONFIG:Debug>:ProgramDatabase>
-#        $<$<CONFIG:RelWithDebInfo>:ProgramDatabase>
-#        $<$<CONFIG:Release>:None>
-#        $<$<CONFIG:MinSizeRel>:None>
-#    )
-#endif()
-
-# Enable export of all symbols on Windows for shared libraries
-#if(BUILD_SHARED_LIBS)
-#  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-#endif()
-
 # Build position - independent code
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
@@ -153,10 +138,7 @@ if(PSLP_BUILD_TESTING)
   message(STATUS "PSLP testing enabled (this should be disabled for production builds!!!)")
   target_compile_definitions(PSLP PRIVATE TESTING)
 
-
-  #
-  # Compile test_macros.c in its OWN target (object library)
-  #
+  # Compile test_macros.c in its own target (object library)
   add_library(test_macros_obj OBJECT
     tests/test_macros.c
   )
@@ -171,11 +153,11 @@ if(PSLP_BUILD_TESTING)
   target_compile_definitions(test_macros_obj PRIVATE TESTING)
 
   # Avoid MSVC PDB / TypeServer crashes for this file
-  if (MSVC)
-    set_target_properties(test_macros_obj PROPERTIES
-      MSVC_DEBUG_INFORMATION_FORMAT None
-    )
-  endif()
+  #if (MSVC)
+  #  set_target_properties(test_macros_obj PROPERTIES
+  #    MSVC_DEBUG_INFORMATION_FORMAT None
+  #  )
+  #endif()
 
   #
   # Main test executable (only all_tests.c compiled here)
@@ -197,11 +179,11 @@ if(PSLP_BUILD_TESTING)
   target_compile_definitions(all_tests PRIVATE TESTING)
 
   # Disable debug info here too (belt + suspenders on Windows)
-  if (MSVC)
-    set_target_properties(all_tests PROPERTIES
-      MSVC_DEBUG_INFORMATION_FORMAT None
-    )
-  endif()
+  #if (MSVC)
+  #  set_target_properties(all_tests PROPERTIES
+  #    MSVC_DEBUG_INFORMATION_FORMAT None
+  #  )
+  #endif()
 
   add_test(NAME all_tests COMMAND all_tests)
 
