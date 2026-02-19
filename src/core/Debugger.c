@@ -684,6 +684,7 @@ void verify_activity(const ColTag *col_tags, const Bound *bounds, Activity activ
                 max += vals[i] * bounds[col].lb;
             }
         }
+        assert(ABS(activity.max - max) < 1e-6);
     }
 
     // if there is a min infinite contribution, the min activity should be
@@ -716,6 +717,7 @@ void verify_activity(const ColTag *col_tags, const Bound *bounds, Activity activ
                 min += vals[i] * bounds[col].ub;
             }
         }
+        assert(ABS(activity.min - min) < 1e-6);
     }
 }
 

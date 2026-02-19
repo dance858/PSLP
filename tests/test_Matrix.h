@@ -6,6 +6,7 @@
 #include "minunit.h"
 #include "test_macros.h"
 #include <stdio.h>
+#include "Constraints.h"
 
 int counter_matrix = 0;
 
@@ -53,8 +54,9 @@ static char *test_1_matrix()
     // remove extra space to simplify test
     int row_sizes_AT[6] = {2, 3, 3, 1, 2};
     int col_sizes_AT[6] = {3, 3, 1, 2, 1, 1};
-    int col_idxs_map_AT[6];
-    remove_extra_space(AT, row_sizes_AT, col_sizes_AT, true, col_idxs_map_AT);
+    int col_idxs_map_AT[6] = {0};
+    int n_new_cols_AT = update_column_map(col_sizes_AT, col_idxs_map_AT, 6);
+    remove_extra_space(AT, row_sizes_AT, col_sizes_AT, true, col_idxs_map_AT, n_new_cols_AT);
 
     // correct answer
     double AT_vals_correct[] = {1, 3, -1, 1, 1, 2, 1, 1, 1, 1, 1};
@@ -619,7 +621,8 @@ static char *test_15_matrix()
     int row_sizes[] = {3, 2, 2, 3};
     int col_sizes[] = {4, 1, 4, 1};
     int map[4];
-    remove_extra_space(A, row_sizes, col_sizes, true, map);
+    int new_n_cols = update_column_map(col_sizes, map, 4);
+    remove_extra_space(A, row_sizes, col_sizes, true, map, new_n_cols);
 
     // correct answer
     double vals_correct[] = {9, 8, 1, 2, 9, 7, 3, 4, 1, 1};
@@ -665,7 +668,8 @@ static char *test_16_matrix()
     int row_sizes[] = {3, 3, 1, 2};
     int col_sizes[] = {4, 2, 3, 1};
     int map[4];
-    remove_extra_space(A, row_sizes, col_sizes, true, map);
+    int n_new_cols = update_column_map(col_sizes, map, 4);
+    remove_extra_space(A, row_sizes, col_sizes, true, map, n_new_cols);
 
     // correct answer
     double vals_correct[] = {9, 5, 4, 3, 7, 5, 1, 1, 1};
@@ -709,7 +713,8 @@ static char *test_17_matrix()
     int row_sizes[] = {3, 2, 2};
     int col_sizes[] = {3, 1, 1, 2};
     int map[4];
-    remove_extra_space(A, row_sizes, col_sizes, true, map);
+    int n_new_cols = update_column_map(col_sizes, map, 4);
+    remove_extra_space(A, row_sizes, col_sizes, true, map, n_new_cols);
 
     double vals_correct[] = {1, 2, 3, 4, 5, 3, 1};
     int cols_correct[] = {0, 2, 3, 0, 1, 0, 3};
@@ -756,7 +761,8 @@ static char *test_18_matrix()
     int row_sizes[] = {3, 3, 2};
     int col_sizes[] = {3, 1, 2, 2};
     int map[4];
-    remove_extra_space(A, row_sizes, col_sizes, true, map);
+    int n_new_cols = update_column_map(col_sizes, map, 4);
+    remove_extra_space(A, row_sizes, col_sizes, true, map, n_new_cols);
 
     mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals, A->x, A->nnz));
 

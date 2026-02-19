@@ -10,6 +10,7 @@
 #include "debug_macros.h"
 #include "minunit.h"
 #include <stdio.h>
+#include "Constraints.h"
 
 static int counter_dton = 0;
 
@@ -45,7 +46,8 @@ static char *test_00_dton()
 
     int col_sizes[] = {SIZE_INACTIVE_COL, 2, 3, 3};
     int map[4] = {0};
-    remove_extra_space(A, row_sizes, col_sizes, true, map);
+    int new_n_cols = update_column_map(col_sizes, map, 4);
+    remove_extra_space(A, row_sizes, col_sizes, true, map, new_n_cols);
 
     // check that new A is correct
     double Ax_correct[] = {-2, 1, 1, -1, 1, 1, 1, 1};
@@ -94,7 +96,8 @@ static char *test_01_dton()
 
     int col_sizes[] = {3, 3, SIZE_INACTIVE_COL, 2, 3, 3};
     int map[6] = {0};
-    remove_extra_space(A, row_sizes, col_sizes, true, map);
+    int n_new_cols = update_column_map(col_sizes, map, 6);
+    remove_extra_space(A, row_sizes, col_sizes, true, map, n_new_cols);
 
     // check that new A is correct
     double Ax_correct[] = {1, 2, -2, 1, 1, 1, 1, -1, 1, 1, 1, 1, 1, 1};
@@ -143,7 +146,8 @@ static char *test_02_dton()
 
     int col_sizes[] = {3, 3, 3, 3, SIZE_INACTIVE_COL, 2};
     int map[6] = {0};
-    remove_extra_space(A, row_sizes, col_sizes, true, map);
+    int n_new_cols = update_column_map(col_sizes, map, 6);
+    remove_extra_space(A, row_sizes, col_sizes, true, map, n_new_cols);
 
     // check that new A is correct
     double Ax_correct[] = {1, 2, 1, 1, -2, 1, 1, 1, 1, -1, 1, 1, 1, 1};
@@ -191,7 +195,8 @@ static char *test_03_dton()
 
     int col_sizes[] = {2, SIZE_INACTIVE_COL, 3, 3};
     int map[4] = {0};
-    remove_extra_space(A, row_sizes, col_sizes, true, map);
+    int n_new_cols = update_column_map(col_sizes, map, 4);
+    remove_extra_space(A, row_sizes, col_sizes, true, map, n_new_cols);
 
     // check that new A is correct
     double Ax_correct[] = {1, 1, 1, 0.5, 1, 1, 1, 1};
@@ -239,7 +244,8 @@ static char *test_04_dton()
 
     int col_sizes[] = {3, 3, 2, SIZE_INACTIVE_COL, 3, 3};
     int map[6] = {0};
-    remove_extra_space(A, row_sizes, col_sizes, true, map);
+    int n_new_cols = update_column_map(col_sizes, map, 6);
+    remove_extra_space(A, row_sizes, col_sizes, true, map, n_new_cols);
 
     // check that new A is correct
     double Ax_correct[] = {1, 2, 1, 1, 1, 1, 1, 0.5, 1, 1, 1, 1, 1, 1};
@@ -287,7 +293,8 @@ static char *test_05_dton()
 
     int col_sizes[] = {3, 3, 3, 3, 2, SIZE_INACTIVE_COL};
     int map[6] = {0};
-    remove_extra_space(A, row_sizes, col_sizes, true, map);
+    int n_new_cols = update_column_map(col_sizes, map, 6);
+    remove_extra_space(A, row_sizes, col_sizes, true, map, n_new_cols);
 
     // check that new A is correct
     double Ax_correct[] = {1, 2, 1, 1, 1, 1, 1, 1, 1, 0.5, 1, 1, 1, 1};
@@ -323,7 +330,8 @@ static char *test_06_dton()
     int col_sizes[] = {3, 2, 3, 3};
     int map[4] = {0};
 
-    remove_extra_space(A, row_sizes, col_sizes, true, map);
+    //int n_new_cols = update_column_map(col_sizes, map, 4);
+   // remove_extra_space(A, row_sizes, col_sizes, true, map, n_new_cols);
 
     int stay = 1;
     int subst = 0;
@@ -338,7 +346,8 @@ static char *test_06_dton()
     mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes_correct, row_sizes, 3));
 
     int col_sizes_new[] = {SIZE_INACTIVE_COL, 2, 3, 3};
-    remove_extra_space(A, row_sizes, col_sizes_new, true, map);
+    int n_new_cols = update_column_map(col_sizes_new, map, 4);
+    remove_extra_space(A, row_sizes, col_sizes_new, true, map, n_new_cols);
 
     // check that new A is correct
     double Ax_correct[] = {-2, 1, 1, -1, 1, 1, 1, 1};
@@ -1548,8 +1557,9 @@ static char *test_17_dton()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     State *data = constraints->state;
+    int new_n_cols = update_column_map(data->col_sizes, data->work->mappings->cols, 5);
     remove_extra_space(A, data->row_sizes, data->col_sizes, true,
-                       data->work->mappings->cols);
+                       data->work->mappings->cols, new_n_cols);
 
     remove_dton_eq_rows(prob, 0);
     problem_clean(prob, true);
@@ -1605,10 +1615,12 @@ static char *test_18_dton()
     Matrix *A = constraints->A;
     Matrix *AT = constraints->AT;
     State *data = constraints->state;
+    int new_n_cols = update_column_map(data->col_sizes, data->work->mappings->cols, 5);
+    int new_n_rows = update_column_map(data->row_sizes, data->work->mappings->rows, 3);
     remove_extra_space(A, data->row_sizes, data->col_sizes, true,
-                       data->work->mappings->cols);
+                       data->work->mappings->cols, new_n_cols);
     remove_extra_space(AT, data->col_sizes, data->row_sizes, true,
-                       data->work->mappings->rows);
+                       data->work->mappings->rows, new_n_rows);
 
     remove_dton_eq_rows(prob, 0);
     problem_clean(prob, true);
@@ -1669,8 +1681,9 @@ static char *test_19_dton()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     State *data = constraints->state;
+    int new_n_cols = update_column_map(data->col_sizes, data->work->mappings->cols, 5);
     remove_extra_space(A, data->row_sizes, data->col_sizes, true,
-                       data->work->mappings->cols);
+                       data->work->mappings->cols, new_n_cols);
     remove_dton_eq_rows(prob, 0);
     problem_clean(prob, true);
 

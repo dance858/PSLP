@@ -109,7 +109,7 @@ To have consistency between A and AT we must update the column indices of A.
 This is done in the end of the function (columns[j] = colsmap[columns[j]]).
 */
 void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_sizes,
-                        bool remove_all, int *col_idxs_map);
+                        bool remove_all, const int *col_idxs_map, int new_n_cols);
 
 void print_row_starts(const RowRange *row_ranges, size_t len);
 
@@ -120,6 +120,7 @@ Matrix *random_matrix_new(size_t n_rows, size_t n_cols, double density);
 // rows; otherwise it throws an assertion
 void replace_row_A(Matrix *A, int row, double ratio, double *new_vals, int *cols_new,
                    int new_len);
+
 #endif
 
 #endif // SPARSE_LA_MATRIX_H

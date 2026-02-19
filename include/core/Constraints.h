@@ -90,4 +90,8 @@ void delete_inactive_rows(Constraints *constraints);
 */
 void delete_inactive_cols_from_A_and_AT(Constraints *constraints);
 
+#ifdef TESTING
+int update_column_map(const int *col_sizes, int *map, size_t n_cols);
+#endif
+
 #endif // CONSTRAINTS_H

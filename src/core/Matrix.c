@@ -199,7 +199,7 @@ void free_matrix(Matrix *A)
 }
 
 void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_sizes,
-                        bool remove_all, int *col_idxs_map)
+                        bool remove_all, const int *col_idxs_map, int new_n_cols)
 {
     int j, start, end, len, row_alloc, curr;
     int extra_row_space = (remove_all) ? 0 : EXTRA_ROW_SPACE;
@@ -243,19 +243,19 @@ void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_sizes,
     // -------------------------------------------------------------------------
     //                      compute new column indices
     // -------------------------------------------------------------------------
-    col_count = 0;
-    for (i = 0; i < A->n; ++i)
-    {
-        if (col_sizes[i] == SIZE_INACTIVE_COL)
-        {
-            col_idxs_map[i] = -1;
-        }
-        else
-        {
-            col_idxs_map[i] = (int) (col_count++);
-        }
-    }
-    A->n = col_count;
+    //col_count = 0;
+    // for (i = 0; i < A->n; ++i)
+    // {
+    //     if (col_sizes[i] == SIZE_INACTIVE_COL)
+    //     {
+    //         col_idxs_map[i] = -1;
+    //     }
+    //     else
+    //     {
+    //         col_idxs_map[i] = (int) (col_count++);
+    //     }
+    // }
+    A->n = new_n_cols;
 
     // -------------------------------------------------------------------------
     //                        update column indices
