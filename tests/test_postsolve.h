@@ -631,19 +631,20 @@ static char *test_6_postsolve()
     run_presolver(presolver);
 
     // construct optimal primal solution to reduced problem (computed offline).
-    // on linux/windows vs mac the parallel column kept is different, leading to
-    // different postsolved solutions
-#if defined(__linux__) || defined(_WIN32) || defined(__APPLE__)
+    // Different solutions are possible depending on the order of the reductions,
+    // which used to differ across platforms due to qsort but should perhaps
+    // not differ anymore with the radix sorting algorithm.
+    // #if defined(__linux__) || defined(_WIN32) || defined(__APPLE__)
     double x[] = {-2., 12.5, 21., -8.};
     double y[] = {0., 0., 0., 0., 0., 0., 0., 0.};
     double z[] = {3., -4., -3., 1.};
     double obj = 0.0;
-#else
-    double x[] = {-2., -8.33333333, -21., -8.};
-    double y[] = {0., 0., 0., 0., 0., 0., 0., 0.};
-    double z[] = {3., 6., 3., 1.};
-    double obj = 0.0;
-#endif
+    // #else
+    //     double x[] = {-2., -8.33333333, -21., -8.};
+    //     double y[] = {0., 0., 0., 0., 0., 0., 0., 0.};
+    //     double z[] = {3., 6., 3., 1.};
+    //     double obj = 0.0;
+    // #endif
 
     postsolve(presolver, x, y, z);
 
@@ -697,18 +698,18 @@ static char *test_7_postsolve()
     run_presolver(presolver);
 
     // construct optimal primal solution to reduced problem (computed offline)
-#if defined(__linux__) || defined(_WIN32) || defined(__APPLE__)
+    // #if defined(__linux__) || defined(_WIN32) || defined(__APPLE__)
     double x[] = {-2., 12.5, 21., -8.};
     double y[] = {0., 0., 0., 0., 0.};
     double z[] = {3., -4., -3., 1.};
     double obj = 0.0;
-#else
-    double x[] = {-25., -2., 21., -8.};
-    double y[] = {0., 0., 0., 0., 0.};
-    double z[] = {2., 3., -3., 1.};
-    double obj = 0.0;
+    // #else
+    //     double x[] = {-25., -2., 21., -8.};
+    //     double y[] = {0., 0., 0., 0., 0.};
+    //     double z[] = {2., 3., -3., 1.};
+    //     double obj = 0.0;
 
-#endif
+    // #endif
 
     postsolve(presolver, x, y, z);
 
