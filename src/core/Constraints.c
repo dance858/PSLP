@@ -308,12 +308,16 @@ void constraints_clean(Constraints *constraints, Mapping *map, bool remove_all)
     const int *col_sizes = constraints->state->col_sizes;
 
     remove_extra_space(constraints->A, row_sizes, col_sizes, remove_all, map->cols);
+    
+    /* we don't need these for anything so no need to clean it */
+#ifdef TESTING or ifndef NDEBUG
     remove_extra_space(constraints->AT, col_sizes, row_sizes, remove_all, map->rows);
+    rowTagPtr_shrink(constraints->row_tags, map->rows, constraints->m);
+    colTagPtr_shrink(constraints->col_tags, map->cols, constraints->n);
+#endif
 
     dPtr_shrink(constraints->rhs, map->rows, constraints->m);
     dPtr_shrink(constraints->lhs, map->rows, constraints->m);
-    rowTagPtr_shrink(constraints->row_tags, map->rows, constraints->m);
-    colTagPtr_shrink(constraints->col_tags, map->cols, constraints->n);
     bounds_shrink(constraints->bounds, map->cols, constraints->n);
     constraints->m = constraints->A->m;
     constraints->n = constraints->A->n;

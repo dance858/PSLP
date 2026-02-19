@@ -84,9 +84,8 @@ Settings *default_settings()
     stgs->parallel_cols = true;
     stgs->primal_propagation = true;
     stgs->dual_fix = true;
-    // stgs->clean_small_coeff = false;
     stgs->finite_bound_tightening = true;
-    stgs->relax_bounds = true;
+    stgs->relax_bounds = false;
     stgs->max_shift = 10;
     stgs->max_time = 60.0;
     stgs->verbose = true;
