@@ -28,14 +28,11 @@
 #include "Workspace.h"
 #include "iVec.h"
 #include "limits.h" // for INT_MAX
+#include "radix_sort.h"
 #include "utils.h"
 #include <PSLP_warnings.h>
 #include <math.h> // For round()
 #include <stdint.h>
-
-// global variables needed for qsort
-static int *global_sparsity_IDs;
-static int *global_coeff_hashes;
 
 // djb2 hash function
 static inline uint32_t hash_int_array(const int *arr, int size)
@@ -111,41 +108,10 @@ static inline
     }
 }
 
-int comparator(const void *a, const void *b)
+static void sort_rows(int *rows, size_t n, const int *sparsity_IDs,
+                      const int *coeff_hashes, int *aux)
 {
-    int idxA = *(const int *) a;
-    int idxB = *(const int *) b;
-
-    if (global_sparsity_IDs[idxA] < global_sparsity_IDs[idxB])
-    {
-        return -1;
-    }
-
-    if (global_sparsity_IDs[idxA] > global_sparsity_IDs[idxB])
-    {
-        return 1;
-    }
-
-    if (global_coeff_hashes[idxA] < global_coeff_hashes[idxB])
-    {
-        return -1;
-    }
-
-    if (global_coeff_hashes[idxA] > global_coeff_hashes[idxB])
-    {
-        return 1;
-    }
-
-    return 0;
-}
-
-// Sort function
-static inline void sort_rows(int *rows, size_t n_rows, int *sparsity_IDs,
-                             int *coeff_hashes)
-{
-    global_sparsity_IDs = sparsity_IDs;
-    global_coeff_hashes = coeff_hashes;
-    qsort(rows, n_rows, sizeof(int), comparator);
+    parallel_radix_sort_rows(rows, n, sparsity_IDs, coeff_hashes, aux);
 }
 
 static inline int get_bin_size(int start, size_t n_rows, const int *rows,
@@ -306,7 +272,7 @@ static inline int find_parallel_rows_in_bin(const Matrix *A, const int *bin,
 // replaced rows with parallel_rows for less memory usage
 void find_parallel_rows(const Matrix *A, const RowTag *r_Tags, iVec *group_starts,
                         int *parallel_rows, int *sparsity_IDs, int *coeff_hashes,
-                        RowTag INACTIVE_TAG)
+                        RowTag INACTIVE_TAG, int *radix_aux)
 {
     int i, bin_size;
     int n_p_rows_total = 0;
@@ -320,12 +286,16 @@ void find_parallel_rows(const Matrix *A, const RowTag *r_Tags, iVec *group_start
     // that rows with the same sparsity pattern and the same coefficient hash
     // value end up next to each other.
     // ------------------------------------------------------------------------
+    int n_active = 0;
     for (i = 0; i < A->m; i++)
     {
-        parallel_rows[i] = i;
+        if (sparsity_IDs[i] != INT_MAX)
+        {
+            parallel_rows[n_active++] = i;
+        }
     }
-
-    sort_rows(parallel_rows, A->m, sparsity_IDs, coeff_hashes);
+    sort_rows(parallel_rows, (size_t) n_active, sparsity_IDs, coeff_hashes,
+              radix_aux);
 
 #ifndef NDEBUG
     if (INACTIVE_TAG == R_TAG_INACTIVE)
@@ -341,14 +311,10 @@ void find_parallel_rows(const Matrix *A, const RowTag *r_Tags, iVec *group_start
     // ------------------------------------------------------------------------
     iVec_clear_no_resize(group_starts);
     iVec_append(group_starts, 0);
-    for (i = 0; i < A->m; i++)
+    for (i = 0; i < n_active; i++)
     {
-        if (HAS_TAG(r_Tags[parallel_rows[i]], INACTIVE_TAG))
-        {
-            break;
-        }
-
-        bin_size = get_bin_size(i, A->m, parallel_rows, sparsity_IDs, coeff_hashes);
+        bin_size = get_bin_size(i, (size_t) n_active, parallel_rows, sparsity_IDs,
+                                coeff_hashes);
 
         // find the parallel rows in the bin
         if (bin_size > 1)
@@ -610,7 +576,8 @@ PresolveStatus remove_parallel_rows(Constraints *constraints)
     iVec *group_starts = constraints->state->work->int_vec;
 
     find_parallel_rows(constraints->A, constraints->row_tags, group_starts,
-                       parallel_rows, sparsity_IDs, coeff_hashes, R_TAG_INACTIVE);
+                       parallel_rows, sparsity_IDs, coeff_hashes, R_TAG_INACTIVE,
+                       constraints->state->work->radix_aux);
 
     PresolveStatus status =
         process_all_bins(constraints, parallel_rows, group_starts);

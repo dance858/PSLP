@@ -46,6 +46,10 @@ typedef struct Work
     // int_vec is used within parallel_rows and dual propagation
     iVec *int_vec;
 
+    // radix_aux is used as auxiliary buffer for radix sort in parallel_rows/cols
+    // TODO: do we really need this? or can we reuse space?
+    int *radix_aux;
+
     Mapping *mappings;
 } Work;
 

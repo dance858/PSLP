@@ -77,6 +77,8 @@ static char *test_01_presolver()
                   0., 0.,    0., 0., 0., 0.,   -0.48, 0., 0., 10.};
 
     Settings *stgs = default_settings();
+    stgs->parallel_rows = false;
+    stgs->parallel_cols = false;
     Presolver *presolver =
         new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
     mu_assert("Presolver initialization failed", presolver != NULL);

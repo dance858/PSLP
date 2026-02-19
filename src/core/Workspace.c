@@ -35,6 +35,7 @@ Work *new_work(size_t n_rows, size_t n_cols)
     work->iwork2_max_nrows_ncols =
         (int *) ps_calloc(MAX(n_rows, n_cols), sizeof(int));
     work->int_vec = iVec_new(INT_VEC_INITIALIZATION);
+    work->radix_aux = (int *) ps_calloc(MAX(n_rows, n_cols), sizeof(int));
     work->mappings = (Mapping *) ps_malloc(1, sizeof(Mapping));
     work->mappings->cols = (int *) ps_malloc(n_cols, sizeof(int));
     work->mappings->rows = (int *) ps_malloc(n_rows, sizeof(int));
@@ -42,7 +43,7 @@ Work *new_work(size_t n_rows, size_t n_cols)
     if (!work->iwork_n_cols || !work->iwork_n_rows ||
         !work->iwork1_max_nrows_ncols || !work->iwork2_max_nrows_ncols ||
         !work->int_vec || !work->mappings || !work->mappings->cols ||
-        !work->mappings->rows)
+        !work->mappings->rows || !work->radix_aux)
     {
         free_work(work);
         return NULL;
@@ -66,5 +67,6 @@ void free_work(Work *work)
     PS_FREE(work->mappings->cols);
     PS_FREE(work->mappings->rows);
     PS_FREE(work->mappings);
+    PS_FREE(work->radix_aux);
     PS_FREE(work);
 }

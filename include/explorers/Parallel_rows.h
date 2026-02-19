@@ -55,7 +55,8 @@ void compute_supp_and_coeff_hash(const struct Matrix *A, const RowTag *rowtags,
 */
 void find_parallel_rows(const struct Matrix *A, const RowTag *r_Tags,
                         struct iVec *group_starts, int *parallel_rows,
-                        int *sparsity_IDs, int *coeff_hashes, RowTag INACTIVE_TAG);
+                        int *sparsity_IDs, int *coeff_hashes, RowTag INACTIVE_TAG,
+                        int *radix_aux);
 
 /* This function finds parallel rows and deletes the redundant ones, or declares
    the problem as infeasible if the parallel rows are not consistent. It returns

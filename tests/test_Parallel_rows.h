@@ -100,9 +100,10 @@ static char *test_3_parallel_rows()
     int parallel_rows[5];
     int sparsity_IDs[5];
     int coeff_hashes[5];
+    int radix_aux[5];
 
     find_parallel_rows(A, row_tags, group_start, parallel_rows, sparsity_IDs,
-                       coeff_hashes, R_TAG_INACTIVE);
+                       coeff_hashes, R_TAG_INACTIVE, radix_aux);
 
 #ifdef _WIN32
     int parallel_rows_correct[] = {0, 4, 1, 3};
@@ -207,9 +208,10 @@ static char *test_4_parallel_rows()
     int parallel_rows[1000];
     int sparsity_IDs[1000];
     int coeff_hashes[1000];
+    int radix_aux[1000];
 
     find_parallel_rows(A, row_tags, group_start, parallel_rows, sparsity_IDs,
-                       coeff_hashes, R_TAG_INACTIVE);
+                       coeff_hashes, R_TAG_INACTIVE, radix_aux);
 
     mu_assert("error group_starts len", group_start->len == 4);
     int group_start_correct[] = {0, 8, 16, 24};
@@ -373,6 +375,7 @@ static char *test_5_parallel_rows()
     int parallel_rows[1000] = {0};
     int sparsity_IDs[1000] = {0};
     int coeff_hashes[1000] = {0};
+    int radix_aux[1000];
 
     row_tags[0] = R_TAG_INACTIVE;
     row_tags[200] = R_TAG_INACTIVE;
@@ -380,7 +383,7 @@ static char *test_5_parallel_rows()
     row_tags[310] = R_TAG_INACTIVE;
 
     find_parallel_rows(A, row_tags, group_start, parallel_rows, sparsity_IDs,
-                       coeff_hashes, R_TAG_INACTIVE);
+                       coeff_hashes, R_TAG_INACTIVE, radix_aux);
 
     mu_assert("error group_starts len", group_start->len == 4);
     // int group_start_correct[] = {0, 8, 14, 20};

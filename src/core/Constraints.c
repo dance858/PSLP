@@ -326,10 +326,11 @@ void constraints_clean(Constraints *constraints, Mapping *map, bool remove_all)
     const int *col_sizes = constraints->state->col_sizes;
 
     size_t new_n_cols = update_column_map(col_sizes, map->cols, constraints->n);
-    size_t new_n_rows = update_column_map(row_sizes, map->rows, constraints->m);
     remove_extra_space(constraints->A, row_sizes, remove_all, map->cols,
                        new_n_cols);
 
+    size_t new_n_rows = update_column_map(row_sizes, map->rows, constraints->m);
+    
     /* we don't need these for anything so no need to clean it */
 #if defined(TESTING) || !defined(NDEBUG)
     remove_extra_space(constraints->AT, col_sizes, remove_all, map->rows,

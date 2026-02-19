@@ -10,6 +10,7 @@
 #include "test_iVec.h"
 #include "test_pathological.h"
 #include "test_postsolve.h"
+#include "test_radix_sort.h"
 #include "test_ston.h"
 
 const char *run_all_tests()
@@ -22,6 +23,7 @@ const char *run_all_tests()
     mu_assert("ston error", test_ston());
     mu_assert("simple reductions error", test_simple());
     mu_assert("domain propagation error", test_domain());
+    mu_assert("radix_sort error", test_radix_sort());
     mu_assert("presolver error", test_presolver());
     mu_assert("pathological error", test_pathological());
 
