@@ -160,7 +160,7 @@ static inline void can_dton_be_eliminated(Matrix *AT, const double *row_vals,
     abs_pivot = ABS(abs_pivot);
     if (abs_pivot > MAX_RATIO_PIVOT || abs_pivot < 1 / MAX_RATIO_PIVOT)
     {
-        assert("Is this ever triggered now with this small threshold?");
+        assert(0 && "Is this ever triggered now with this small threshold?");
         *stay = -1;
         *subst = -1;
         return;
@@ -236,9 +236,9 @@ static inline void modify_bounds(Constraints *constraints, int i, double aij,
 #ifndef TESTING
 static inline
 #endif
-    Old_and_new_coeff
-    update_row_A_dton(Matrix *A, int i, int q, int j, int k, double aij, double aik,
-                      int *row_size, PostsolveInfo *postsolve_info)
+    Old_and_new_coeff update_row_A_dton(Matrix *A, int i, int q, int j, int k,
+                                        double aij, double aik, int *row_size,
+                                        PostsolveInfo *postsolve_info)
 {
     int ii, start, end, insertion;
     double old_val = 0.0;

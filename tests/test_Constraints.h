@@ -62,9 +62,9 @@ static char *test_1_constraints()
 
     int work_map[4] = {0};
     int new_n_cols = update_column_map(col_sizes, work_map, 4);
-    remove_extra_space(A, row_sizes, col_sizes, true, work_map, new_n_cols);
+    remove_extra_space(A, row_sizes, true, work_map, new_n_cols);
     int new_n_rows = update_column_map(row_sizes, work_map, 3);
-    remove_extra_space(AT, col_sizes, row_sizes, true, work_map, new_n_rows);
+    remove_extra_space(AT, col_sizes, true, work_map, new_n_rows);
 
     double A_vals_correct[] = {2, -1, 1, 1, 1, 1};
     int A_cols_correct[] = {0, 3, 0, 1, 2, 3};
@@ -132,7 +132,7 @@ static char *test_2_constraints()
         constraints_new(A, AT, lhs, rhs, bounds, data, row_tags, col_tags);
 
     // remove rows 1, 3, 5
-    iVec_append_array(data->rows_to_delete, (int[]){1, 3, 5}, 3);
+    iVec_append_array(data->rows_to_delete, (int[]) {1, 3, 5}, 3);
     delete_inactive_rows(constraints);
 
     // test for correctness
@@ -145,9 +145,9 @@ static char *test_2_constraints()
 
     int work_map[10] = {0};
     int new_n_cols = update_column_map(col_sizes, work_map, 10);
-    remove_extra_space(A, row_sizes, col_sizes, true, work_map, new_n_cols);
+    remove_extra_space(A, row_sizes, true, work_map, new_n_cols);
     int new_n_rows = update_column_map(row_sizes, work_map, 10);
-    remove_extra_space(AT, col_sizes, row_sizes, true, work_map, new_n_rows);
+    remove_extra_space(AT, col_sizes, true, work_map, new_n_rows);
 
     double A_vals_correct[] = {1.3,   -0.6,  0.26,  -0.42, 1.31,  0.47, -1.47, 0.63,
                                -0.93, -1.46, -2.37, 0.25,  -1.45, -0.5, 0.61,  1.38,
@@ -226,9 +226,9 @@ static char *test_3_constraints()
 
     int work_map[4] = {0};
     int new_n_cols = update_column_map(col_sizes, work_map, 4);
-    remove_extra_space(A, row_sizes, col_sizes, true, work_map, new_n_cols);
+    remove_extra_space(A, row_sizes, true, work_map, new_n_cols);
     int new_n_rows = update_column_map(row_sizes, work_map, 3);
-    remove_extra_space(AT, col_sizes, row_sizes, true, work_map, new_n_rows);
+    remove_extra_space(AT, col_sizes, true, work_map, new_n_rows);
 
     double A_vals_correct[] = {1, 1, 2, -1, 1, 1, 1};
     int A_cols_correct[] = {0, 1, 0, 2, 0, 1, 2};
@@ -292,7 +292,7 @@ static char *test_4_constraints()
         constraints_new(A, AT, lhs, rhs, bounds, data, row_tags, col_tags);
 
     // remove cols 1, 3, 5
-    iVec_append_array(data->fixed_cols_to_delete, (int[]){1, 3, 5}, 3);
+    iVec_append_array(data->fixed_cols_to_delete, (int[]) {1, 3, 5}, 3);
     delete_inactive_cols_from_A_and_AT(constraints);
 
     // test for correctness
@@ -305,9 +305,9 @@ static char *test_4_constraints()
 
     int work_map[10] = {0};
     int new_n_cols = update_column_map(col_sizes, work_map, 10);
-    remove_extra_space(A, row_sizes, col_sizes, true, work_map, new_n_cols);
+    remove_extra_space(A, row_sizes, true, work_map, new_n_cols);
     int new_n_rows = update_column_map(row_sizes, work_map, 10);
-    remove_extra_space(AT, col_sizes, row_sizes, true, work_map, new_n_rows);
+    remove_extra_space(AT, col_sizes, true, work_map, new_n_rows);
 
     double A_vals_correct[] = {1.12, -0.29, -0.35, -0.72, 0.82, 0.32,  1.38,  -0.44,
                                0.05, 1.17,  0.21,  0.68,  1.38, -0.56, -0.33, -0.1,

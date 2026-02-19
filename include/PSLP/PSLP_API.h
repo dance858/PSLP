@@ -102,7 +102,7 @@ extern "C"
     } Presolver;
 
     /* The user is responsible for freeing the settings using 'free_settings'. */
-    Settings *default_settings();
+    Settings *default_settings(void);
     void free_settings(Settings *stgs);
     void set_settings_true(Settings *stgs);
     void set_settings_false(Settings *stgs);
