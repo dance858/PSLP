@@ -29,6 +29,6 @@ void radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
 // Parallel version: splits into 4 chunks, sorts in parallel, merges.
 // Falls back to sequential radix_sort_rows for n < 100000.
 void parallel_radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
-                               const int *coeff_hashes, int *aux);
+                              const int *coeff_hashes, int *aux);
 
 #endif /* RADIX_SORT_H */

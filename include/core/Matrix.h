@@ -108,8 +108,8 @@ empty column of A, will be removed when this function is called on AT.
 To have consistency between A and AT we must update the column indices of A.
 This is done in the end of the function (columns[j] = colsmap[columns[j]]).
 */
-void remove_extra_space(Matrix *A, const int *row_sizes,
-                        bool remove_all, const int *col_idxs_map, size_t new_n_cols);
+void remove_extra_space(Matrix *A, const int *row_sizes, bool remove_all,
+                        const int *col_idxs_map, size_t new_n_cols);
 
 void print_row_starts(const RowRange *row_ranges, size_t len);
 

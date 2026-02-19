@@ -157,9 +157,8 @@ static inline int merge_compare(int a, int b, const int *sparsity_IDs,
 
 // 4-way merge of sorted chunks into dst.
 static void merge_4way(int *dst, int *chunk_ptrs[NUM_SORT_THREADS],
-                       size_t chunk_sizes[NUM_SORT_THREADS],
-                       const int *sparsity_IDs, const int *coeff_hashes,
-                       size_t total_n)
+                       size_t chunk_sizes[NUM_SORT_THREADS], const int *sparsity_IDs,
+                       const int *coeff_hashes, size_t total_n)
 {
     size_t pos[NUM_SORT_THREADS] = {0, 0, 0, 0};
 
@@ -181,7 +180,7 @@ static void merge_4way(int *dst, int *chunk_ptrs[NUM_SORT_THREADS],
 }
 
 void parallel_radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
-                               const int *coeff_hashes, int *aux)
+                              const int *coeff_hashes, int *aux)
 {
     if (n < PARALLEL_SORT_THRESHOLD)
     {

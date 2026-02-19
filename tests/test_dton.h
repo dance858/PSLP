@@ -1559,8 +1559,8 @@ static char *test_17_dton()
     State *data = constraints->state;
     int new_n_cols =
         update_column_map(data->col_sizes, data->work->mappings->cols, 5);
-    remove_extra_space(A, data->row_sizes, true,
-                       data->work->mappings->cols, new_n_cols);
+    remove_extra_space(A, data->row_sizes, true, data->work->mappings->cols,
+                       new_n_cols);
 
     remove_dton_eq_rows(prob, 0);
     problem_clean(prob, true);
@@ -1620,10 +1620,10 @@ static char *test_18_dton()
         update_column_map(data->col_sizes, data->work->mappings->cols, 5);
     int new_n_rows =
         update_column_map(data->row_sizes, data->work->mappings->rows, 3);
-    remove_extra_space(A, data->row_sizes, true,
-                       data->work->mappings->cols, new_n_cols);
-    remove_extra_space(AT, data->col_sizes, true,
-                       data->work->mappings->rows, new_n_rows);
+    remove_extra_space(A, data->row_sizes, true, data->work->mappings->cols,
+                       new_n_cols);
+    remove_extra_space(AT, data->col_sizes, true, data->work->mappings->rows,
+                       new_n_rows);
 
     remove_dton_eq_rows(prob, 0);
     problem_clean(prob, true);
@@ -1686,8 +1686,8 @@ static char *test_19_dton()
     State *data = constraints->state;
     int new_n_cols =
         update_column_map(data->col_sizes, data->work->mappings->cols, 5);
-    remove_extra_space(A, data->row_sizes, true,
-                       data->work->mappings->cols, new_n_cols);
+    remove_extra_space(A, data->row_sizes, true, data->work->mappings->cols,
+                       new_n_cols);
     remove_dton_eq_rows(prob, 0);
     problem_clean(prob, true);
 

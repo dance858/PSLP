@@ -10,8 +10,8 @@
 
 static int counter_radix_sort = 0;
 
-// helper: check that rows are sorted by (sparsity_IDs[rows[i]], coeff_hashes[rows[i]])
-// treated as unsigned uint32_t, matching radix sort behavior
+// helper: check that rows are sorted by (sparsity_IDs[rows[i]],
+// coeff_hashes[rows[i]]) treated as unsigned uint32_t, matching radix sort behavior
 static int is_sorted_by_keys(const int *rows, int n, const int *sparsity_IDs,
                              const int *coeff_hashes)
 {
@@ -90,7 +90,8 @@ static char *test_3_radix_sort()
     int aux[5];
 
     radix_sort_rows(rows, (size_t) n, sparsity_IDs, coeff_hashes, aux);
-    mu_assert("should be sorted", is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
+    mu_assert("should be sorted",
+              is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
     mu_assert("should be permutation", is_permutation(rows, n));
     return 0;
 }
@@ -105,7 +106,8 @@ static char *test_4_radix_sort()
     int aux[5];
 
     radix_sort_rows(rows, (size_t) n, sparsity_IDs, coeff_hashes, aux);
-    mu_assert("should be sorted", is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
+    mu_assert("should be sorted",
+              is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
     mu_assert("should be permutation", is_permutation(rows, n));
 
     // row 4 has smallest sparsity_ID (10) so should be first
@@ -124,7 +126,8 @@ static char *test_5_radix_sort()
     int aux[4];
 
     radix_sort_rows(rows, (size_t) n, sparsity_IDs, coeff_hashes, aux);
-    mu_assert("should be sorted", is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
+    mu_assert("should be sorted",
+              is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
 
     // sorted by coeff_hash: 10(row1), 20(row3), 30(row2), 40(row0)
     mu_assert("first", rows[0] == 1);
@@ -153,7 +156,8 @@ static char *test_6_radix_sort()
     }
 
     radix_sort_rows(rows, (size_t) n, sparsity_IDs, coeff_hashes, aux);
-    mu_assert("should be sorted", is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
+    mu_assert("should be sorted",
+              is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
     mu_assert("should be permutation", is_permutation(rows, n));
 
     // positive sparsity_IDs (unsigned < 0x80000000) should come before
@@ -165,7 +169,8 @@ static char *test_6_radix_sort()
         if (sp < 0) saw_negative = 1;
         if (saw_negative && sp >= 0)
         {
-            mu_assert("positive should not appear after negative in unsigned order", 0);
+            mu_assert("positive should not appear after negative in unsigned order",
+                      0);
         }
     }
     return 0;
@@ -189,7 +194,8 @@ static char *test_7_radix_sort()
     }
 
     radix_sort_rows(rows, (size_t) n, sparsity_IDs, coeff_hashes, aux);
-    mu_assert("should be sorted", is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
+    mu_assert("should be sorted",
+              is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
     mu_assert("should be permutation", is_permutation(rows, n));
     return 0;
 }
@@ -212,7 +218,8 @@ static char *test_8_radix_sort()
     }
 
     radix_sort_rows(rows, (size_t) n, sparsity_IDs, coeff_hashes, aux);
-    mu_assert("should be sorted", is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
+    mu_assert("should be sorted",
+              is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
     mu_assert("should be permutation", is_permutation(rows, n));
 
     free(rows);
@@ -239,12 +246,14 @@ static char *test_9_radix_sort()
     }
 
     radix_sort_rows(rows, (size_t) n, sparsity_IDs, coeff_hashes, aux);
-    mu_assert("should be sorted", is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
+    mu_assert("should be sorted",
+              is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
     mu_assert("should be permutation", is_permutation(rows, n));
     return 0;
 }
 
-/* Test 10: parallel_radix_sort_rows on a large array (exercises the parallel path) */
+/* Test 10: parallel_radix_sort_rows on a large array (exercises the parallel path)
+ */
 static char *test_10_radix_sort()
 {
     int n = 200000;
@@ -262,7 +271,8 @@ static char *test_10_radix_sort()
     }
 
     parallel_radix_sort_rows(rows, (size_t) n, sparsity_IDs, coeff_hashes, aux);
-    mu_assert("should be sorted", is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
+    mu_assert("should be sorted",
+              is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
     mu_assert("should be permutation", is_permutation(rows, n));
 
     free(rows);
@@ -290,7 +300,8 @@ static char *test_11_radix_sort()
     }
 
     parallel_radix_sort_rows(rows, (size_t) n, sparsity_IDs, coeff_hashes, aux);
-    mu_assert("should be sorted", is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
+    mu_assert("should be sorted",
+              is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
     mu_assert("should be permutation", is_permutation(rows, n));
     return 0;
 }
@@ -314,12 +325,13 @@ static char *test_12_radix_sort()
 
     // set some extreme values
     sparsity_IDs[0] = 0;
-    sparsity_IDs[1] = 2147483647;    // INT_MAX = 0x7FFFFFFF
-    sparsity_IDs[2] = -2147483648;   // INT_MIN = 0x80000000
-    sparsity_IDs[3] = -1;            // 0xFFFFFFFF
+    sparsity_IDs[1] = 2147483647;  // INT_MAX = 0x7FFFFFFF
+    sparsity_IDs[2] = -2147483648; // INT_MIN = 0x80000000
+    sparsity_IDs[3] = -1;          // 0xFFFFFFFF
 
     radix_sort_rows(rows, (size_t) n, sparsity_IDs, coeff_hashes, aux);
-    mu_assert("should be sorted", is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
+    mu_assert("should be sorted",
+              is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
     mu_assert("should be permutation", is_permutation(rows, n));
 
     // In unsigned order: row0(sp=0) should come before row1(sp=INT_MAX)

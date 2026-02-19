@@ -132,8 +132,7 @@ double compute_max_act_one_tag(const double *vals, const int *cols, int len,
 void update_activities_bound_change(Activity *activities, const struct Matrix *A,
                                     const struct Bound *bounds, const double *vals,
                                     const int *rows, int len, double old_bound,
-                                    double new_bound, bool finite_bound,
-                                    bool lower,
+                                    double new_bound, bool finite_bound, bool lower,
                                     iVec *updated_activities HUGE_BOUND_PARAM);
 
 void update_activities_fixed_col(Activity *activities, const struct Matrix *A,

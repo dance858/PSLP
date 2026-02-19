@@ -484,8 +484,7 @@ Altered_Activity update_act_bound_change(Activity *act, double coeff,
 void update_activities_bound_change(Activity *activities, const Matrix *A,
                                     const Bound *bounds, const double *vals,
                                     const int *rows, int len, double old_bound,
-                                    double new_bound, bool finite_bound,
-                                    bool lower,
+                                    double new_bound, bool finite_bound, bool lower,
                                     iVec *updated_activities HUGE_BOUND_PARAM)
 {
     assert(!IS_HUGE(new_bound) || huge_bound_ok);

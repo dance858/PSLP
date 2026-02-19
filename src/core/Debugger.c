@@ -717,7 +717,7 @@ void verify_activity(const ColTag *col_tags, const Bound *bounds, Activity activ
                 min += vals[i] * bounds[col].ub;
             }
         }
-    
+
         assert(ABS(activity.min - min) < 1e-6);
     }
 }

@@ -517,7 +517,7 @@ run_medium_explorers(Problem *prob, const Settings *stgs, PresolveStats *stats)
     if (stgs->parallel_rows)
     {
         nnz_before = *nnz;
-        
+
         // the actual reduction (after removing parallel rows there can
         // be no new empty or ston rows so no need to run trivial presolvers)
         clock_gettime(CLOCK_MONOTONIC, &timer.start);
@@ -534,7 +534,7 @@ run_medium_explorers(Problem *prob, const Settings *stgs, PresolveStats *stats)
     if (stgs->parallel_cols)
     {
         nnz_before = *nnz;
-        
+
         // the actual reduction (after removing parallel columns there can
         // be no new empty rows or empty cols but might be new stonrows, probably
         // although that's rare but it does happen)
@@ -670,8 +670,8 @@ PresolveStatus run_presolver(Presolver *presolver)
     {
         // before each phase we run the trivial presolvers
         nnz_before_reduction = A->nnz;
-        RUN_AND_TIME(run_trivial_explorers, inner_timer, stats->time_trivial_reductions,
-                     status, prob, stgs);
+        RUN_AND_TIME(run_trivial_explorers, inner_timer,
+                     stats->time_trivial_reductions, status, prob, stgs);
 
         // run_trivial_explorers returns something else than UNCHANGED only
         // if the problem is detected to be infeasible or unbounded

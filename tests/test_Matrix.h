@@ -56,8 +56,7 @@ static char *test_1_matrix()
     int col_sizes_AT[6] = {3, 3, 1, 2, 1, 1};
     int col_idxs_map_AT[6] = {0};
     int n_new_cols_AT = update_column_map(col_sizes_AT, col_idxs_map_AT, 6);
-    remove_extra_space(AT, row_sizes_AT, true, col_idxs_map_AT,
-                       n_new_cols_AT);
+    remove_extra_space(AT, row_sizes_AT, true, col_idxs_map_AT, n_new_cols_AT);
 
     // correct answer
     double AT_vals_correct[] = {1, 3, -1, 1, 1, 2, 1, 1, 1, 1, 1};

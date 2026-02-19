@@ -198,8 +198,8 @@ void free_matrix(Matrix *A)
     PS_FREE(A);
 }
 
-void remove_extra_space(Matrix *A, const int *row_sizes, bool remove_all, 
-                       const int *col_idxs_map, size_t new_n_cols)
+void remove_extra_space(Matrix *A, const int *row_sizes, bool remove_all,
+                        const int *col_idxs_map, size_t new_n_cols)
 {
     int j, start, end, len, row_alloc, curr;
     int extra_row_space = (remove_all) ? 0 : EXTRA_ROW_SPACE;
