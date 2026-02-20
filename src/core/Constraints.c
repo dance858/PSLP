@@ -329,6 +329,7 @@ void constraints_clean(Constraints *constraints, Mapping *map, bool remove_all)
     remove_extra_space(constraints->A, row_sizes, remove_all, map->cols, new_n_cols);
 
     size_t new_n_rows = update_column_map(row_sizes, map->rows, constraints->m);
+    (void) new_n_rows;
 
     /* we don't need these for anything so no need to clean it */
 #if defined(TESTING) || !defined(NDEBUG)
