@@ -30,6 +30,7 @@ const char *run_all_tests()
 
 #ifndef _WIN32
     /* windows build seems to keep different order of parallel rows/cols */
+    mu_assert("parallel_rows error", test_parallel_rows());
     mu_assert("parallel_cols error", test_parallel_cols());
 #endif
     mu_assert("postsolve error", test_postsolve());
