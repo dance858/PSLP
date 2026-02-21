@@ -30,8 +30,10 @@ const char *run_all_tests()
     mu_assert("radix_sort error", test_radix_sort());
     printf("after radix sort tests \n");
     fflush(stdout);
+    printf("before presolver tests \n");
     mu_assert("presolver error", test_presolver());
     printf("after presolver tests \n");
+    fflush(stdout);
     mu_assert("pathological error", test_pathological());
     mu_assert("parallel_rows error", test_parallel_rows());
 
