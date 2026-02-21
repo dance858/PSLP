@@ -26,12 +26,12 @@ const char *run_all_tests()
     mu_assert("radix_sort error", test_radix_sort());
     mu_assert("presolver error", test_presolver());
     mu_assert("pathological error", test_pathological());
-
-    // #ifndef _WIN32
-    /* windows build seems to keep different order of parallel rows/cols */
     mu_assert("parallel_rows error", test_parallel_rows());
+
+#ifndef _WIN32
+    /* windows build seems to keep different order of parallel rows/cols */
     mu_assert("parallel_cols error", test_parallel_cols());
-    // #endif
+#endif
     mu_assert("postsolve error", test_postsolve());
 
     return NULL;
