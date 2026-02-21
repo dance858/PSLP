@@ -631,20 +631,10 @@ static char *test_6_postsolve()
     run_presolver(presolver);
 
     // construct optimal primal solution to reduced problem (computed offline).
-    // Different solutions are possible depending on the order of the reductions,
-    // which used to differ across platforms due to qsort but should perhaps
-    // not differ anymore with the radix sorting algorithm.
-    // #if defined(__linux__) || defined(_WIN32) || defined(__APPLE__)
     double x[] = {-2., 10.5, -(8.0 + 1.0 / 3.0), -8.};
     double y[] = {0., 0., 0., 0., 0., 0., 0., 0.};
     double z[] = {3., -6., 6., 1.};
     double obj = 0.0;
-    // #else
-    // double x[] = {-2., -8.33333333, -21., -8.};
-    // double y[] = {0., 0., 0., 0., 0., 0., 0., 0.};
-    // double z[] = {3., 6., 3., 1.};
-    // double obj = 0.0;
-    // #endif
 
     postsolve(presolver, x, y, z);
 
@@ -698,18 +688,10 @@ static char *test_7_postsolve()
     run_presolver(presolver);
 
     // construct optimal primal solution to reduced problem (computed offline)
-    // #if defined(__linux__) || defined(_WIN32) || defined(__APPLE__)
     double x[] = {-2., 10.5, -(8.0 + 1.0 / 3.0), -8.};
     double y[] = {0., 0., 0., 0., 0.};
     double z[] = {3., -6., 6., 1.};
     double obj = 0.0;
-    // #else
-    //     double x[] = {-25., -2., 21., -8.};
-    //     double y[] = {0., 0., 0., 0., 0.};
-    //     double z[] = {2., 3., -3., 1.};
-    //     double obj = 0.0;
-
-    // #endif
 
     postsolve(presolver, x, y, z);
 
@@ -718,9 +700,6 @@ static char *test_7_postsolve()
     double correct_y[] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     double correct_z[] = {2., 3., -4., -3., -6., 6., 3., 1.};
 
-    // on mac another solution seems to be postsolved, because a different parallel
-    // column is kept. So for non-linux we just check the objective value (not
-    // feasibility)
     mu_assert("postsolve error",
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,

@@ -105,12 +105,7 @@ static char *test_3_parallel_rows()
     find_parallel_rows(A, row_tags, group_start, parallel_rows, sparsity_IDs,
                        coeff_hashes, R_TAG_INACTIVE, radix_aux);
 
-    // #ifdef _WIN32
     int parallel_rows_correct[] = {0, 4, 1, 3};
-    // #else
-    // int parallel_rows_correct[] = {4, 0, 3, 1};
-    // #endif
-
     int group_start_correct[] = {0, 2, 4};
     mu_assert("error", ARRAYS_EQUAL_INT(parallel_rows_correct, parallel_rows, 4));
     mu_assert("error", group_start->len == 3);

@@ -40,12 +40,6 @@ static char *test_1_parallel_cols()
     remove_parallel_cols(prob);
     problem_clean(prob, true);
 
-    // print A->x
-    for (size_t i = 0; i < A->nnz; ++i)
-    {
-        printf("A->x[%zu] = %f\n", i, A->x[i]);
-    }
-
     // check that new A is correct
     double Ax_correct[] = {-1, -1};
     int Ai_correct[] = {0, 1};
@@ -555,9 +549,6 @@ static char *test_8_parallel_cols()
                         5, 0, 1, 2, 3, 4, 5, 0, 5, 0, 5, 0, 5};
     int Ap_correct[] = {0, 6, 9, 15, 18, 24, 29, 35, 37, 39, 41};
 
-// on mac the order of the columns is different, so we only run this test on
-// linux
-#ifdef __linux__
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, A->nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, A->nnz));
     mu_assert("rows", check_row_starts(A, Ap_correct));
@@ -572,7 +563,6 @@ static char *test_8_parallel_cols()
     double obj_correct[] = {3, -4, -3, 6, 3, 1};
     mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 6));
     mu_assert("error offset", prob->obj->offset == 0);
-#endif // __linux__
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
