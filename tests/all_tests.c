@@ -35,7 +35,12 @@ const char *run_all_tests()
     printf("after presolver tests \n");
     fflush(stdout);
     mu_assert("pathological error", test_pathological());
+
+    printf("before parallel rows tests \n");
+    fflush(stdout);
     mu_assert("parallel_rows error", test_parallel_rows());
+    printf("after parallel rows tests \n");
+    fflush(stdout);
 
 #ifndef _WIN32
     /* windows build seems to keep different order of parallel rows/cols */
