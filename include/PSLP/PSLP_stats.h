@@ -48,6 +48,8 @@ extern "C"
         double time_trivial_reductions;
         double time_fast_reductions;
         double time_medium_reductions;
+        double time_ston_cols;
+        double time_dton_rows;
         double time_primal_propagation;
         double time_parallel_rows;
         double time_parallel_cols;

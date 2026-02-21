@@ -451,16 +451,21 @@ static inline PresolveStatus run_trivial_explorers(Problem *prob,
    rows, singleton columns, and simple dual fix. It returns UNCHANGED even if
    the problem was reduced (provided that the problem does not seem infeasible or
    bounded). */
-static inline PresolveStatus run_fast_explorers(Problem *prob, const Settings *stgs)
+static inline PresolveStatus run_fast_explorers(Problem *prob, const Settings *stgs,
+                                                PresolveStats *stats)
 {
     assert(prob->constraints->state->ston_rows->len == 0);
     assert(prob->constraints->state->empty_rows->len == 0);
     assert(prob->constraints->state->empty_cols->len == 0);
     PresolveStatus status = UNCHANGED;
+    Timer timer;
 
     if (stgs->ston_cols)
     {
+        clock_gettime(CLOCK_MONOTONIC, &timer.start);
         status |= remove_ston_cols(prob);
+        clock_gettime(CLOCK_MONOTONIC, &timer.end);
+        stats->time_ston_cols += GET_ELAPSED_SECONDS(timer);
 
         // after removing singleton columns, there can be new empty columns
         // and singleton rows, but no empty rows
@@ -470,7 +475,10 @@ static inline PresolveStatus run_fast_explorers(Problem *prob, const Settings *s
 
     if (stgs->dton_eq)
     {
+        clock_gettime(CLOCK_MONOTONIC, &timer.start);
         status |= remove_dton_eq_rows(prob, stgs->max_shift);
+        clock_gettime(CLOCK_MONOTONIC, &timer.end);
+        stats->time_dton_rows += GET_ELAPSED_SECONDS(timer);
         // after removing doubleton equality rows, there can be new empty rows,
         // new singleton rows, and new empty columns
         status |= run_trivial_explorers(prob, stgs);
@@ -689,7 +697,7 @@ PresolveStatus run_presolver(Presolver *presolver)
         {
             nnz_before_reduction = A->nnz;
             RUN_AND_TIME(run_fast_explorers, inner_timer,
-                         stats->time_fast_reductions, status, prob, stgs);
+                         stats->time_fast_reductions, status, prob, stgs, stats);
             stats->nnz_removed_fast += nnz_before_reduction - A->nnz;
         }
         else if (curr_complexity == MEDIUM)
