@@ -18,13 +18,17 @@ const char *run_all_tests()
     mu_assert("matrix error", test_matrix());
     mu_assert("constraints error", test_constraints());
     mu_assert("iVec error", test_iVec());
+    printf("after iVec tests \n");
     mu_assert("dton error", test_dton());
+    printf("after dton tests \n");
     mu_assert("core error", test_core());
     mu_assert("ston error", test_ston());
     mu_assert("simple reductions error", test_simple());
     mu_assert("domain propagation error", test_domain());
     mu_assert("radix_sort error", test_radix_sort());
+    printf("after radix sort tests \n");
     mu_assert("presolver error", test_presolver());
+    printf("after presolver tests \n");
     mu_assert("pathological error", test_pathological());
     mu_assert("parallel_rows error", test_parallel_rows());
 
