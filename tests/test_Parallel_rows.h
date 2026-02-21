@@ -1265,8 +1265,14 @@ static const char *all_tests_parallel_rows()
     printf("running test 1 parallel rows...\n");
     fflush(stdout);
     mu_run_test(test_1_parallel_rows, counter_parallel_rows);
+    printf("running test 2 parallel rows...\n");
+    fflush(stdout);
     mu_run_test(test_2_parallel_rows, counter_parallel_rows);
+    printf("running test 3 parallel rows...\n");
+    fflush(stdout);
     mu_run_test(test_3_parallel_rows, counter_parallel_rows);
+    printf("running test 4 parallel rows...\n");
+    fflush(stdout);
     mu_run_test(test_4_parallel_rows, counter_parallel_rows);
     printf("running test 5 parallel rows...\n");
     fflush(stdout);
