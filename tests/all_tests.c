@@ -26,12 +26,13 @@ const char *run_all_tests()
     mu_assert("radix_sort error", test_radix_sort());
     mu_assert("presolver error", test_presolver());
     mu_assert("pathological error", test_pathological());
+    mu_assert("parallel_cols error", test_parallel_cols());
 
 #ifndef _WIN32
     /* windows build is a bit weird in debug mode */
     mu_assert("parallel_rows error", test_parallel_rows());
-    mu_assert("parallel_cols error", test_parallel_cols());
 #endif
+
     mu_assert("postsolve error", test_postsolve());
 
     return NULL;
