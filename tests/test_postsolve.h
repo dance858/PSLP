@@ -630,20 +630,41 @@ static char *test_6_postsolve()
 
     run_presolver(presolver);
 
+    print_double_array(A->x, A->nnz);
+    print_int_array(A->i, A->nnz);
+
+    // print row ranges
+    for (int i = 0; i < A->m + 1; i++)
+    {
+        printf("Row %d: start %d \n", i, A->p[i].start);
+    }
+
+    print_double_array(prob->constraints->lhs, prob->constraints->m);
+    print_double_array(prob->constraints->rhs, prob->constraints->m);
+
+    // print bounds
+    for (int i = 0; i < prob->constraints->n; i++)
+    {
+        printf("Col %d: lb %f, ub %f \n", i, prob->constraints->bounds[i].lb,
+               prob->constraints->bounds[i].ub);
+    }
+
+    print_double_array(prob->obj->c, prob->constraints->n);
+
     // construct optimal primal solution to reduced problem (computed offline).
     // Different solutions are possible depending on the order of the reductions,
     // which used to differ across platforms due to qsort but should perhaps
     // not differ anymore with the radix sorting algorithm.
     // #if defined(__linux__) || defined(_WIN32) || defined(__APPLE__)
-    double x[] = {-2., 12.5, 21., -8.};
+    double x[] = {-2., 10.5, -(8.0 + 1.0 / 3.0), -8.};
     double y[] = {0., 0., 0., 0., 0., 0., 0., 0.};
-    double z[] = {3., -4., -3., 1.};
+    double z[] = {3., -6., 6., 1.};
     double obj = 0.0;
     // #else
-    //     double x[] = {-2., -8.33333333, -21., -8.};
-    //     double y[] = {0., 0., 0., 0., 0., 0., 0., 0.};
-    //     double z[] = {3., 6., 3., 1.};
-    //     double obj = 0.0;
+    // double x[] = {-2., -8.33333333, -21., -8.};
+    // double y[] = {0., 0., 0., 0., 0., 0., 0., 0.};
+    // double z[] = {3., 6., 3., 1.};
+    // double obj = 0.0;
     // #endif
 
     postsolve(presolver, x, y, z);
@@ -697,11 +718,32 @@ static char *test_7_postsolve()
 
     run_presolver(presolver);
 
+    print_double_array(A->x, A->nnz);
+    print_int_array(A->i, A->nnz);
+
+    // print row ranges
+    for (int i = 0; i < A->m + 1; i++)
+    {
+        printf("Row %d: start %d \n", i, A->p[i].start);
+    }
+
+    print_double_array(prob->constraints->lhs, prob->constraints->m);
+    print_double_array(prob->constraints->rhs, prob->constraints->m);
+
+    // print bounds
+    for (int i = 0; i < prob->constraints->n; i++)
+    {
+        printf("Col %d: lb %f, ub %f \n", i, prob->constraints->bounds[i].lb,
+               prob->constraints->bounds[i].ub);
+    }
+
+    print_double_array(prob->obj->c, prob->constraints->n);
+
     // construct optimal primal solution to reduced problem (computed offline)
     // #if defined(__linux__) || defined(_WIN32) || defined(__APPLE__)
-    double x[] = {-2., 12.5, 21., -8.};
+    double x[] = {-2., 10.5, -(8.0 + 1.0 / 3.0), -8.};
     double y[] = {0., 0., 0., 0., 0.};
-    double z[] = {3., -4., -3., 1.};
+    double z[] = {3., -6., 6., 1.};
     double obj = 0.0;
     // #else
     //     double x[] = {-25., -2., 21., -8.};

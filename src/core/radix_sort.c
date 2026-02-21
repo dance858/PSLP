@@ -37,7 +37,7 @@ static void insertion_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
         {
             int prev_sp = sparsity_IDs[rows[j - 1]];
             int prev_ch = coeff_hashes[rows[j - 1]];
-            if (prev_sp < key_sp || (prev_sp == key_sp && prev_ch <= key_ch))
+            if (prev_sp < key_sp || (prev_sp == key_sp && prev_ch < key_ch))
             {
                 break;
             }
@@ -78,19 +78,22 @@ void radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
                 counts[byte]++;
             }
 
-            // skip pass if all values fall in one bucket
-            int skip = 0;
-            for (int b = 0; b < 256; b++)
+            // skip pass if all values fall in one bucket (never skip pass 0)
+            if (!(phase == 0 && pass == 0))
             {
-                if (counts[b] == n)
+                int skip = 0;
+                for (int b = 0; b < 256; b++)
                 {
-                    skip = 1;
-                    break;
+                    if (counts[b] == n)
+                    {
+                        skip = 1;
+                        break;
+                    }
                 }
-            }
-            if (skip)
-            {
-                continue;
+                if (skip)
+                {
+                    continue;
+                }
             }
 
             // prefix sum
@@ -102,11 +105,23 @@ void radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
                 total += c;
             }
 
-            // scatter
-            for (size_t i = 0; i < n; i++)
+            // scatter: backward for pass 0 (reverse stability), forward otherwise
+            if (phase == 0 && pass == 0)
             {
-                unsigned byte = ((uint32_t) keys[src[i]] >> shift) & 0xFF;
-                dst[counts[byte]++] = src[i];
+                // backward scatter reverses equal-byte elements
+                for (size_t i = n; i > 0; i--)
+                {
+                    unsigned byte = ((uint32_t) keys[src[i - 1]] >> shift) & 0xFF;
+                    dst[counts[byte]++] = src[i - 1];
+                }
+            }
+            else
+            {
+                for (size_t i = 0; i < n; i++)
+                {
+                    unsigned byte = ((uint32_t) keys[src[i]] >> shift) & 0xFF;
+                    dst[counts[byte]++] = src[i];
+                }
             }
 
             // swap src and dst
@@ -170,7 +185,7 @@ static void merge_4way(int *dst, int *chunk_ptrs[NUM_SORT_THREADS],
             if (pos[k] >= chunk_sizes[k]) continue;
             if (best < 0 ||
                 merge_compare(chunk_ptrs[k][pos[k]], chunk_ptrs[best][pos[best]],
-                              sparsity_IDs, coeff_hashes) < 0)
+                              sparsity_IDs, coeff_hashes) <= 0)
             {
                 best = k;
             }

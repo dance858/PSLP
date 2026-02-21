@@ -25,7 +25,7 @@
 struct Problem;
 
 /* This function finds parallel columns and merges them. It always
-   returns UNCHANGED. When this function finishes, the problem is
+   returns UNCHANGED or UNBNDORINFEAS. When this function finishes, the problem is
    up to date, and no extra synchronization is needed.
 */
 PresolveStatus remove_parallel_cols(struct Problem *prob);

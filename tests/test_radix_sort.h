@@ -249,6 +249,13 @@ static char *test_9_radix_sort()
     mu_assert("should be sorted",
               is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
     mu_assert("should be permutation", is_permutation(rows, n));
+
+    // reverse stability: identical keys → higher original indices first
+    for (int i = 0; i < n; i++)
+    {
+        mu_assert("identical keys should be reverse-stable",
+                  rows[i] == n - 1 - i);
+    }
     return 0;
 }
 
@@ -351,6 +358,79 @@ static char *test_12_radix_sort()
     return 0;
 }
 
+/* Test 13: Reverse stability on insertion sort path (n=6, groups with identical keys) */
+static char *test_13_radix_sort()
+{
+    int n = 6;
+    int rows[] = {0, 1, 2, 3, 4, 5};
+    // Group A (sp=10, ch=20): rows 0, 1, 2
+    // Group B (sp=10, ch=30): rows 3, 4, 5
+    int sparsity_IDs[] = {10, 10, 10, 10, 10, 10};
+    int coeff_hashes[] = {20, 20, 20, 30, 30, 30};
+    int aux[6];
+
+    radix_sort_rows(rows, (size_t) n, sparsity_IDs, coeff_hashes, aux);
+    mu_assert("should be sorted",
+              is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
+    mu_assert("should be permutation", is_permutation(rows, n));
+
+    // Group A (ch=20) comes first, reverse-stable: 2, 1, 0
+    mu_assert("group A pos 0", rows[0] == 2);
+    mu_assert("group A pos 1", rows[1] == 1);
+    mu_assert("group A pos 2", rows[2] == 0);
+    // Group B (ch=30) next, reverse-stable: 5, 4, 3
+    mu_assert("group B pos 0", rows[3] == 5);
+    mu_assert("group B pos 1", rows[4] == 4);
+    mu_assert("group B pos 2", rows[5] == 3);
+    return 0;
+}
+
+/* Test 14: Reverse stability on radix sort path (n=300, groups with identical keys) */
+static char *test_14_radix_sort()
+{
+    int n = 300;
+    int rows[300];
+    int sparsity_IDs[300];
+    int coeff_hashes[300];
+    int aux[300];
+
+    // 3 groups of 100 with identical keys within each group
+    for (int i = 0; i < n; i++)
+    {
+        rows[i] = i;
+        sparsity_IDs[i] = 5;
+        if (i < 100)
+            coeff_hashes[i] = 10;
+        else if (i < 200)
+            coeff_hashes[i] = 20;
+        else
+            coeff_hashes[i] = 30;
+    }
+
+    radix_sort_rows(rows, (size_t) n, sparsity_IDs, coeff_hashes, aux);
+    mu_assert("should be sorted",
+              is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
+    mu_assert("should be permutation", is_permutation(rows, n));
+
+    // Within each group, reverse-stable: higher original indices first
+    // Group 0 (ch=10, rows 0..99) → should appear as 99, 98, ..., 0
+    for (int i = 0; i < 100; i++)
+    {
+        mu_assert("group 0 reverse-stable", rows[i] == 99 - i);
+    }
+    // Group 1 (ch=20, rows 100..199) → should appear as 199, 198, ..., 100
+    for (int i = 0; i < 100; i++)
+    {
+        mu_assert("group 1 reverse-stable", rows[100 + i] == 199 - i);
+    }
+    // Group 2 (ch=30, rows 200..299) → should appear as 299, 298, ..., 200
+    for (int i = 0; i < 100; i++)
+    {
+        mu_assert("group 2 reverse-stable", rows[200 + i] == 299 - i);
+    }
+    return 0;
+}
+
 static const char *all_tests_radix_sort()
 {
     mu_run_test(test_1_radix_sort, counter_radix_sort);
@@ -365,6 +445,8 @@ static const char *all_tests_radix_sort()
     mu_run_test(test_10_radix_sort, counter_radix_sort);
     mu_run_test(test_11_radix_sort, counter_radix_sort);
     mu_run_test(test_12_radix_sort, counter_radix_sort);
+    mu_run_test(test_13_radix_sort, counter_radix_sort);
+    mu_run_test(test_14_radix_sort, counter_radix_sort);
 
     return 0;
 }
