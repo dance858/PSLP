@@ -25,8 +25,11 @@ const char *run_all_tests()
     mu_assert("ston error", test_ston());
     mu_assert("simple reductions error", test_simple());
     mu_assert("domain propagation error", test_domain());
+    printf("before radix sort tests \n");
+    fflush(stdout);
     mu_assert("radix_sort error", test_radix_sort());
     printf("after radix sort tests \n");
+    fflush(stdout);
     mu_assert("presolver error", test_presolver());
     printf("after presolver tests \n");
     mu_assert("pathological error", test_pathological());
