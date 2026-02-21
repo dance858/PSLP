@@ -1262,15 +1262,21 @@ static char *test_16_parallel_rows()
 
 static const char *all_tests_parallel_rows()
 {
+    printf("running test 1 parallel rows...\n");
+    fflush(stdout);
     mu_run_test(test_1_parallel_rows, counter_parallel_rows);
     mu_run_test(test_2_parallel_rows, counter_parallel_rows);
     mu_run_test(test_3_parallel_rows, counter_parallel_rows);
     mu_run_test(test_4_parallel_rows, counter_parallel_rows);
+    printf("running test 5 parallel rows...\n");
+    fflush(stdout);
     mu_run_test(test_5_parallel_rows, counter_parallel_rows);
     mu_run_test(test_6_parallel_rows, counter_parallel_rows);
     mu_run_test(test_7_parallel_rows, counter_parallel_rows);
     mu_run_test(test_8_parallel_rows, counter_parallel_rows);
     mu_run_test(test_9_parallel_rows, counter_parallel_rows);
+    printf("running test 10 parallel rows...\n");
+    fflush(stdout);
     mu_run_test(test_10_parallel_rows, counter_parallel_rows);
     mu_run_test(test_11_parallel_rows, counter_parallel_rows);
     mu_run_test(test_12_parallel_rows, counter_parallel_rows);
@@ -1278,6 +1284,8 @@ static const char *all_tests_parallel_rows()
     mu_run_test(test_14_parallel_rows, counter_parallel_rows);
     mu_run_test(test_15_parallel_rows, counter_parallel_rows);
     mu_run_test(test_16_parallel_rows, counter_parallel_rows);
+    printf("finished parallel rows tests.\n");
+    fflush(stdout);
 
     return 0;
 }
