@@ -253,8 +253,7 @@ static char *test_9_radix_sort()
     // reverse stability: identical keys → higher original indices first
     for (int i = 0; i < n; i++)
     {
-        mu_assert("identical keys should be reverse-stable",
-                  rows[i] == n - 1 - i);
+        mu_assert("identical keys should be reverse-stable", rows[i] == n - 1 - i);
     }
     return 0;
 }
@@ -358,7 +357,8 @@ static char *test_12_radix_sort()
     return 0;
 }
 
-/* Test 13: Reverse stability on insertion sort path (n=6, groups with identical keys) */
+/* Test 13: Reverse stability on insertion sort path (n=6, groups with identical
+ * keys) */
 static char *test_13_radix_sort()
 {
     int n = 6;
@@ -385,7 +385,8 @@ static char *test_13_radix_sort()
     return 0;
 }
 
-/* Test 14: Reverse stability on radix sort path (n=300, groups with identical keys) */
+/* Test 14: Reverse stability on radix sort path (n=300, groups with identical keys)
+ */
 static char *test_14_radix_sort()
 {
     int n = 300;
