@@ -565,7 +565,7 @@ Matrix *random_matrix_new(size_t n_rows, size_t n_cols, double density)
                     break;
                 }
 
-                Ax[nnz_count] = ((double) (rand() - rand()) / RAND_MAX) * 20.0;
+                Ax[nnz_count] = ((double) (rand() - rand()) / RAND_MAX) * 20.0 + 0.1;
                 Ai[nnz_count] = (int) j;
                 ++nnz_count;
                 ++row_nnz;
