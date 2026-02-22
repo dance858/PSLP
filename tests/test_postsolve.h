@@ -434,7 +434,7 @@ static char *test_col_ston_dual_fix()
     set_settings_true(stgs);
     stgs->primal_propagation = false;
     stgs->parallel_cols = false;
-    stgs->dual_fix = false;
+    stgs->dual_fix = true;
     Presolver *presolver =
         new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 

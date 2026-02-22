@@ -35,6 +35,7 @@ static inline PresolveStatus _simple_dual_fix(Constraints *constraints, double c
                                               iVec *cols_to_inf)
 {
     assert(!HAS_TAG(col_tag, C_TAG_INACTIVE));
+
     // --------------------------------------------------
     // see if we can fix the variable to its lower bound
     // --------------------------------------------------

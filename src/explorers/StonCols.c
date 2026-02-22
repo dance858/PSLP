@@ -306,6 +306,7 @@ static PresolveStatus process_colston_eq(RowView *row, ColView *col, Objective *
             we only call this function with val equal to one of the
             bounds.
  */
+/*
 static void fix_col_ston(double val, double Aik, RowView *row, ColView *col,
                          Activity *act, Objective *obj, size_t *A_nnz,
                          const Bound *bounds, PostsolveInfo *postsolve_info)
@@ -372,12 +373,12 @@ static void fix_col_ston(double val, double Aik, RowView *row, ColView *col,
     save_retrieval_fixed_col(postsolve_info, col->k, val, obj->c[col->k], &Aik,
                              &row->i, 1);
 }
+*/
 
 static inline PresolveStatus
 process_colston_ineq(RowView *row, ColView *col, Objective *obj, double Aik,
                      bool impl_free_from_above, bool impl_free_from_below,
-                     Activity *act, Lock *locks, iVec *rows_to_delete, size_t *A_nnz,
-                     const Bound *bounds, iVec *ston_rows, iVec *dton_rows,
+                     Lock *locks, iVec *rows_to_delete, iVec *dton_rows,
                      PostsolveInfo *postsolve_info)
 {
     bool is_lhs_inf = HAS_TAG(*row->tag, R_TAG_LHS_INF);
@@ -386,54 +387,13 @@ process_colston_ineq(RowView *row, ColView *col, Objective *obj, double Aik,
     bool is_lb_inf = HAS_TAG(*col->tag, C_TAG_LB_INF);
     double ck = obj->c[col->k];
 
-    // ------------------------------------------------------------------------
-    //                    dual fix to lower bound
-    // ------------------------------------------------------------------------
-    if ((ck > 0 && Aik > 0 && is_lhs_inf) || (ck > 0 && Aik < 0 && is_rhs_inf))
+    /* unboundedness check */
+    if ((ck > 0 && Aik > 0 && is_lhs_inf && is_lb_inf) ||
+        (ck > 0 && Aik < 0 && is_rhs_inf && is_lb_inf) ||
+        (ck < 0 && Aik < 0 && is_lhs_inf && is_ub_inf) ||
+        (ck < 0 && Aik > 0 && is_rhs_inf && is_ub_inf))
     {
-        if (is_lb_inf)
-        {
-            return UNBNDORINFEAS;
-        }
-        assert(!IS_ABS_INF(*col->lb));
-
-        fix_col_ston(*col->lb, Aik, row, col, act, obj, A_nnz, bounds,
-                     postsolve_info);
-
-        // should not check for dton row here since the constraint is an ineq
-        if (*row->len == 1)
-        {
-            assert(!iVec_contains(ston_rows, row->i));
-            iVec_append(ston_rows, row->i);
-        }
-
-        assert(*row->len != 0);
-        return REDUCED;
-    }
-
-    // ------------------------------------------------------------------------
-    //                    dual fix to upper bound
-    // ------------------------------------------------------------------------
-    if ((ck < 0 && Aik < 0 && is_lhs_inf) || (ck < 0 && Aik > 0 && is_rhs_inf))
-    {
-        if (is_ub_inf)
-        {
-            return UNBNDORINFEAS;
-        }
-        assert(!IS_ABS_INF(*col->ub));
-
-        fix_col_ston(*col->ub, Aik, row, col, act, obj, A_nnz, bounds,
-                     postsolve_info);
-
-        // should not check for dton row here since the constraint is an ineq
-        if (*row->len == 1)
-        {
-            assert(!iVec_contains(ston_rows, row->i));
-            iVec_append(ston_rows, row->i);
-        }
-
-        assert(*row->len != 0);
-        return REDUCED;
+        return UNBNDORINFEAS;
     }
 
     // ------------------------------------------------------------------------
@@ -667,8 +627,8 @@ PresolveStatus remove_ston_cols__(Problem *prob)
         {
             status |= process_colston_ineq(
                 &row_view, &col_view, prob->obj, Aik, impl_free_from_above,
-                impl_free_from_below, acts + i, locks, rows_to_delete, A_nnz, bounds,
-                ston_rows, dton_rows, postsolve_info);
+                impl_free_from_below, locks, rows_to_delete, dton_rows,
+                postsolve_info);
         }
     }
 
