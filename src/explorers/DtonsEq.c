@@ -18,6 +18,7 @@
 
 #include "DTonsEq.h"
 #include "Activity.h"
+#include "Binary_search.h"
 #include "Bounds.h"
 #include "Constraints.h"
 #include "CoreTransformations.h"
@@ -240,7 +241,7 @@ static inline
                                         double aij, double aik, int *row_size,
                                         PostsolveInfo *postsolve_info)
 {
-    int ii, start, end, insertion;
+    int start, end, insertion;
     double old_val = 0.0;
     int subst_idx = -1;
     int diff_row_size = 0;
@@ -252,25 +253,13 @@ static inline
     // find index of variable that is substituted and and the index of
     // insertion of the variable that stays
     // -----------------------------------------------------------------
-    for (ii = start; ii < end; ++ii)
-    {
-        if (A->i[ii] == k)
-        {
-            subst_idx = ii;
-            break;
-        }
-    }
+    int row_len = end - start;
+    int rel = sorted_find(A->i + start, row_len, k);
+    assert(rel != -1);
+    subst_idx = start + rel;
 
-    assert(subst_idx != -1);
-
-    for (ii = start; ii < end; ++ii)
-    {
-        if (A->i[ii] >= j)
-        {
-            insertion = ii;
-            break;
-        }
-    }
+    int rel_ins = sorted_lower_bound(A->i + start, row_len, j);
+    insertion = start + rel_ins;
 
     // -----------------------------------------------------------------
     // Compute new coefficient of the variable that stays.
