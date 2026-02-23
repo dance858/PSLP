@@ -33,7 +33,7 @@
 #include "Workspace.h"
 
 static inline PresolveStatus process_single_bin(const Problem *prob, const int *bin,
-                                                int bin_size)
+                                                int bin_size, int *rows_to_recompute)
 {
     assert(bin_size > 1);
     Constraints *constraints = prob->constraints;
@@ -42,7 +42,6 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
     const Matrix *AT = constraints->AT;
     const RowRange *col_ranges = AT->p;
     const double *c = prob->obj->c;
-    Activity *acts = constraints->state->activities;
     iVec *sub_cols_to_delete = constraints->state->sub_cols_to_delete;
     PostsolveInfo *postsolve_info = constraints->state->postsolve_info;
 
@@ -157,7 +156,7 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
                 }
 
                 // ---------------------------------------------------------------------
-                //                  mark col as substituted
+                //                  mark col k as substituted
                 // ---------------------------------------------------------------------
                 set_col_to_substituted(k, col_tags + k, sub_cols_to_delete);
                 save_retrieval_parallel_col(postsolve_info, ub_j_old, lb_j_old,
@@ -241,11 +240,12 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
                         return UNBNDORINFEAS;
                     }
 
-                    assert(!HAS_TAG(col_tags[k], C_TAG_INACTIVE));
+                    assert(!HAS_TAG(col_tags[j], C_TAG_INACTIVE));
                     assert(!IS_ABS_INF(bounds[j].lb));
                     fix_col(constraints, j, bounds[j].lb, cj);
-                    // break from checking if xj is parallel to other cols since
-                    // we fix it
+                    recount_ninfs = false;
+                    //  break from checking if xj is parallel to other cols since
+                    //  we fix it
                     break;
                 }
                 else if (fix_xj_to_upper)
@@ -255,11 +255,12 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
                         return UNBNDORINFEAS;
                     }
 
-                    assert(!HAS_TAG(col_tags[k], C_TAG_INACTIVE));
+                    assert(!HAS_TAG(col_tags[j], C_TAG_INACTIVE));
                     assert(!IS_ABS_INF(bounds[j].ub));
                     fix_col(constraints, j, bounds[j].ub, cj);
-                    // break from checking if xj is parallel to other cols since
-                    // we fix it
+                    recount_ninfs = false;
+                    //  break from checking if xj is parallel to other cols since
+                    //  we fix it
                     break;
                 }
             }
@@ -269,15 +270,9 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
         // j appears in due to bound change
         if (recount_ninfs)
         {
-            const Matrix *A = constraints->A;
-
             for (jj = 0; jj < len_j; jj++)
             {
-                int row = aj_cols[jj];
-
-                recompute_n_infs(acts + row, A->x + A->p[row].start,
-                                 A->i + A->p[row].start,
-                                 A->p[row].end - A->p[row].start, col_tags);
+                rows_to_recompute[aj_cols[jj]] = 1;
             }
         }
     }
@@ -286,12 +281,16 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
 }
 
 static PresolveStatus process_all_bins(const Problem *prob, const int *parallel_cols,
-                                       const iVec *groups)
+                                       const iVec *groups, int *rows_to_recompute)
 {
     if (groups->len <= 1)
     {
         return UNCHANGED;
     }
+
+    Constraints *constraints = prob->constraints;
+    size_t n_rows = constraints->A->m;
+    memset(rows_to_recompute, 0, n_rows * sizeof(int));
 
     size_t n_groups = groups->len - 1;
     PresolveStatus status = UNCHANGED;
@@ -300,7 +299,21 @@ static PresolveStatus process_all_bins(const Problem *prob, const int *parallel_
     {
         int n_cols_this_group = groups->data[i + 1] - groups->data[i];
         status |= process_single_bin(prob, parallel_cols + groups->data[i],
-                                     n_cols_this_group);
+                                     n_cols_this_group, rows_to_recompute);
+    }
+
+    // batch recompute n_infs for all affected rows
+    const Matrix *A = constraints->A;
+    Activity *acts = constraints->state->activities;
+    ColTag *col_tags = constraints->col_tags;
+
+    for (size_t i = 0; i < n_rows; ++i)
+    {
+        if (rows_to_recompute[i])
+        {
+            recompute_n_infs(acts + i, A->x + A->p[i].start, A->i + A->p[i].start,
+                             A->p[i].end - A->p[i].start, col_tags);
+        }
     }
 
     return status;
@@ -337,7 +350,9 @@ PresolveStatus remove_parallel_cols(Problem *prob)
     }
 #endif
 
-    PresolveStatus status = process_all_bins(prob, parallel_cols, group_starts);
+    int *rows_to_recompute = sparsity_IDs;
+    PresolveStatus status =
+        process_all_bins(prob, parallel_cols, group_starts, rows_to_recompute);
     assert(constraints->state->empty_rows->len == 0);
 
     delete_fixed_cols_from_problem(prob);
