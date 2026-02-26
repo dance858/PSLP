@@ -28,7 +28,6 @@ struct Lock;
 struct iVec;
 struct PresolveStats;
 
-#include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
 

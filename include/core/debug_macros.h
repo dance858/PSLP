@@ -22,6 +22,19 @@
 #include "Tags.h"
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#define PSLP_ASSERT(cond)                                                       \
+    do                                                                          \
+    {                                                                           \
+        if (!(cond))                                                            \
+        {                                                                       \
+            fprintf(stderr, "PSLP assertion failed: %s [%s:%d]\n",             \
+                    #cond, __FILE__, __LINE__);                                 \
+            abort();                                                            \
+        }                                                                       \
+    } while (0)
 
 #ifdef NDEBUG
 #define HUGE_BOUND_IS_OK
@@ -89,7 +102,7 @@ static inline bool ARRAYS_EQUAL_COLTAG(ColTag *arr1, const ColTag *arr2, int siz
     {                                                                               \
         for (int iii = 0; iii < (len); iii++)                                       \
         {                                                                           \
-            assert(!HAS_TAG(row_tags[rows[iii]], R_TAG_INACTIVE));                  \
+            PSLP_ASSERT(!HAS_TAG(row_tags[rows[iii]], R_TAG_INACTIVE));             \
         }                                                                           \
     } while (0)
 
