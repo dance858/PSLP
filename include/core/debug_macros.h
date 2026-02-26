@@ -25,6 +25,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/* Assertion that fires even in release mode (NDEBUG). Only use inside
+   the debugger (Debugger.c / Debugger.h) — never in production code. */
 #define PSLP_ASSERT(cond)                                                       \
     do                                                                          \
     {                                                                           \
