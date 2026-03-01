@@ -27,15 +27,15 @@
 
 /* Assertion that fires even in release mode (NDEBUG). Only use inside
    the debugger (Debugger.c / Debugger.h) — never in production code. */
-#define PSLP_ASSERT(cond)                                                       \
-    do                                                                          \
-    {                                                                           \
-        if (!(cond))                                                            \
-        {                                                                       \
-            fprintf(stderr, "PSLP assertion failed: %s [%s:%d]\n",             \
-                    #cond, __FILE__, __LINE__);                                 \
-            abort();                                                            \
-        }                                                                       \
+#define PSLP_ASSERT(cond)                                                           \
+    do                                                                              \
+    {                                                                               \
+        if (!(cond))                                                                \
+        {                                                                           \
+            fprintf(stderr, "PSLP assertion failed: %s [%s:%d]\n", #cond, __FILE__, \
+                    __LINE__);                                                      \
+            abort();                                                                \
+        }                                                                           \
     } while (0)
 
 #ifdef NDEBUG

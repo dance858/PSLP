@@ -368,7 +368,8 @@ static void verify_CSR_matrix(const Matrix *A, bool compressed)
     // verify that row ranges are ascending
     for (i = 0; i < A->m; ++i)
     {
-        PSLP_ASSERT(A->p[i + 1].start >= A->p[i].end && A->p[i].end >= A->p[i].start);
+        PSLP_ASSERT(A->p[i + 1].start >= A->p[i].end &&
+                    A->p[i].end >= A->p[i].start);
     }
 
     // verify that columns within a row are sorted
@@ -673,13 +674,13 @@ void verify_activity(const ColTag *col_tags, const Bound *bounds, Activity activ
             if (vals[i] > 0)
             {
                 PSLP_ASSERT(!HAS_TAG(col_tags[col], C_TAG_UB_INF) &&
-                       !IS_POS_INF(bounds[col].ub));
+                            !IS_POS_INF(bounds[col].ub));
                 max += vals[i] * bounds[col].ub;
             }
             else
             {
                 PSLP_ASSERT(!HAS_TAG(col_tags[col], C_TAG_LB_INF) &&
-                       !IS_NEG_INF(bounds[col].lb));
+                            !IS_NEG_INF(bounds[col].lb));
                 max += vals[i] * bounds[col].lb;
             }
         }
@@ -706,13 +707,13 @@ void verify_activity(const ColTag *col_tags, const Bound *bounds, Activity activ
             if (vals[i] > 0)
             {
                 PSLP_ASSERT(!HAS_TAG(col_tags[col], C_TAG_LB_INF) &&
-                       !IS_NEG_INF(bounds[col].lb));
+                            !IS_NEG_INF(bounds[col].lb));
                 min += vals[i] * bounds[col].lb;
             }
             else
             {
                 PSLP_ASSERT(!HAS_TAG(col_tags[col], C_TAG_UB_INF) &&
-                       !IS_POS_INF(bounds[col].ub));
+                            !IS_POS_INF(bounds[col].ub));
                 min += vals[i] * bounds[col].ub;
             }
         }
@@ -744,7 +745,7 @@ void ASSERT_NO_ACTIVE_STON_ROWS(const Matrix *A, const RowTag *row_tags)
     for (int i = 0; i < A->m; ++i)
     {
         PSLP_ASSERT(A->p[i].end - A->p[i].start != 1 ||
-               HAS_TAG(row_tags[i], R_TAG_INACTIVE));
+                    HAS_TAG(row_tags[i], R_TAG_INACTIVE));
     }
 }
 
@@ -810,6 +811,7 @@ void run_debugger_stats_consistency_check(const PresolveStats *stats)
 #ifndef RUNNING_ON_VALGRIND
     double time_medium = stats->ps_time_primal_propagation +
                          stats->ps_time_parallel_rows + stats->ps_time_parallel_cols;
-    PSLP_ASSERT((stats->ps_time_medium - time_medium) / MAX(1e-2, time_medium) < 0.05);
+    PSLP_ASSERT((stats->ps_time_medium - time_medium) / MAX(1e-2, time_medium) <
+                0.05);
 #endif
 }
