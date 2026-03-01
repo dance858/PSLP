@@ -20,7 +20,8 @@
                                            n_rows, n_cols, nnz);                    \
         bool kkt_ok =                                                               \
             KKT_checker_abs(kkt, presolver->sol->x, presolver->sol->y,              \
-                            presolver->sol->z, 1.1e-7, 1.1e-7, 1.1e-7, 1.1e-7);     \
+                            presolver->sol->z, 1.1e-7, 1.1e-7, 1.1e-7, 1.1e-7,      \
+                            1.1e-7);                                                 \
         free_KKT_checker(kkt);                                                      \
         mu_assert("KKT check failed", kkt_ok);                                      \
     } while (0)

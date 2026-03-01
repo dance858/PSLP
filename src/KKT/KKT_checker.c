@@ -146,6 +146,19 @@ static void project_y_comp_slack(const double *y, const double *Ax_val,
     }
 }
 
+static double dual_obj_term(double s, double lo, double hi)
+{
+    if (s < 0.0 && !IS_ABS_INF(lo))
+    {
+        return s * lo;
+    }
+    if (s > 0.0 && !IS_ABS_INF(hi))
+    {
+        return s * hi;
+    }
+    return 0.0;
+}
+
 void KKT_checker_compute_residuals(KKT_checker *checker, const double *x,
                                    const double *y, const double *z)
 {
@@ -165,6 +178,7 @@ void KKT_checker_compute_residuals(KKT_checker *checker, const double *x,
         free(work_m);
         checker->dual_res = INFINITY;
         checker->primal_res = INFINITY;
+        checker->gap = INFINITY;
         checker->z_comp_slack = INFINITY;
         checker->y_comp_slack = INFINITY;
         return;
@@ -180,16 +194,37 @@ void KKT_checker_compute_residuals(KKT_checker *checker, const double *x,
     }
     checker->dual_res = norm2(work_n, n);
 
-    /* primal residual: Ax - proj_{[bl,bu]}(Ax) */
+    /* primal residual: Ax - proj_{[lhs,rhs]}(Ax) */
     for (size_t i = 0; i < m; ++i)
     {
-        double proj = project_scalar(Ax_val[i], checker->lhs[i], checker->rhs[i]);
+        double proj = project_scalar(
+            Ax_val[i], checker->lhs[i], checker->rhs[i]);
         work_m[i] = Ax_val[i] - proj;
     }
     checker->primal_res = norm2(work_m, m);
 
+    /* gap: |c^T x + p(y; lhs, rhs) + p(z; lbs, ubs)| */
+    double primal_obj = 0.0;
+    for (size_t j = 0; j < n; ++j)
+    {
+        primal_obj += checker->c[j] * x[j];
+    }
+    double dual_obj = 0.0;
+    for (size_t i = 0; i < m; ++i)
+    {
+        dual_obj += dual_obj_term(
+            -y[i], checker->lhs[i], checker->rhs[i]);
+    }
+    for (size_t j = 0; j < n; ++j)
+    {
+        dual_obj += dual_obj_term(
+            -z[j], checker->lbs[j], checker->ubs[j]);
+    }
+    checker->gap = fabs(primal_obj + dual_obj);
+
     /* z complementary slackness */
-    project_z_comp_slack(z, x, checker->lbs, checker->ubs, n, FEAS_TOL, work_n);
+    project_z_comp_slack(
+        z, x, checker->lbs, checker->ubs, n, FEAS_TOL, work_n);
     for (size_t j = 0; j < n; ++j)
     {
         work_n[j] = z[j] - work_n[j];
@@ -197,7 +232,8 @@ void KKT_checker_compute_residuals(KKT_checker *checker, const double *x,
     checker->z_comp_slack = norm2(work_n, n);
 
     /* y complementary slackness */
-    project_y_comp_slack(y, Ax_val, checker->lhs, checker->rhs, m, FEAS_TOL, work_m);
+    project_y_comp_slack(
+        y, Ax_val, checker->lhs, checker->rhs, m, FEAS_TOL, work_m);
     for (size_t i = 0; i < m; ++i)
     {
         work_m[i] = y[i] - work_m[i];
@@ -212,8 +248,8 @@ void KKT_checker_compute_residuals(KKT_checker *checker, const double *x,
 
 bool KKT_checker_abs(KKT_checker *checker, const double *x, const double *y,
                      const double *z, double eps_dual_res_abs,
-                     double eps_primal_res_abs, double eps_z_comp_slack_abs,
-                     double eps_y_comp_slack_abs)
+                     double eps_primal_res_abs, double eps_gap_abs,
+                     double eps_z_comp_slack_abs, double eps_y_comp_slack_abs)
 {
     KKT_checker_compute_residuals(checker, x, y, z);
 
@@ -230,6 +266,13 @@ bool KKT_checker_abs(KKT_checker *checker, const double *x, const double *y,
         printf("KKT FAIL: primal_res = %.2e "
                "(tol = %.2e)\n",
                checker->primal_res, eps_primal_res_abs);
+        ok = false;
+    }
+    if (checker->gap > eps_gap_abs)
+    {
+        printf("KKT FAIL: gap = %.2e "
+               "(tol = %.2e)\n",
+               checker->gap, eps_gap_abs);
         ok = false;
     }
     if (checker->z_comp_slack > eps_z_comp_slack_abs)
