@@ -1212,10 +1212,8 @@ static const char *all_tests_ston()
     mu_run_test(test_08_ston, counter_ston); // (✓)
     mu_run_test(test_09_ston, counter_ston); // (✓)
     mu_run_test(test_10_ston, counter_ston); // (✓)
-
     mu_run_test(test_12_ston, counter_ston); // (✓)
     mu_run_test(test_13_ston, counter_ston); // (✓)
-
     mu_run_test(test_14_ston, counter_ston); // (✓)
     mu_run_test(test_15_ston, counter_ston); // (✓)
     mu_run_test(test_16_ston, counter_ston); // (✓)

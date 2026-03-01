@@ -92,8 +92,6 @@ static char *test_01_presolver()
 
 static const char *all_tests_presolver()
 {
-    printf("starting presolver tests\n");
-    fflush(stdout);
     mu_run_test(test_00_presolver, counter_presolver);
     mu_run_test(test_01_presolver, counter_presolver);
     return 0;
