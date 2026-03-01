@@ -45,7 +45,6 @@ extern "C"
 
         /* time stats */
         double time_init;
-        double time_trivial_reductions;
         double time_fast_reductions;
         double time_medium_reductions;
         double time_ston_cols;

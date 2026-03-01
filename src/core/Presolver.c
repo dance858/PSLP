@@ -513,10 +513,7 @@ run_medium_explorers(Problem *prob, const Settings *stgs, PresolveStats *stats)
         stats->time_primal_propagation += GET_ELAPSED_SECONDS(timer);
 
         // after dom prop propagation there can be new empty and ston rows
-        clock_gettime(CLOCK_MONOTONIC, &timer.start);
         status |= run_trivial_explorers(prob, stgs);
-        clock_gettime(CLOCK_MONOTONIC, &timer.end);
-        stats->time_trivial_reductions += GET_ELAPSED_SECONDS(timer);
         assert(!(status & REDUCED));
         RETURN_IF_NOT_UNCHANGED(status);
         stats->nnz_removed_primal_propagation += nnz_before - *nnz;
@@ -552,10 +549,7 @@ run_medium_explorers(Problem *prob, const Settings *stgs, PresolveStats *stats)
         stats->time_parallel_cols += GET_ELAPSED_SECONDS(timer);
         assert(prob->constraints->state->empty_rows->len == 0);
         assert(prob->constraints->state->empty_cols->len == 0);
-        clock_gettime(CLOCK_MONOTONIC, &timer.start);
         status |= run_trivial_explorers(prob, stgs);
-        clock_gettime(CLOCK_MONOTONIC, &timer.end);
-        stats->time_trivial_reductions += GET_ELAPSED_SECONDS(timer);
         assert(prob->constraints->state->ston_rows->len == 0);
         assert(!(status & REDUCED));
         RETURN_IF_NOT_UNCHANGED(status);
@@ -678,8 +672,7 @@ PresolveStatus run_presolver(Presolver *presolver)
     {
         // before each phase we run the trivial presolvers
         nnz_before_reduction = A->nnz;
-        RUN_AND_TIME(run_trivial_explorers, inner_timer,
-                     stats->time_trivial_reductions, status, prob, stgs);
+        status = run_trivial_explorers(prob, stgs);
 
         // run_trivial_explorers returns something else than UNCHANGED only
         // if the problem is detected to be infeasible or unbounded

@@ -417,24 +417,13 @@ void print_row_starts(const RowRange *row_ranges, size_t len)
 
 double insert_or_update_coeff(Matrix *A, int row, int col, double val, int *row_size)
 {
-    // int i, start, end, insertion;
     double old_val = 0.0;
     int start = A->p[row].start;
     int end = A->p[row].end;
-    // int insertion = end;
 
     // -----------------------------------------------------------------
     //             find where it should be inserted
     // -----------------------------------------------------------------
-    // for (i = start; i < end; ++i)
-    // {
-    //     if (A->i[i] >= col)
-    //     {
-    //         insertion = i;
-    //         break;
-    //     }
-    // }
-
     int rel_ins = sorted_lower_bound(A->i + start, end - start, col);
     int insertion = start + rel_ins;
 
