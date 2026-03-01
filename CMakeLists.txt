@@ -55,6 +55,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 file(GLOB CORE_SOURCES CONFIGURE_DEPENDS
     src/core/*.c
     src/explorers/*.c
+    src/KKT/*.c
 )
 
 # distinguish between public and private headers
@@ -67,6 +68,7 @@ file(GLOB PRIVATE_HEADERS CONFIGURE_DEPENDS
     include/core/*.h
     include/data_structures/*.h
     include/explorers/*.h
+    include/KKT/*.h
 )
 
 
@@ -92,6 +94,7 @@ target_include_directories(PSLP
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/core>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/explorers>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/KKT>
 )
 
 # Common compile options
@@ -148,6 +151,7 @@ if(PSLP_BUILD_TESTING)
       ${CMAKE_CURRENT_SOURCE_DIR}/include/core
       ${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures
       ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/KKT
       ${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP
   )
 

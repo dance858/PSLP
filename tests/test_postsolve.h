@@ -2,6 +2,7 @@
 #define TEST_POSTSOLVE_H
 
 #include "CoreTransformations.h"
+#include "KKT_checker.h"
 #include "Numerics.h"
 #include "PSLP_API.h"
 #include "PSLP_sol.h"
@@ -11,6 +12,18 @@
 #include <stdio.h>
 
 #define POSTSOLVE_TOL_FEAS 1e-6
+
+#define KKT_CHECK_POSTSOLVE()                                                       \
+    do                                                                              \
+    {                                                                               \
+        KKT_checker *kkt = new_KKT_checker(c, lhs, rhs, Ax, Ai, Ap, lbs, ubs,       \
+                                           n_rows, n_cols, nnz);                    \
+        bool kkt_ok =                                                               \
+            KKT_checker_abs(kkt, presolver->sol->x, presolver->sol->y,              \
+                            presolver->sol->z, 1.1e-7, 1.1e-7, 1.1e-7, 1.1e-7);     \
+        free_KKT_checker(kkt);                                                      \
+        mu_assert("KKT check failed", kkt_ok);                                      \
+    } while (0)
 static int counter_postsolve = 0;
 
 /*  Singleton equality row.
@@ -69,6 +82,7 @@ static char *test_0_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    KKT_CHECK_POSTSOLVE();
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -131,6 +145,7 @@ static char *test_1_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    KKT_CHECK_POSTSOLVE();
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -185,6 +200,7 @@ static char *test_singleton_eq()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    KKT_CHECK_POSTSOLVE();
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -246,6 +262,7 @@ static char *test_1_postsolve_implied_bound_active()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    KKT_CHECK_POSTSOLVE();
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -299,6 +316,7 @@ static char *test_singleton_ineq_row()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    KKT_CHECK_POSTSOLVE();
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -357,6 +375,7 @@ static char *test_2_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    KKT_CHECK_POSTSOLVE();
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -409,6 +428,7 @@ static char *test_implied_free_col_ston_in_inequality_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    KKT_CHECK_POSTSOLVE();
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -461,6 +481,7 @@ static char *test_col_ston_dual_fix()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    KKT_CHECK_POSTSOLVE();
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -516,6 +537,7 @@ static char *test_3_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    KKT_CHECK_POSTSOLVE();
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -575,6 +597,7 @@ static char *test_4_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    KKT_CHECK_POSTSOLVE();
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -647,6 +670,7 @@ static char *test_6_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    KKT_CHECK_POSTSOLVE();
 
     PS_FREE(stgs);
     free_presolver(presolver);
@@ -704,6 +728,7 @@ static char *test_7_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    KKT_CHECK_POSTSOLVE();
 
     PS_FREE(stgs);
     free_presolver(presolver);
@@ -767,6 +792,7 @@ static char *test_8_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    KKT_CHECK_POSTSOLVE();
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -827,6 +853,7 @@ static char *test_9_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    KKT_CHECK_POSTSOLVE();
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -881,6 +908,7 @@ static char *test_pathological_ston_one()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    KKT_CHECK_POSTSOLVE();
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -935,6 +963,7 @@ static char *test_pathological_ston_two()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    KKT_CHECK_POSTSOLVE();
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -988,6 +1017,7 @@ static char *test_fix_col_inf()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    KKT_CHECK_POSTSOLVE();
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
