@@ -28,12 +28,12 @@
  *   s.t. lhs <= Ax <= rhs
  *        lbs <= x <= ubs
  *
- * The absolute residuals are defined like this:
- * 1. dual_res = ||A^T y + z - c||_2
- * 2. primal_res = ||Ax - proj_{[lhs,rhs]}(Ax)||_2
- * 3. gap = |c^T x + p(-y; lhs, rhs) + p(-z; lbs, ubs)|, where p is defined as
- *    p(s; l, u) = sum_i p(s_i; l_i, u_i) and p(s_i; l_i, u_i) = s_i * l_i if
- *    s_i < 0, s_i * u_i if s_i > 0, and 0 if s_i = 0.
+ * Absolute residuals:
+ * 1. dual_res_abs = ||A^T y + z - c||_2
+ * 2. primal_res_abs = ||Ax - proj_{[lhs,rhs]}(Ax)||_2
+ * 3. gap_abs = |c^T x + p(-y; lhs, rhs) + p(-z; lbs, ubs)|,
+ *    where p(s; l, u) = sum_i p_i and p_i = s_i * l_i if
+ *    s_i < 0, s_i * u_i if s_i > 0, 0 otherwise.
  * 4. y_comp_slack = ||y - y(x)||_2, where y_i(x) is defined as
  *    (equalities checked with FEAS_TOL tolerance):
  *    - y_i          if lhs_i = rhs_i (both finite)
@@ -46,6 +46,14 @@
  *    - max(z_j, 0)  if x_j = lbs_j (finite)
  *    - min(z_j, 0)  if x_j = ubs_j (finite)
  *    - 0            otherwise
+ *
+ * Relative residuals:
+ * 1. dual_res_rel = dual_res_abs / (1 + ||c||_2)
+ * 2. primal_res_rel = primal_res_abs /
+ *        (1 + ||(lhs_fin, rhs_fin)||_2)
+ *    where lhs_fin, rhs_fin are the finite components.
+ * 3. gap_rel = gap_abs /
+ *        (1 + |p(-y; lhs, rhs) + p(-z; lbs, ubs)| + |c^T x|)
  */
 
 typedef struct KKT_checker
@@ -59,11 +67,14 @@ typedef struct KKT_checker
     size_t n;
     Matrix *A;
     Matrix *AT;
-    double dual_res;
-    double primal_res;
-    double gap;
+    double dual_res_abs;
+    double primal_res_abs;
+    double gap_abs;
     double z_comp_slack;
     double y_comp_slack;
+    double dual_res_rel;
+    double primal_res_rel;
+    double gap_rel;
 } KKT_checker;
 
 KKT_checker *new_KKT_checker(const double *c, const double *lhs, const double *rhs,

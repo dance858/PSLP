@@ -176,11 +176,14 @@ void KKT_checker_compute_residuals(KKT_checker *checker, const double *x,
         free(ATy);
         free(work_n);
         free(work_m);
-        checker->dual_res = INFINITY;
-        checker->primal_res = INFINITY;
-        checker->gap = INFINITY;
+        checker->dual_res_abs = INFINITY;
+        checker->primal_res_abs = INFINITY;
+        checker->gap_abs = INFINITY;
         checker->z_comp_slack = INFINITY;
         checker->y_comp_slack = INFINITY;
+        checker->dual_res_rel = INFINITY;
+        checker->primal_res_rel = INFINITY;
+        checker->gap_rel = INFINITY;
         return;
     }
 
@@ -192,7 +195,10 @@ void KKT_checker_compute_residuals(KKT_checker *checker, const double *x,
     {
         work_n[j] = ATy[j] + z[j] - checker->c[j];
     }
-    checker->dual_res = norm2(work_n, n);
+    checker->dual_res_abs = norm2(work_n, n);
+    double norm_c = norm2(checker->c, n);
+    checker->dual_res_rel =
+        checker->dual_res_abs / (1.0 + norm_c);
 
     /* primal residual: Ax - proj_{[lhs,rhs]}(Ax) */
     for (size_t i = 0; i < m; ++i)
@@ -201,9 +207,25 @@ void KKT_checker_compute_residuals(KKT_checker *checker, const double *x,
             Ax_val[i], checker->lhs[i], checker->rhs[i]);
         work_m[i] = Ax_val[i] - proj;
     }
-    checker->primal_res = norm2(work_m, m);
+    checker->primal_res_abs = norm2(work_m, m);
+    double bounds_norm_sq = 0.0;
+    for (size_t i = 0; i < m; ++i)
+    {
+        if (!IS_ABS_INF(checker->lhs[i]))
+        {
+            bounds_norm_sq +=
+                checker->lhs[i] * checker->lhs[i];
+        }
+        if (!IS_ABS_INF(checker->rhs[i]))
+        {
+            bounds_norm_sq +=
+                checker->rhs[i] * checker->rhs[i];
+        }
+    }
+    checker->primal_res_rel =
+        checker->primal_res_abs / (1.0 + sqrt(bounds_norm_sq));
 
-    /* gap: |c^T x + p(y; lhs, rhs) + p(z; lbs, ubs)| */
+    /* gap: |c^T x + p(-y; lhs, rhs) + p(-z; lbs, ubs)| */
     double primal_obj = 0.0;
     for (size_t j = 0; j < n; ++j)
     {
@@ -220,7 +242,9 @@ void KKT_checker_compute_residuals(KKT_checker *checker, const double *x,
         dual_obj += dual_obj_term(
             -z[j], checker->lbs[j], checker->ubs[j]);
     }
-    checker->gap = fabs(primal_obj + dual_obj);
+    checker->gap_abs = fabs(primal_obj + dual_obj);
+    checker->gap_rel =
+        checker->gap_abs / (1.0 + fabs(dual_obj) + fabs(primal_obj));
 
     /* z complementary slackness */
     project_z_comp_slack(
@@ -254,25 +278,25 @@ bool KKT_checker_abs(KKT_checker *checker, const double *x, const double *y,
     KKT_checker_compute_residuals(checker, x, y, z);
 
     bool ok = true;
-    if (checker->dual_res > eps_dual_res_abs)
+    if (checker->dual_res_abs > eps_dual_res_abs)
     {
-        printf("KKT FAIL: dual_res = %.2e "
+        printf("KKT FAIL: dual_res_abs = %.2e "
                "(tol = %.2e)\n",
-               checker->dual_res, eps_dual_res_abs);
+               checker->dual_res_abs, eps_dual_res_abs);
         ok = false;
     }
-    if (checker->primal_res > eps_primal_res_abs)
+    if (checker->primal_res_abs > eps_primal_res_abs)
     {
-        printf("KKT FAIL: primal_res = %.2e "
+        printf("KKT FAIL: primal_res_abs = %.2e "
                "(tol = %.2e)\n",
-               checker->primal_res, eps_primal_res_abs);
+               checker->primal_res_abs, eps_primal_res_abs);
         ok = false;
     }
-    if (checker->gap > eps_gap_abs)
+    if (checker->gap_abs > eps_gap_abs)
     {
-        printf("KKT FAIL: gap = %.2e "
+        printf("KKT FAIL: gap_abs = %.2e "
                "(tol = %.2e)\n",
-               checker->gap, eps_gap_abs);
+               checker->gap_abs, eps_gap_abs);
         ok = false;
     }
     if (checker->z_comp_slack > eps_z_comp_slack_abs)
