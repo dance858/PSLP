@@ -28,6 +28,7 @@
 #include "SimpleReductions.h"
 #include "State.h"
 #include "Workspace.h"
+#include "radix_sort.h"
 #include "utils.h"
 
 static PresolveStatus update_lb_within_propagation(double new_lb, double *lb,
@@ -782,27 +783,6 @@ PresolveStatus propagate_primal(Problem *prob, bool finite_bound_tightening)
     return UNCHANGED;
 }
 
-// Static variable to hold col_sizes (for qsort)
-static const int *global_col_sizes;
-
-int compare_col_len(const void *a, const void *b)
-{
-    int idx_a = *(const int *) a;
-    int idx_b = *(const int *) b;
-
-    if (global_col_sizes[idx_a] < global_col_sizes[idx_b])
-    {
-        return -1;
-    }
-    if (global_col_sizes[idx_a] > global_col_sizes[idx_b])
-    {
-        return 1;
-    }
-
-    // if equal len, sort by index
-    return idx_a - idx_b;
-}
-
 void remove_redundant_bounds(Constraints *constraints)
 {
     const Matrix *A = constraints->A;
@@ -830,9 +810,8 @@ void remove_redundant_bounds(Constraints *constraints)
         col_order[ii] = ii;
     }
 
-    global_col_sizes = col_sizes;
-    qsort(col_order, n_cols, sizeof(int), compare_col_len);
-    global_col_sizes = NULL;
+    int *aux = constraints->state->work->radix_aux;
+    radix_sort_by_key(col_order, n_cols, col_sizes, aux);
 
     for (jj = 0; jj < n_cols; jj++)
     {
@@ -863,7 +842,7 @@ void remove_redundant_bounds(Constraints *constraints)
                                    bounds))
             {
                 remove_finite_lb_from_activities(&col, acts, bounds[ii].lb);
-                DEBUG(bounds[ii].lb = -INF);
+                bounds[ii].lb = -INF;
                 UPDATE_TAG(col_tags[ii], C_TAG_LB_INF);
             }
         }
@@ -875,7 +854,7 @@ void remove_redundant_bounds(Constraints *constraints)
                                    bounds))
             {
                 remove_finite_ub_from_activities(&col, acts, bounds[ii].ub);
-                DEBUG(bounds[ii].ub = INF);
+                bounds[ii].ub = INF;
                 UPDATE_TAG(col_tags[ii], C_TAG_UB_INF);
             }
         }
