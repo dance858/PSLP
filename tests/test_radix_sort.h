@@ -432,6 +432,141 @@ static char *test_14_radix_sort()
     return 0;
 }
 
+// ---- Tests for radix_sort_by_key ----
+
+// helper: check indices sorted ascending by keys[indices[i]]
+static int is_sorted_by_single_key(const int *indices, int n, const int *keys)
+{
+    for (int i = 1; i < n; i++)
+    {
+        unsigned int prev = (unsigned int) keys[indices[i - 1]];
+        unsigned int curr = (unsigned int) keys[indices[i]];
+        if (prev > curr)
+        {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* Test 15: basic ascending sort by single key */
+static char *test_15_radix_sort()
+{
+    int n = 5;
+    int indices[] = {0, 1, 2, 3, 4};
+    int keys[] = {30, 10, 50, 20, 40};
+    int aux[5];
+
+    radix_sort_by_key(indices, (size_t) n, keys, aux);
+    mu_assert("should be sorted by key", is_sorted_by_single_key(indices, n, keys));
+    mu_assert("should be permutation", is_permutation(indices, n));
+    // expected: 1(10), 3(20), 0(30), 4(40), 2(50)
+    mu_assert("pos 0", indices[0] == 1);
+    mu_assert("pos 1", indices[1] == 3);
+    mu_assert("pos 2", indices[2] == 0);
+    mu_assert("pos 3", indices[3] == 4);
+    mu_assert("pos 4", indices[4] == 2);
+    return 0;
+}
+
+/* Test 16: already-sorted input */
+static char *test_16_radix_sort()
+{
+    int n = 5;
+    int indices[] = {0, 1, 2, 3, 4};
+    int keys[] = {1, 2, 3, 4, 5};
+    int aux[5];
+
+    radix_sort_by_key(indices, (size_t) n, keys, aux);
+    mu_assert("should be sorted", is_sorted_by_single_key(indices, n, keys));
+    for (int i = 0; i < n; i++)
+    {
+        mu_assert("order preserved", indices[i] == i);
+    }
+    return 0;
+}
+
+/* Test 17: reverse-sorted input */
+static char *test_17_radix_sort()
+{
+    int n = 5;
+    int indices[] = {0, 1, 2, 3, 4};
+    int keys[] = {50, 40, 30, 20, 10};
+    int aux[5];
+
+    radix_sort_by_key(indices, (size_t) n, keys, aux);
+    mu_assert("should be sorted", is_sorted_by_single_key(indices, n, keys));
+    mu_assert("first", indices[0] == 4);
+    mu_assert("last", indices[4] == 0);
+    return 0;
+}
+
+/* Test 18: duplicate keys — stability preserves input order */
+static char *test_18_radix_sort()
+{
+    int n = 6;
+    int indices[] = {0, 1, 2, 3, 4, 5};
+    int keys[] = {5, 5, 5, 10, 10, 10};
+    int aux[6];
+
+    radix_sort_by_key(indices, (size_t) n, keys, aux);
+    mu_assert("should be sorted", is_sorted_by_single_key(indices, n, keys));
+    mu_assert("should be permutation", is_permutation(indices, n));
+    // stable: group key=5 keeps order 0,1,2; group key=10 keeps 3,4,5
+    mu_assert("stable 0", indices[0] == 0);
+    mu_assert("stable 1", indices[1] == 1);
+    mu_assert("stable 2", indices[2] == 2);
+    mu_assert("stable 3", indices[3] == 3);
+    mu_assert("stable 4", indices[4] == 4);
+    mu_assert("stable 5", indices[5] == 5);
+    return 0;
+}
+
+/* Test 19: large input (n=300) forces radix path */
+static char *test_19_radix_sort()
+{
+    int n = 300;
+    int indices[300];
+    int keys[300];
+    int aux[300];
+
+    srand(54321);
+    for (int i = 0; i < n; i++)
+    {
+        indices[i] = i;
+        keys[i] = rand() % 100;
+    }
+
+    radix_sort_by_key(indices, (size_t) n, keys, aux);
+    mu_assert("should be sorted", is_sorted_by_single_key(indices, n, keys));
+    mu_assert("should be permutation", is_permutation(indices, n));
+    return 0;
+}
+
+/* Test 20: large input with all identical keys (skip-pass opt) */
+static char *test_20_radix_sort()
+{
+    int n = 300;
+    int indices[300];
+    int keys[300];
+    int aux[300];
+
+    for (int i = 0; i < n; i++)
+    {
+        indices[i] = i;
+        keys[i] = 42;
+    }
+
+    radix_sort_by_key(indices, (size_t) n, keys, aux);
+    mu_assert("should be sorted", is_sorted_by_single_key(indices, n, keys));
+    // stable: identical keys preserve input order 0,1,...,n-1
+    for (int i = 0; i < n; i++)
+    {
+        mu_assert("stable order", indices[i] == i);
+    }
+    return 0;
+}
+
 static const char *all_tests_radix_sort()
 {
     mu_run_test(test_1_radix_sort, counter_radix_sort);
@@ -448,6 +583,12 @@ static const char *all_tests_radix_sort()
     mu_run_test(test_12_radix_sort, counter_radix_sort);
     mu_run_test(test_13_radix_sort, counter_radix_sort);
     mu_run_test(test_14_radix_sort, counter_radix_sort);
+    mu_run_test(test_15_radix_sort, counter_radix_sort);
+    mu_run_test(test_16_radix_sort, counter_radix_sort);
+    mu_run_test(test_17_radix_sort, counter_radix_sort);
+    mu_run_test(test_18_radix_sort, counter_radix_sort);
+    mu_run_test(test_19_radix_sort, counter_radix_sort);
+    mu_run_test(test_20_radix_sort, counter_radix_sort);
 
     return 0;
 }

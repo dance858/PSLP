@@ -138,6 +138,98 @@ void radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
     }
 }
 
+// --- Single-key radix sort ---
+
+static void insertion_sort_by_key(int *indices, size_t n,
+                                  const int *keys)
+{
+    for (size_t i = 1; i < n; i++)
+    {
+        int idx = indices[i];
+        int idx_key = keys[idx];
+        size_t j = i;
+        while (j > 0 && keys[indices[j - 1]] > idx_key)
+        {
+            indices[j] = indices[j - 1];
+            j--;
+        }
+        indices[j] = idx;
+    }
+}
+
+void radix_sort_by_key(int *indices, size_t n,
+                       const int *keys, int *aux)
+{
+    if (n < 256)
+    {
+        insertion_sort_by_key(indices, n, keys);
+        return;
+    }
+
+    size_t counts[256];
+    int *src = indices, *dst = aux;
+
+    for (int pass = 0; pass < 4; pass++)
+    {
+        int shift = pass * 8;
+
+        // histogram
+        memset(counts, 0, 256 * sizeof(size_t));
+        for (size_t i = 0; i < n; i++)
+        {
+            unsigned byte =
+                ((uint32_t) keys[src[i]] >> shift) & 0xFF;
+            counts[byte]++;
+        }
+
+        // skip pass if all values fall in one bucket
+        if (pass > 0)
+        {
+            int skip = 0;
+            for (int b = 0; b < 256; b++)
+            {
+                if (counts[b] == n)
+                {
+                    skip = 1;
+                    break;
+                }
+            }
+            if (skip)
+            {
+                continue;
+            }
+        }
+
+        // prefix sum
+        size_t total = 0;
+        for (int b = 0; b < 256; b++)
+        {
+            size_t c = counts[b];
+            counts[b] = total;
+            total += c;
+        }
+
+        // scatter (forward — stable)
+        for (size_t i = 0; i < n; i++)
+        {
+            unsigned byte =
+                ((uint32_t) keys[src[i]] >> shift) & 0xFF;
+            dst[counts[byte]++] = src[i];
+        }
+
+        // swap src and dst
+        int *tmp = src;
+        src = dst;
+        dst = tmp;
+    }
+
+    // if result ended up in aux, copy back to indices
+    if (src != indices)
+    {
+        memcpy(indices, src, n * sizeof(int));
+    }
+}
+
 // --- Parallel radix sort infrastructure ---
 
 typedef struct

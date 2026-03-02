@@ -31,4 +31,8 @@ void radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
 void parallel_radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
                               const int *coeff_hashes, int *aux);
 
+// Single-key LSD radix sort. Sorts indices by keys[indices[i]]
+// ascending (unsigned order). Stable. aux must have space for n ints.
+void radix_sort_by_key(int *indices, size_t n, const int *keys, int *aux);
+
 #endif /* RADIX_SORT_H */
