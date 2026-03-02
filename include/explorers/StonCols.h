@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Daniel Cederberg
+ * Copyright 2025-2026 Daniel Cederberg
  *
  * This file is part of the PSLP project (LP Presolver).
  *
