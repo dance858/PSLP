@@ -27,6 +27,9 @@
 #include "stdlib.h"
 #include "string.h"
 
+/* forward declaration */
+static inline void remove_explicit_zeros(Matrix *A);
+
 Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, size_t n_rows,
                    size_t n_cols, size_t nnz)
 {
@@ -114,7 +117,33 @@ Matrix *matrix_new_no_extra_space(const double *Ax, const int *Ai, const int *Ap
         A->p[i].end = Ap[i + 1];
     }
 
+    /* the presolver assumes that only nonzero entries are stored */
+    remove_explicit_zeros(A);
+
     return A;
+}
+
+static inline void remove_explicit_zeros(Matrix *A)
+{
+    int i, j, shift;
+    for (i = 0; i < A->m; ++i)
+    {
+        shift = 0;
+        for (j = A->p[i].start; j < A->p[i].end; ++j)
+        {
+            if (A->x[j] == 0.0)
+            {
+                shift++;
+            }
+            else if (shift > 0)
+            {
+                A->x[j - shift] = A->x[j];
+                A->i[j - shift] = A->i[j];
+            }
+        }
+        A->p[i].end -= shift;
+        A->nnz -= (size_t) shift;
+    }
 }
 
 Matrix *transpose(const Matrix *A, int *work_n_cols)
@@ -433,7 +462,6 @@ double insert_or_update_coeff(Matrix *A, int row, int col, double val, int *row_
     // -----------------------------------------------------------------
     if (ABS(val) > ZERO_TOL)
     {
-        // assert(!IS_ZERO_FEAS_TOL(val));
         if (insertion == end)
         {
             A->x[insertion] = val;
