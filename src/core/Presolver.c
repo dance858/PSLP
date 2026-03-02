@@ -305,6 +305,7 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     presolver->stgs = stgs;
     presolver->prob = new_problem(constraints, obj);
     presolver->stats = init_stats(A->m, A->n, nnz);
+    presolver->stats->nnz_removed_trivial = nnz - (size_t) A->nnz; /* explicit 0's */
     presolver->reduced_prob =
         (PresolvedProblem *) ps_calloc(1, sizeof(PresolvedProblem));
     DEBUG(run_debugger(constraints, false));
