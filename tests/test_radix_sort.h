@@ -435,8 +435,7 @@ static char *test_14_radix_sort()
 // ---- Tests for radix_sort_by_key ----
 
 // helper: check indices sorted ascending by keys[indices[i]]
-static int is_sorted_by_single_key(const int *indices, int n,
-                                   const int *keys)
+static int is_sorted_by_single_key(const int *indices, int n, const int *keys)
 {
     for (int i = 1; i < n; i++)
     {
@@ -459,8 +458,7 @@ static char *test_15_radix_sort()
     int aux[5];
 
     radix_sort_by_key(indices, (size_t) n, keys, aux);
-    mu_assert("should be sorted by key",
-              is_sorted_by_single_key(indices, n, keys));
+    mu_assert("should be sorted by key", is_sorted_by_single_key(indices, n, keys));
     mu_assert("should be permutation", is_permutation(indices, n));
     // expected: 1(10), 3(20), 0(30), 4(40), 2(50)
     mu_assert("pos 0", indices[0] == 1);
@@ -480,8 +478,7 @@ static char *test_16_radix_sort()
     int aux[5];
 
     radix_sort_by_key(indices, (size_t) n, keys, aux);
-    mu_assert("should be sorted",
-              is_sorted_by_single_key(indices, n, keys));
+    mu_assert("should be sorted", is_sorted_by_single_key(indices, n, keys));
     for (int i = 0; i < n; i++)
     {
         mu_assert("order preserved", indices[i] == i);
@@ -498,8 +495,7 @@ static char *test_17_radix_sort()
     int aux[5];
 
     radix_sort_by_key(indices, (size_t) n, keys, aux);
-    mu_assert("should be sorted",
-              is_sorted_by_single_key(indices, n, keys));
+    mu_assert("should be sorted", is_sorted_by_single_key(indices, n, keys));
     mu_assert("first", indices[0] == 4);
     mu_assert("last", indices[4] == 0);
     return 0;
@@ -514,8 +510,7 @@ static char *test_18_radix_sort()
     int aux[6];
 
     radix_sort_by_key(indices, (size_t) n, keys, aux);
-    mu_assert("should be sorted",
-              is_sorted_by_single_key(indices, n, keys));
+    mu_assert("should be sorted", is_sorted_by_single_key(indices, n, keys));
     mu_assert("should be permutation", is_permutation(indices, n));
     // stable: group key=5 keeps order 0,1,2; group key=10 keeps 3,4,5
     mu_assert("stable 0", indices[0] == 0);
@@ -543,8 +538,7 @@ static char *test_19_radix_sort()
     }
 
     radix_sort_by_key(indices, (size_t) n, keys, aux);
-    mu_assert("should be sorted",
-              is_sorted_by_single_key(indices, n, keys));
+    mu_assert("should be sorted", is_sorted_by_single_key(indices, n, keys));
     mu_assert("should be permutation", is_permutation(indices, n));
     return 0;
 }
@@ -564,8 +558,7 @@ static char *test_20_radix_sort()
     }
 
     radix_sort_by_key(indices, (size_t) n, keys, aux);
-    mu_assert("should be sorted",
-              is_sorted_by_single_key(indices, n, keys));
+    mu_assert("should be sorted", is_sorted_by_single_key(indices, n, keys));
     // stable: identical keys preserve input order 0,1,...,n-1
     for (int i = 0; i < n; i++)
     {
