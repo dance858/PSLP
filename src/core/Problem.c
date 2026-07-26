@@ -20,6 +20,7 @@
 #include "Constraints.h"
 #include "Matrix.h"
 #include "Memory_wrapper.h"
+#include "Numerics.h"
 #include "State.h"
 #include "Workspace.h"
 #include "utils.h"
@@ -103,7 +104,17 @@ void sub_var_in_obj(Objective *obj, const double *vals, const int *cols, int len
     double ratio = obj->c[k] / aik;
     for (int i = 0; i < len; ++i)
     {
-        obj->c[cols[i]] -= ratio * vals[i];
+        double upd = ratio * vals[i];
+        double new_c = obj->c[cols[i]] - upd;
+
+        /* Exact cancellation leaves a residue whose sign is rounding noise;
+           downstream sign tests (e.g. the unboundedness check in
+           process_colston_ineq) must never see it. */
+        if (ABS(new_c) <= CANCEL_TOL_REL * MAX(ABS(obj->c[cols[i]]), ABS(upd)))
+        {
+            new_c = 0.0;
+        }
+        obj->c[cols[i]] = new_c;
     }
 
     obj->offset += rhs * ratio;

@@ -993,6 +993,54 @@ static char *test_fix_col_inf()
     return 0;
 }
 
+/*  Parallel-column dual postsolve: z_k = ratio * z_j is an exact identity.
+
+    min. [1  2  0.1] x
+    s.t. -20 <= [1  2  1] x <= 20
+         -40 <= [3  6  1] x <= 40
+    x1 in [0, 3], x2 in [0, 5], x3 in [-10, 10] */
+static char *test_parallel_col_dual_identity()
+{
+    double Ax[] = {1, 2, 1, 3, 6, 1};
+    int Ai[] = {0, 1, 2, 0, 1, 2};
+    int Ap[] = {0, 3, 6};
+    int nnz = 6;
+    int n_rows = 2;
+    int n_cols = 3;
+
+    double lhs[] = {-20, -40};
+    double rhs[] = {20, 40};
+    double lbs[] = {0, 0, -10};
+    double ubs[] = {3, 5, 10};
+    double c[] = {1, 2, 0.1};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->parallel_cols = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+
+    // reduced problem: the merged column (box [0, 13]) and x3
+    double x[] = {7, 10};
+    double y[] = {0.3, 0.1};
+    double z[] = {0.4, -0.3};
+    postsolve(presolver, x, y, z);
+
+    double correct_x[] = {0, 3.5, 10};
+    double correct_y[] = {0.3, 0.1};
+    double correct_z[] = {0.4, 0.8, -0.3};
+
+    mu_assert("parallel col dual identity error",
+              is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
+                                  correct_y, presolver->sol->z, correct_z, n_rows,
+                                  n_cols, POSTSOLVE_TOL_FEAS));
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_postsolve()
 {
     mu_run_test(test_0_postsolve, counter_postsolve);
@@ -1017,6 +1065,7 @@ static const char *all_tests_postsolve()
     mu_run_test(test_pathological_ston_one, counter_postsolve);
     mu_run_test(test_pathological_ston_two, counter_postsolve);
     mu_run_test(test_fix_col_inf, counter_postsolve);
+    mu_run_test(test_parallel_col_dual_identity, counter_postsolve);
     //        all tests above pass
 
     return 0;

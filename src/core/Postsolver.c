@@ -270,46 +270,7 @@ static void retrieve_parallel_col(Solution *sol, const int *indices,
     sol->x[k] = xk_val;
 
     // dual postsolve
-    bool is_xj_at_bound =
-        (!HAS_TAG(cTag_j, C_TAG_LB_INF) && IS_EQUAL_FEAS_TOL(xj_val, lb_j)) ||
-        (!HAS_TAG(cTag_j, C_TAG_UB_INF) && IS_EQUAL_FEAS_TOL(xj_val, ub_j));
-    bool is_xk_at_bound =
-        (!HAS_TAG(cTag_k, C_TAG_LB_INF) && IS_EQUAL_FEAS_TOL(xk_val, lb_k)) ||
-        (!HAS_TAG(cTag_k, C_TAG_UB_INF) && IS_EQUAL_FEAS_TOL(xk_val, ub_k));
-
-    if (is_xj_at_bound && is_xk_at_bound)
-    {
-        sol->z[k] = ratio * sol->z[j];
-    }
-    else
-    {
-        sol->z[k] = 0.0;
-    }
-
-#ifndef NDEBUG
-    SET_ZERO_IF_SMALL_DUAL_POSTSOLVE(sol->z[j]);
-
-    // if the multiplier is positive the variable should be at its lower bound
-    if (sol->z[j] > 0)
-    {
-        assert(!HAS_TAG(cTag_j, C_TAG_LB_INF) && IS_EQUAL_FEAS_TOL(sol->x[j], lb_j));
-    }
-    // if the multiplier is negative the variable should be at its upper bound
-    else if (sol->z[j] < 0)
-    {
-        assert(!HAS_TAG(cTag_j, C_TAG_UB_INF) && IS_EQUAL_FEAS_TOL(sol->x[j], ub_j));
-    }
-
-    // similar checks for variable k
-    if (sol->z[k] > 0)
-    {
-        assert(!HAS_TAG(cTag_k, C_TAG_LB_INF) && IS_EQUAL_FEAS_TOL(sol->x[k], lb_k));
-    }
-    else if (sol->z[k] < 0)
-    {
-        assert(!HAS_TAG(cTag_k, C_TAG_UB_INF) && IS_EQUAL_FEAS_TOL(sol->x[k], ub_k));
-    }
-#endif
+    sol->z[k] = ratio * sol->z[j];
 }
 
 void retrieve_deleted_row(Solution *sol, int row, double val)

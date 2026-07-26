@@ -1200,6 +1200,45 @@ static char *test_16_ston()
     return 0;
 }
 
+/* Test 17: exact cost cancellation must snap to zero, not flip the
+   unboundedness check.
+
+    min. -0.1125*x1 + 0.0375*x2 + x3
+    s.t. [-0.3   0.1   0] x  = 0.6
+         [   0   0.1   1] x >= 0
+    x1 free, x2 >= 0, x3 >= 0 */
+static char *test_17_ston()
+{
+    double Ax[] = {-0.3, 0.1, 0.1, 1};
+    int Ai[] = {0, 1, 1, 2};
+    int Ap[] = {0, 2, 4};
+    int nnz = 4;
+    int n_rows = 2;
+    int n_cols = 3;
+
+    double lhs[] = {0.6, 0};
+    double rhs[] = {0.6, INF};
+    double lbs[] = {-INF, 0, 0};
+    double ubs[] = {INF, INF, INF};
+    double c[] = {-0.1125, 0.0375, 1};
+
+    Settings *stgs = default_settings();
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    Problem *prob = presolver->prob;
+
+    PresolveStatus status = remove_ston_cols(prob);
+
+    mu_assert("cancellation residue misread as unbounded", status != UNBNDORINFEAS);
+    mu_assert("partner cost must snap to exact zero", prob->obj->c[1] == 0.0);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+
+    return 0;
+}
+
 static const char *all_tests_ston()
 {
     mu_run_test(test_01_ston, counter_ston); // (✓)
@@ -1217,6 +1256,7 @@ static const char *all_tests_ston()
     mu_run_test(test_14_ston, counter_ston); // (✓)
     mu_run_test(test_15_ston, counter_ston); // (✓)
     mu_run_test(test_16_ston, counter_ston); // (✓)
+    mu_run_test(test_17_ston, counter_ston); // (✓)
     return 0;
 }
 
