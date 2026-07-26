@@ -28,11 +28,9 @@ jobs:
       # Check formatting
       - name: Check C/C++ formatting
         run: |
-          misformatted=$(find . -name '*.c' -o -name '*.h' -print0 | xargs -0 clang-format -style=file -output-replacements-xml | grep "<replacement " || true)
-          if [ -n "$misformatted" ]; then
-            echo "ERROR: Some files are not properly formatted. Run clang-format -i."
+          if ! git ls-files '*.c' '*.h' | xargs clang-format --dry-run -Werror; then
+            echo "ERROR: Some files are not properly formatted."
+            echo "Fix with: git ls-files '*.c' '*.h' | xargs clang-format -i"
             exit 1
-          else
-            echo "All files are properly formatted."
-            exit 0
           fi
+          echo "All files are properly formatted."

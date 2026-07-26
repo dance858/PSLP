@@ -140,8 +140,7 @@ void radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
 
 // --- Single-key radix sort ---
 
-static void insertion_sort_by_key(int *indices, size_t n,
-                                  const int *keys)
+static void insertion_sort_by_key(int *indices, size_t n, const int *keys)
 {
     for (size_t i = 1; i < n; i++)
     {
@@ -157,8 +156,7 @@ static void insertion_sort_by_key(int *indices, size_t n,
     }
 }
 
-void radix_sort_by_key(int *indices, size_t n,
-                       const int *keys, int *aux)
+void radix_sort_by_key(int *indices, size_t n, const int *keys, int *aux)
 {
     if (n < 256)
     {
@@ -177,8 +175,7 @@ void radix_sort_by_key(int *indices, size_t n,
         memset(counts, 0, 256 * sizeof(size_t));
         for (size_t i = 0; i < n; i++)
         {
-            unsigned byte =
-                ((uint32_t) keys[src[i]] >> shift) & 0xFF;
+            unsigned byte = ((uint32_t) keys[src[i]] >> shift) & 0xFF;
             counts[byte]++;
         }
 
@@ -212,8 +209,7 @@ void radix_sort_by_key(int *indices, size_t n,
         // scatter (forward — stable)
         for (size_t i = 0; i < n; i++)
         {
-            unsigned byte =
-                ((uint32_t) keys[src[i]] >> shift) & 0xFF;
+            unsigned byte = ((uint32_t) keys[src[i]] >> shift) & 0xFF;
             dst[counts[byte]++] = src[i];
         }
 

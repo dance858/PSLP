@@ -1230,8 +1230,7 @@ static char *test_17_ston()
 
     PresolveStatus status = remove_ston_cols(prob);
 
-    mu_assert("cancellation residue misread as unbounded",
-              status != UNBNDORINFEAS);
+    mu_assert("cancellation residue misread as unbounded", status != UNBNDORINFEAS);
     mu_assert("partner cost must snap to exact zero", prob->obj->c[1] == 0.0);
 
     PS_FREE(stgs);
