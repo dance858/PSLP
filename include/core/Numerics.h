@@ -24,6 +24,7 @@
 #define FEAS_TOL 1e-6
 #define BOUND_MARGINAL 0.5 * FEAS_TOL
 #define ZERO_TOL 1e-10
+#define CANCEL_TOL_REL 1e-12
 #define ZERO_TOL_DUAL_POSTSOLVE 1e-6
 #define HUGE_VAL_PS 1e7
 
