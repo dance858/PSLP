@@ -1206,17 +1206,7 @@ static char *test_16_ston()
     min. -0.1125*x1 + 0.0375*x2 + x3
     s.t. [-0.3   0.1   0] x  = 0.6
          [   0   0.1   1] x >= 0
-    x1 free, x2 >= 0, x3 >= 0
-
-   x1 is a free column singleton in the equality row; substituting it
-   updates c2 -= (c1 / -0.3) * 0.1, which cancels exactly in real
-   arithmetic but leaves an FP residue of a few ulp (~ -3.5e-18). The
-   next round then sees x2 as a column singleton in the >= row with
-   ub = inf, and without the cancellation snap in sub_var_in_obj the
-   unboundedness check reads the residue's sign as a certified descent
-   direction and returns UNBNDORINFEAS. The LP is feasible and bounded
-   (optimum 0.225 at x3 = 0, any x2 >= 0). Surfaced on netlib lotfi and
-   maros, whose equal-and-opposite cost pairs cancel the same way. */
+    x1 free, x2 >= 0, x3 >= 0 */
 static char *test_17_ston()
 {
     double Ax[] = {-0.3, 0.1, 0.1, 1};

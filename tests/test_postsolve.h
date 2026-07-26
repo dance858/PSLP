@@ -998,21 +998,7 @@ static char *test_fix_col_inf()
     min. [1  2  0.1] x
     s.t. -20 <= [1  2  1] x <= 20
          -40 <= [3  6  1] x <= 40
-    x1 in [0, 3], x2 in [0, 5], x3 in [-10, 10]
-
-    Columns 1 and 2 are parallel (A_2 = 2*A_1, c_2 = 2*c_1), so column 2 is
-    merged into column 1 with ratio 2 and recorded box [0, 13]. The reduced
-    solution below puts the merged variable at 7, interior to the recorded
-    box, so the primal split lands x2 = (7 - lb_1)/2 = 3.5 strictly inside
-    [0, 5]. This is the situation a later bound tightening on the merged
-    column (or an interior-point reduced solution) produces: the recorded
-    bounds no longer describe the box the reduced solve saw. The old
-    both-at-bounds guard then zeroed z_2 and broke stationarity; the only
-    value consistent with c - A'y - z = 0 on the original problem is
-    z_2 = c_2 - A_2'y = ratio*(c_1 - A_1'y) = ratio*z_1 for ANY y:
-    with y = (0.3, 0.1), z_2 = 2 - (2*0.3 + 6*0.1) = 0.8 = 2*z_1.
-    Surfaced on netlib greenbea/greenbeb as rho_d 2e-3 / 7e-5 from a
-    certified 1e-13 reduced-space input. */
+    x1 in [0, 3], x2 in [0, 5], x3 in [-10, 10] */
 static char *test_parallel_col_dual_identity()
 {
     double Ax[] = {1, 2, 1, 3, 6, 1};
