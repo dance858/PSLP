@@ -369,6 +369,15 @@ static inline PresolveStatus process_single_bin(const Constraints *constraints,
 
         if (!is_remaining_row_eq && is_other_row_eq)
         {
+            // check the sides accumulated so far before the swap discards them
+            double eq_scaled = rhs[other_row_idx] * (remaining_row_coeff /
+                                                     A->x[A->p[other_row_idx].start]);
+            if ((!is_rhs_inf_remaining_row && eq_scaled > remaining_row_new_rhs) ||
+                (!is_lhs_inf_remaining_row && eq_scaled < remaining_row_new_lhs))
+            {
+                return INFEASIBLE;
+            }
+
             // swap(remaining_row, other_row)
             int temp = remaining_row_idx;
             remaining_row_idx = other_row_idx;
