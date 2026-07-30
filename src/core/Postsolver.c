@@ -31,9 +31,6 @@
 #include <assert.h>
 
 #define INIT_FRAC_POSTSOLVE 0.3
-#define COL_NOT_RETRIEVED INF
-#define ROW_NOT_RETRIEVED INF
-#define DUMMY_VALUE -382749
 
 PostsolveInfo *postsolve_info_new(size_t n_rows, size_t n_cols)
 {

@@ -11,6 +11,7 @@
 #include "test_pathological.h"
 #include "test_postsolve.h"
 #include "test_radix_sort.h"
+#include "test_ray_postsolve.h"
 #include "test_ston.h"
 
 const char *run_all_tests()
@@ -34,6 +35,7 @@ const char *run_all_tests()
 #endif
 
     mu_assert("postsolve error", test_postsolve());
+    mu_assert("ray postsolve error", test_ray_postsolve());
 
     return NULL;
 }

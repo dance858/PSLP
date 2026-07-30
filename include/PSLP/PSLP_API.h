@@ -133,6 +133,23 @@ extern "C"
     void postsolve(Presolver *presolver, const double *x, const double *y,
                    const double *z);
 
+    /* Postsolve a primal infeasibility ray y of the reduced problem.
+       The function writes the corresponding ray for the original problem
+       to y_orig. It does not check whether y is a valid ray.
+
+       y uses the Farkas sign convention, yi >= 0 when row i is active at its
+       rhs, the opposite of postsolve(). It matches Gurobi's FarkasDual. */
+    void postsolve_primal_infeas_ray(Presolver *presolver, const double *y,
+                                     double *y_orig);
+
+    /* Postsolve a dual infeasibility ray x of the reduced problem.
+       The function writes the corresponding ray for the original problem
+       to x_orig. It does not check whether x is a valid ray.
+
+       x is an unbounded direction with c'x < 0; no sign convention involved. */
+    void postsolve_dual_infeas_ray(Presolver *presolver, const double *x,
+                                   double *x_orig);
+
 #ifdef __cplusplus
 }
 #endif

@@ -38,7 +38,7 @@ jobs:
           --root . \
           --xml-pretty \
           --output coverage.xml \
-          --exclude 'test/*' \
+          --exclude 'tests/*' \
           --exclude 'build/*'
 
     # ---- SEND TO COVERALLS ----
