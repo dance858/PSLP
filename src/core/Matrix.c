@@ -116,8 +116,6 @@ Matrix *matrix_new_no_extra_space(const double *Ax, const int *Ai, const int *Ap
         A->p[i].start = Ap[i];
         A->p[i].end = Ap[i + 1];
     }
-    /* sentinel row like matrix_new: reading Ap[n_rows + 1] would be out
-       of bounds (Ap has n_rows + 1 entries) */
     A->p[n_rows].start = Ap[n_rows];
     A->p[n_rows].end = Ap[n_rows];
 
