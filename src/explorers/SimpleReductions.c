@@ -529,6 +529,11 @@ PresolveStatus remove_empty_cols(Problem *prob)
     {
         k = empty_cols_data[i];
 
+        if (HAS_TAG(col_tags[k], C_TAG_INACTIVE))
+        {
+            continue;
+        }
+
         assert(col_sizes[k] == 0 && !HAS_TAG(col_tags[k], C_TAG_INACTIVE));
 
         // --------------------------------------------------------------------
