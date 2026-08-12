@@ -736,6 +736,12 @@ PresolveStatus run_presolver(Presolver *presolver)
     stats->nnz_reduced = A->nnz;
     DEBUG(run_debugger_stats_consistency_check(stats));
     populate_presolved_problem(presolver);
+
+    // The transpose is only needed during presolve. Postsolve uses the recorded
+    // reductions and row/column mappings.
+    free_matrix(prob->constraints->AT);
+    prob->constraints->AT = NULL;
+
     clock_gettime(CLOCK_MONOTONIC, &outer_timer.end);
     stats->time_presolve = GET_ELAPSED_SECONDS(outer_timer);
 
@@ -745,6 +751,46 @@ PresolveStatus run_presolver(Presolver *presolver)
     }
 
     return final_status(stats);
+}
+
+void free_presolver_reduced_problem(Presolver *presolver)
+{
+    if (!presolver || !presolver->reduced_prob)
+    {
+        return;
+    }
+
+    PresolvedProblem *reduced_prob = presolver->reduced_prob;
+    Problem *prob = presolver->prob;
+    if (prob)
+    {
+        Constraints *constraints = prob->constraints;
+        if (constraints)
+        {
+            free_matrix(constraints->A);
+            constraints->A = NULL;
+            free_matrix(constraints->AT);
+            constraints->AT = NULL;
+            PS_FREE(constraints->lhs);
+            PS_FREE(constraints->rhs);
+            PS_FREE(constraints->bounds);
+            PS_FREE(constraints->row_tags);
+            PS_FREE(constraints->col_tags);
+        }
+        if (prob->obj)
+        {
+            PS_FREE(prob->obj->c);
+        }
+    }
+
+    reduced_prob->Ax = NULL;
+    reduced_prob->Ai = NULL;
+    reduced_prob->lhs = NULL;
+    reduced_prob->rhs = NULL;
+    reduced_prob->c = NULL;
+    PS_FREE(reduced_prob->Ap);
+    PS_FREE(reduced_prob->lbs);
+    PS_FREE(reduced_prob->ubs);
 }
 
 void postsolve(Presolver *presolver, const double *x, const double *y,
@@ -797,7 +843,11 @@ void postsolve_primal_infeas_ray(Presolver *presolver, const double *y,
     PresolvedProblem *reduced_prob = presolver->reduced_prob;
     size_t len_z = MAX((size_t) 1, stats->n_cols_reduced);
     double *z;
-    assert(reduced_prob != NULL);
+    assert(reduced_prob != NULL && reduced_prob->Ax != NULL);
+    if (!reduced_prob || !reduced_prob->Ax)
+    {
+        return;
+    }
     z = (double *) ps_malloc(len_z, sizeof(double));
     assert(z != NULL);
 

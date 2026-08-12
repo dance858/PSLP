@@ -242,6 +242,7 @@ static char *test_0_dual_ray_postsolve()
 
     PresolveStatus status = run_presolver(presolver);
     mu_assert("dual ray postsolve presolve status", status == UNCHANGED);
+    free_presolver_reduced_problem(presolver);
 
     double x[] = {0.0, 0.0};
     double x_orig[] = {0.0, 0.0};

@@ -47,10 +47,16 @@ static char *test_0_postsolve()
     Matrix *A = constraints->A;
 
     run_presolver(presolver);
-
+    mu_assert("transpose should be released after presolve", constraints->AT == NULL);
     Mapping *maps = prob->constraints->state->work->mappings;
     int *rows_map = maps->rows;
     int *cols_map = maps->cols;
+
+    free_presolver_reduced_problem(presolver);
+    mu_assert("reduced matrix should be released", constraints->A == NULL);
+    mu_assert("reduced problem buffers should be released",
+              presolver->reduced_prob->Ax == NULL &&
+                  presolver->reduced_prob->Ap == NULL);
 
     // construct optimal primal solution to reduced problem (computed offline)
     double x[] = {10., -10., -10., 2.71428571, -10., -6.85714286, -10.};
