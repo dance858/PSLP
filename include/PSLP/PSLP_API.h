@@ -129,7 +129,7 @@ extern "C"
        caller must still call 'free_presolver' after postsolve. Normal postsolve
        and dual-infeasibility-ray postsolve remain available. Primal-
        infeasibility-ray postsolve is no longer available because it requires
-       the reduced constraint matrix. This function is idempotent. */
+       the reduced constraint matrix. */
     void free_presolver_reduced_problem(Presolver *presolver);
 
     /* Postsolve the problem given the primal-dual solution (x, y, z) of the

@@ -755,7 +755,11 @@ PresolveStatus run_presolver(Presolver *presolver)
 
 void free_presolver_reduced_problem(Presolver *presolver)
 {
-    if (!presolver || !presolver->reduced_prob)
+
+    // 'Ap' is non-null when 'run_presolver' has populated the reduced problem.
+    // Bailing out here keeps this function safe to call before a successful
+    // presolve.
+    if (!presolver || !presolver->reduced_prob || !presolver->reduced_prob->Ap)
     {
         return;
     }
@@ -843,9 +847,13 @@ void postsolve_primal_infeas_ray(Presolver *presolver, const double *y,
     PresolvedProblem *reduced_prob = presolver->reduced_prob;
     size_t len_z = MAX((size_t) 1, stats->n_cols_reduced);
     double *z;
-    assert(reduced_prob != NULL && reduced_prob->Ax != NULL);
+    assert(reduced_prob != NULL);
     if (!reduced_prob || !reduced_prob->Ax)
     {
+        // The reduced constraint matrix was released by
+        // 'free_presolver_reduced_problem', so the ray cannot be recovered.
+        fprintf(stderr, "PSLP warning: postsolve_primal_infeas_ray called after "
+                        "free_presolver_reduced_problem! Don't do this! \n");
         return;
     }
     z = (double *) ps_malloc(len_z, sizeof(double));
