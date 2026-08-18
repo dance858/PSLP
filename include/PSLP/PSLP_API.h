@@ -124,6 +124,14 @@ extern "C"
        presolver contains the presolved problem. */
     PresolveStatus run_presolver(Presolver *presolver);
 
+    /* Free the presolved problem data owned by 'presolver' after the caller has
+       copied all arrays in 'reduced_prob'. This does not free 'presolver'; the
+       caller must still call 'free_presolver' after postsolve. Normal postsolve
+       and dual-infeasibility-ray postsolve remain available. Primal-
+       infeasibility-ray postsolve is no longer available because it requires
+       the reduced constraint matrix. */
+    void free_presolver_reduced_problem(Presolver *presolver);
+
     /* Postsolve the problem given the primal-dual solution (x, y, z) of the
        reduced problem. The function populates presolver->sol, so if you're
        looking for the solution to the original problem, you want to look there.

@@ -46,11 +46,25 @@ static char *test_0_postsolve()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
 
-    run_presolver(presolver);
+    // calling before presolve must be a no-op that keeps the original problem
+    free_presolver_reduced_problem(presolver);
+    mu_assert("free before presolve must not touch the problem",
+              constraints->A != NULL && constraints->AT != NULL);
 
+    run_presolver(presolver);
+    mu_assert("transpose should be released after presolve",
+              constraints->AT == NULL);
     Mapping *maps = prob->constraints->state->work->mappings;
     int *rows_map = maps->rows;
     int *cols_map = maps->cols;
+
+    // should be able to call it multiple times
+    free_presolver_reduced_problem(presolver);
+    free_presolver_reduced_problem(presolver);
+    mu_assert("reduced matrix should be released", constraints->A == NULL);
+    mu_assert("reduced problem buffers should be released",
+              presolver->reduced_prob->Ax == NULL &&
+                  presolver->reduced_prob->Ap == NULL);
 
     // construct optimal primal solution to reduced problem (computed offline)
     double x[] = {10., -10., -10., 2.71428571, -10., -6.85714286, -10.};
