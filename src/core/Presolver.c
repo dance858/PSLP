@@ -720,7 +720,10 @@ PresolveStatus run_presolver(Presolver *presolver)
     if (status != UNCHANGED)
     {
         // problem detected to be infeasible or unbounded
-        print_infeas_or_unbnd_message(status);
+        if (stgs->verbose)
+        {
+            print_infeas_or_unbnd_message(status);
+        }
         return status;
     }
 
