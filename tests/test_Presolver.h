@@ -7,6 +7,7 @@
 #include "Problem.h"
 #include "Workspace.h"
 #include "minunit.h"
+#include <math.h>
 #include <stdio.h>
 
 static int counter_presolver = 0;
@@ -90,10 +91,56 @@ static char *test_01_presolver()
     return 0;
 }
 
+/* A column that is both empty (no entries in A) and fixed (lb == ub) must
+   contribute c * x to the objective offset exactly once. Previously
+   remove_variables_with_close_bounds fixed it and remove_empty_cols fixed it
+   again, doubling its contribution (Netlib 80bau3b has 107 such columns). */
+static char *test_02_presolver()
+{
+    // min -x0 - x1 + 7 x2  s.t.  x0 + 2 x1 <= 4,  3 x0 + x1 <= 6,
+    //                             0 <= x0, x1 <= 10,  x2 = 3 (empty column)
+    double Ax[] = {1, 2, 3, 1};
+    int Ai[] = {0, 1, 0, 1};
+    int Ap[] = {0, 2, 4};
+    int nnz = 4;
+    int n_rows = 2;
+    int n_cols = 3;
+    double lhs[] = {-INF, -INF};
+    double rhs[] = {4, 6};
+    double lbs[] = {0, 0, 3};
+    double ubs[] = {10, 10, 3};
+    double c[] = {-1, -1, 7};
+
+    Settings *stgs = default_settings();
+    stgs->verbose = false;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("Presolver initialization failed", presolver != NULL);
+
+    run_presolver(presolver);
+
+    mu_assert("empty fixed column not removed", presolver->reduced_prob->n == 2);
+    mu_assert("objective offset of empty fixed column counted more than once",
+              fabs(presolver->reduced_prob->obj_offset - 21.0) < 1e-12);
+
+    // the reduced problem's optimum is x = (1.6, 1.2); postsolve must put the
+    // fixed column back at its bound
+    double x[] = {1.6, 1.2};
+    double y[] = {-0.4, -0.2};
+    double z[] = {0, 0};
+    postsolve(presolver, x, y, z);
+    mu_assert("postsolved value of empty fixed column", presolver->sol->x[2] == 3.0);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_presolver()
 {
     mu_run_test(test_00_presolver, counter_presolver);
     mu_run_test(test_01_presolver, counter_presolver);
+    mu_run_test(test_02_presolver, counter_presolver);
     return 0;
 }
 
