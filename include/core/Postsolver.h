@@ -54,6 +54,9 @@ enum ReductionTypes
     EQ_TO_INEQ = 1 << 8,
     BOUND_CHANGE_NO_ROW = 1 << 9,
     BOUND_CHANGE_THE_ROW = 1 << 10,
+
+    // only required for mapping a solution to the reduced problem
+    PARALLEL_ROW = 1 << 11,
 };
 
 typedef struct PostsolveInfo
@@ -189,6 +192,16 @@ void save_retrieval_bound_change_no_row(PostsolveInfo *info, int j,
 void save_retrieval_bound_change_the_row(PostsolveInfo *info, int i, const int *cols,
                                          const double *vals, size_t len,
                                          int num_of_bound_changes);
+
+/* This function saves that parallel row j (with aj = ai / ratio) was removed
+   in favour of row i. Postsolve does not need this (yj is recovered through
+   LHS_CHANGE / RHS_CHANGE or is zero), but the forward map to the reduced
+   problem uses it to transfer the multiplier of row j to row i.
+
+   * info->vals stores [ratio, dummy].
+   * info->indices stores [i, j].
+*/
+void save_retrieval_parallel_row(PostsolveInfo *info, int i, int j, double ratio);
 
 /* This function saves the information required to retrieve yi when
    equality row i has been transformed into an inequality by eliminating
