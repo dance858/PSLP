@@ -29,6 +29,7 @@
 #include "u16Vec.h"
 #include <PSLP_warnings.h>
 #include <assert.h>
+#include <string.h>
 
 #define INIT_FRAC_POSTSOLVE 0.3
 
@@ -624,6 +625,127 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
         assert(sol->y[i] != ROW_NOT_RETRIEVED);
     }
 #endif
+}
+
+void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
+                               const int *row_map, size_t n_cols_orig,
+                               size_t n_rows_orig, const double *x, const double *y,
+                               double *x_work, double *y_work, double *x_red,
+                               double *y_red)
+{
+    int n_reductions = (int) info->type->len;
+    const ReductionType *reductions = info->type->data;
+    const int *indices = info->indices->data;
+    const double *vals = info->vals->data;
+    const int *starts = info->starts->data;
+    bool map_primal = (x_red != NULL);
+    bool map_dual = (y_red != NULL);
+    assert(n_reductions == (int) info->starts->len - 1);
+    assert(!map_primal || (x != NULL && x_work != NULL));
+    assert(!map_dual || (y != NULL && y_work != NULL));
+
+    if (map_primal)
+    {
+        memcpy(x_work, x, n_cols_orig * sizeof(double));
+    }
+
+    if (map_dual)
+    {
+        memcpy(y_work, y, n_rows_orig * sizeof(double));
+    }
+
+    // Each recorded reduction is undone by 'postsolver_run' using an affine
+    // update of (x, y). Here we apply the inverse of these updates in the order
+    // the reductions were made, but only for reductions that modify a row or
+    // column that survives in the reduced problem. Removed rows and columns are
+    // dropped by the maps at the end, and z is not mapped at all since the
+    // caller recomputes it from the reduced problem data.
+    for (int t = 0; t < n_reductions; ++t)
+    {
+        ReductionType type = reductions[t];
+        int start = starts[t];
+
+        if (type == PARALLEL_COL)
+        {
+            // (xj, xk) was replaced by x_new = xj + ratio * xk
+            if (map_primal)
+            {
+                int j = indices[start];
+                int k = indices[start + 1];
+                double ratio = vals[start + 4];
+                x_work[j] += ratio * x_work[k];
+            }
+        }
+        else if (type == PARALLEL_ROW)
+        {
+            // parallel row j (ai = ratio * aj) was removed in favour of row i.
+            // Since ai^T yi + aj^T yj = ai^T (yi + yj / ratio), the multiplier
+            // of row j is transferred to row i.
+            if (map_dual)
+            {
+                int i = indices[start];
+                int j = indices[start + 1];
+                double ratio = vals[start];
+                y_work[i] += y_work[j] / ratio;
+                y_work[j] = 0.0;
+            }
+        }
+        else if (type == EQ_TO_INEQ)
+        {
+            // postsolve does yi += ck / aik
+            if (map_dual)
+            {
+                y_work[indices[start]] -= vals[start];
+            }
+        }
+        else if (type == ADDED_ROW || type == ADDED_ROWS)
+        {
+            // row i was added to other rows to eliminate a column. Postsolve
+            // adjusts yi, but row i itself is always removed afterwards (see
+            // DtonsEq.c and SimpleReductions.c), so there is nothing to map.
+            assert(row_map[indices[start]] == -1);
+        }
+        else if (type == LHS_CHANGE || type == RHS_CHANGE)
+        {
+            // the transfer of the removed row's multiplier is captured by the
+            // PARALLEL_ROW record that follows
+        }
+        else if (type == FIXED_COL || type == FIXED_COL_INF || type == SUB_COL ||
+                 type == DELETED_ROW)
+        {
+            // only affects a removed row or column
+        }
+        else if (type == BOUND_CHANGE_NO_ROW || type == BOUND_CHANGE_THE_ROW)
+        {
+            // bound changes do not touch A, so (x, y) carry over unchanged
+        }
+        else
+        {
+            assert(false);
+        }
+    }
+
+    if (map_primal)
+    {
+        for (size_t i = 0; i < n_cols_orig; ++i)
+        {
+            if (col_map[i] != -1)
+            {
+                x_red[col_map[i]] = x_work[i];
+            }
+        }
+    }
+
+    if (map_dual)
+    {
+        for (size_t i = 0; i < n_rows_orig; ++i)
+        {
+            if (row_map[i] != -1)
+            {
+                y_red[row_map[i]] = y_work[i];
+            }
+        }
+    }
 }
 
 // here we should probably store information so zk = ck - ak^T y

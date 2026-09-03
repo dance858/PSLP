@@ -141,6 +141,36 @@ extern "C"
     void postsolve(Presolver *presolver, const double *x, const double *y,
                    const double *z);
 
+    /* Map a primal-dual point (x, y) of the original problem to the reduced
+       problem, e.g. to warm start a solver on the reduced problem from a
+       solution of the original one. Must be called after 'run_presolver' has
+       returned UNCHANGED or REDUCED.
+
+       x has length n and y has length m (original dimensions). On return,
+       x_red (length reduced_prob->n) and y_red (length reduced_prob->m) hold
+       the mapped point, and z_red (length reduced_prob->n) holds the reduced
+       dual slack z_red = c_red - A_red^T y_red. Any of the output pointers may
+       be NULL to skip that part; x_red requires x, y_red requires y, and z_red
+       requires y_red (a violated requirement prints a warning and leaves that
+       output untouched). The function does not modify presolver->sol.
+
+       The map replays the recorded reductions forward: removed rows/columns
+       are dropped, merged parallel columns are aggregated, and multipliers of
+       merged/eliminated rows are transferred to the rows that replaced them.
+       x_red is projected onto the bounds of the reduced problem. Note that the
+       result is a sensible starting point, not necessarily a feasible or
+       optimal point of the reduced problem. In particular, if (x, y) is optimal
+       for the original problem, (x_red, y_red) is optimal for the reduced
+       problem up to the multipliers of rows that presolve removed as redundant,
+       which are discarded.
+
+       After 'free_presolver_reduced_problem', x_red and y_red are still
+       computed, but x_red is not projected onto the reduced bounds and z_red is
+       skipped (with a warning) since the reduced problem data is gone. */
+    void map_solution_to_reduced(Presolver *presolver, const double *x,
+                                 const double *y, double *x_red, double *y_red,
+                                 double *z_red);
+
     /* Postsolve a primal infeasibility ray y of the reduced problem.
        The function writes the corresponding ray for the original problem
        to y_orig. It does not check whether y is a valid ray.

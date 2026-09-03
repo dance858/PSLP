@@ -331,13 +331,13 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     return presolver;
 
 cleanup:
-{
-    struct clean_up_scope scope = {
-        A,         AT,       lhs_copy, rhs_copy,   c_copy, row_sizes,
-        col_sizes, row_tags, locks,    activities, data,   constraints,
-        presolver, obj,      col_tags, bounds,     work};
-    presolver_clean_up(scope);
-}
+    {
+        struct clean_up_scope scope = {
+            A,         AT,       lhs_copy, rhs_copy,   c_copy, row_sizes,
+            col_sizes, row_tags, locks,    activities, data,   constraints,
+            presolver, obj,      col_tags, bounds,     work};
+        presolver_clean_up(scope);
+    }
     return NULL;
 }
 
@@ -819,6 +819,107 @@ void postsolve(Presolver *presolver, const double *x, const double *y,
     {
         printf("PSLP postsolve time: %.4f seconds\n", stats->time_postsolve);
     }
+}
+
+/* z = c - A^T y for the reduced problem */
+static void compute_reduced_dual_slack(double *z, const PresolvedProblem *prob,
+                                       const double *y)
+{
+    for (size_t j = 0; j < prob->n; ++j)
+    {
+        z[j] = prob->c[j];
+    }
+
+    for (size_t i = 0; i < prob->m; ++i)
+    {
+        for (int p = prob->Ap[i]; p < prob->Ap[i + 1]; ++p)
+        {
+            z[prob->Ai[p]] -= prob->Ax[p] * y[i];
+        }
+    }
+}
+
+void map_solution_to_reduced(Presolver *presolver, const double *x, const double *y,
+                             double *x_red, double *y_red, double *z_red)
+{
+    Solution *sol = presolver->sol;
+    State *data = presolver->prob->constraints->state;
+    const Mapping *maps = data->work->mappings;
+    const PresolvedProblem *reduced_prob = presolver->reduced_prob;
+    size_t n_cols_orig = sol->dim_x;
+    size_t n_rows_orig = sol->dim_y;
+    double *work;
+
+    if (x_red && !x)
+    {
+        fprintf(stderr, "PSLP warning: map_solution_to_reduced needs x to compute "
+                        "x_red! x_red is left untouched. \n");
+        x_red = NULL;
+    }
+
+    if (y_red && !y)
+    {
+        fprintf(stderr, "PSLP warning: map_solution_to_reduced needs y to compute "
+                        "y_red! y_red and z_red are left untouched. \n");
+        y_red = NULL;
+        z_red = NULL;
+    }
+
+    if (z_red && !y_red)
+    {
+        fprintf(stderr, "PSLP warning: map_solution_to_reduced needs y_red to "
+                        "compute z_red! z_red is left untouched. \n");
+        z_red = NULL;
+    }
+
+    if (!x_red && !y_red)
+    {
+        return;
+    }
+
+    // scratch space of the original dimensions (we do not use presolver->sol
+    // since it may hold a solution obtained by postsolve)
+    work = (double *) ps_malloc(n_cols_orig + n_rows_orig + 1, sizeof(double));
+    if (!work)
+    {
+        fprintf(stderr, "PSLP warning: map_solution_to_reduced failed to allocate "
+                        "memory! Outputs are left untouched. \n");
+        return;
+    }
+
+    postsolver_map_to_reduced(data->postsolve_info, maps->cols, maps->rows,
+                              n_cols_orig, n_rows_orig, x, y, work,
+                              work + n_cols_orig, x_red, y_red);
+    PS_FREE(work);
+
+    // project onto the (possibly tightened) bounds of the reduced problem. The
+    // bounds are gone after 'free_presolver_reduced_problem', in which case
+    // x_red is returned unprojected.
+    if (x_red && reduced_prob->lbs && reduced_prob->ubs)
+    {
+        for (size_t j = 0; j < reduced_prob->n; ++j)
+        {
+            x_red[j] =
+                MIN(MAX(x_red[j], reduced_prob->lbs[j]), reduced_prob->ubs[j]);
+        }
+    }
+
+    if (!z_red)
+    {
+        return;
+    }
+
+    if (!reduced_prob->Ax)
+    {
+        // The reduced problem data was released by
+        // 'free_presolver_reduced_problem', so z_red cannot be computed.
+        fprintf(stderr, "PSLP warning: map_solution_to_reduced called after "
+                        "free_presolver_reduced_problem! z_red is left "
+                        "untouched. \n");
+        return;
+    }
+
+    compute_reduced_dual_slack(z_red, reduced_prob, y_red);
 }
 
 static void compute_primal_infeas_ray_z(double *z, const double *Ax, const int *Ai,

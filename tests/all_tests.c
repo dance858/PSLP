@@ -8,6 +8,7 @@
 #include "test_domain_propagation.h"
 #include "test_dton.h"
 #include "test_iVec.h"
+#include "test_map_to_reduced.h"
 #include "test_pathological.h"
 #include "test_postsolve.h"
 #include "test_radix_sort.h"
@@ -36,6 +37,7 @@ const char *run_all_tests()
 
     mu_assert("postsolve error", test_postsolve());
     mu_assert("ray postsolve error", test_ray_postsolve());
+    mu_assert("map to reduced error", test_map_to_reduced());
 
     return NULL;
 }

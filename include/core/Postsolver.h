@@ -95,6 +95,20 @@ void postsolver_run_primal_infeas_ray(const PostsolveInfo *info, Solution *sol,
 void postsolver_run_dual_infeas_ray(const PostsolveInfo *info, Solution *sol,
                                     const double *x);
 
+/* Maps a primal-dual point (x, y) of the original problem to the reduced
+   problem by replaying the recorded reductions in forward order (the inverse of
+   'postsolver_run', which replays them backwards). 'col_map' and 'row_map' are
+   the original-to-reduced index maps, and 'x_work' / 'y_work' are scratch
+   buffers of the original dimensions that must not alias x / y. Passing
+   x_red = NULL skips the primal part and y_red = NULL skips the dual part. The
+   reduced dual slack z is not produced here; it should be computed from the
+   reduced problem data as z_red = c_red - A_red^T y_red. */
+void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
+                               const int *row_map, size_t n_cols_orig,
+                               size_t n_rows_orig, const double *x, const double *y,
+                               double *x_work, double *y_work, double *x_red,
+                               double *y_red);
+
 void retrieve_deleted_row(Solution *sol, int row, double val);
 void retrieve_added_row(Solution *sol, const int *rows, const double *vals);
 void retrieve_added_rows(Solution *sol, int i, const int *rows, const double *vals,
