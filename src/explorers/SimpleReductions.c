@@ -694,14 +694,18 @@ PresolveStatus remove_variables_with_close_bounds(Problem *prob)
 
         assert(!HAS_TAG(col_tags[ii], C_TAG_INACTIVE));
 
-        if (IS_EQUAL_FEAS_TOL(bounds[ii].lb, bounds[ii].ub))
+        if (bounds[ii].lb > bounds[ii].ub + FEAS_TOL)
+        {
+            return INFEASIBLE;
+        }
+
+        // Empty columns are fixed by remove_empty_cols (fix_col requires a
+        // non-empty column); fixing them here as well would add their
+        // objective contribution to the offset twice.
+        if (col_sizes[ii] > 0 && IS_EQUAL_FEAS_TOL(bounds[ii].lb, bounds[ii].ub))
         {
             // no need to check return value since bounds are equal
             fix_col(constraints, (int) ii, bounds[ii].lb, c[ii]);
-        }
-        else if (bounds[ii].lb > bounds[ii].ub + FEAS_TOL)
-        {
-            return INFEASIBLE;
         }
     }
 
