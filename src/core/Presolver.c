@@ -331,13 +331,13 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     return presolver;
 
 cleanup:
-    {
-        struct clean_up_scope scope = {
-            A,         AT,       lhs_copy, rhs_copy,   c_copy, row_sizes,
-            col_sizes, row_tags, locks,    activities, data,   constraints,
-            presolver, obj,      col_tags, bounds,     work};
-        presolver_clean_up(scope);
-    }
+{
+    struct clean_up_scope scope = {
+        A,         AT,       lhs_copy, rhs_copy,   c_copy, row_sizes,
+        col_sizes, row_tags, locks,    activities, data,   constraints,
+        presolver, obj,      col_tags, bounds,     work};
+    presolver_clean_up(scope);
+}
     return NULL;
 }
 
