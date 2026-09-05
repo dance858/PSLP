@@ -543,6 +543,11 @@ static inline PresolveStatus process_single_bin(const Constraints *constraints,
     {
         if (bin[i] != remaining_row_idx)
         {
+            // record which row absorbs this one so that a dual solution of the
+            // original problem can be mapped to the reduced problem
+            save_retrieval_parallel_row(postsolve_info, remaining_row_idx, bin[i],
+                                        remaining_row_coeff /
+                                            A->x[A->p[bin[i]].start]);
             set_row_to_inactive(bin[i], constraints->row_tags + bin[i],
                                 constraints->state->rows_to_delete, postsolve_info,
                                 0.0);

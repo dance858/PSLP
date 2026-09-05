@@ -593,6 +593,11 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
             assert(starts[i + 1] - start == 1);
             retrieve_eq_to_ineq(sol, indices[start], vals[start]);
         }
+        else if (type == PARALLEL_ROW)
+        {
+            // only used by postsolver_map_to_reduced
+            assert(starts[i + 1] - start == 2);
+        }
         else
         {
             assert(type != BOUND_CHANGE_NO_ROW);
@@ -800,6 +805,18 @@ void save_retrieval_rhs_or_lhs_change(PostsolveInfo *info, int i, const double *
     dVec_append(info->vals, new_side);
     dVec_append(info->vals, ratio);
     dVec_append_array(info->vals, vals, len);
+    iVec_append(info->starts, (int) info->indices->len);
+    assert(info->starts->len == info->type->len + 1);
+    assert(info->vals->len == info->indices->len);
+}
+
+void save_retrieval_parallel_row(PostsolveInfo *info, int i, int j, double ratio)
+{
+    u16Vec_append(info->type, PARALLEL_ROW);
+    iVec_append(info->indices, i);
+    iVec_append(info->indices, j);
+    dVec_append(info->vals, ratio);
+    dVec_append(info->vals, DUMMY_VALUE);
     iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);

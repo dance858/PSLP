@@ -54,6 +54,9 @@ enum ReductionTypes
     EQ_TO_INEQ = 1 << 8,
     BOUND_CHANGE_NO_ROW = 1 << 9,
     BOUND_CHANGE_THE_ROW = 1 << 10,
+
+    // only required for mapping a solution to the reduced problem
+    PARALLEL_ROW = 1 << 11,
 };
 
 typedef struct PostsolveInfo
@@ -91,6 +94,20 @@ void postsolver_run_primal_infeas_ray(const PostsolveInfo *info, Solution *sol,
                                       const double *y, const double *z);
 void postsolver_run_dual_infeas_ray(const PostsolveInfo *info, Solution *sol,
                                     const double *x);
+
+/* Maps a primal-dual point (x, y) of the original problem to the reduced
+   problem by replaying the recorded reductions in forward order (the inverse of
+   'postsolver_run', which replays them backwards). 'col_map' and 'row_map' are
+   the original-to-reduced index maps, and 'x_work' / 'y_work' are scratch
+   buffers of the original dimensions that must not alias x / y. Passing
+   x_red = NULL skips the primal part and y_red = NULL skips the dual part. The
+   reduced dual slack z is not produced here; it should be computed from the
+   reduced problem data as z_red = c_red - A_red^T y_red. */
+void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
+                               const int *row_map, size_t n_cols_orig,
+                               size_t n_rows_orig, const double *x, const double *y,
+                               double *x_work, double *y_work, double *x_red,
+                               double *y_red);
 
 void retrieve_deleted_row(Solution *sol, int row, double val);
 void retrieve_added_row(Solution *sol, const int *rows, const double *vals);
@@ -189,6 +206,16 @@ void save_retrieval_bound_change_no_row(PostsolveInfo *info, int j,
 void save_retrieval_bound_change_the_row(PostsolveInfo *info, int i, const int *cols,
                                          const double *vals, size_t len,
                                          int num_of_bound_changes);
+
+/* This function saves that parallel row j (with aj = ai / ratio) was removed
+   in favour of row i. Postsolve does not need this (yj is recovered through
+   LHS_CHANGE / RHS_CHANGE or is zero), but the forward map to the reduced
+   problem uses it to transfer the multiplier of row j to row i.
+
+   * info->vals stores [ratio, dummy].
+   * info->indices stores [i, j].
+*/
+void save_retrieval_parallel_row(PostsolveInfo *info, int i, int j, double ratio);
 
 /* This function saves the information required to retrieve yi when
    equality row i has been transformed into an inequality by eliminating
