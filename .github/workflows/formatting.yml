@@ -16,14 +16,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # Install clang-format if needed
-      - name: Install clang-format (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y clang-format
-
-      - name: Install clang-format (macOS)
-        if: matrix.os == 'macos-latest'
-        run: brew install clang-format || true
+      # Pinned so formatting rules do not change under us when brew updates
+      - name: Install clang-format
+        run: pip install clang-format==22.1.8
 
       # Check formatting
       - name: Check C/C++ formatting
