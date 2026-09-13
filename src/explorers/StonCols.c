@@ -38,8 +38,9 @@ static void handle_impl_free_from_above_eq(RowView *row, int k, double Aik,
                                            const Bound *bounds,
                                            PostsolveInfo *postsolve_info, double ck)
 {
-    /* dual postsolve */
-    save_retrieval_eq_to_ineq(postsolve_info, row->i, ck / Aik);
+    /* dual postsolve. The row keeps its rhs (lhs = -inf) when Aik > 0 and its
+       lhs (rhs = inf) otherwise, see below. */
+    save_retrieval_eq_to_ineq(postsolve_info, row->i, ck / Aik, Aik > 0 ? -1 : 1);
     save_retrieval_sub_col(postsolve_info, k, row->cols, row->vals,
                            (size_t) *row->len, *row->rhs, row->i, 0.0);
 
@@ -129,7 +130,9 @@ static void handle_impl_free_from_below_eq(RowView *row, int k, double Aik,
                                            const Bound *bounds,
                                            PostsolveInfo *postsolve_info, double ck)
 {
-    save_retrieval_eq_to_ineq(postsolve_info, row->i, ck / Aik);
+    /* dual postsolve. The row keeps its lhs (rhs = inf) when Aik > 0 and its
+       rhs (lhs = -inf) otherwise, see below. */
+    save_retrieval_eq_to_ineq(postsolve_info, row->i, ck / Aik, Aik > 0 ? 1 : -1);
     save_retrieval_sub_col(postsolve_info, k, row->cols, row->vals,
                            (size_t) *row->len, *row->rhs, row->i, 0.0);
     assert(!IS_ABS_INF(ub) && !HAS_TAG(*col_tag, C_TAG_UB_INF));

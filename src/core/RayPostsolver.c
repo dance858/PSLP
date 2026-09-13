@@ -464,7 +464,12 @@ void postsolver_run_primal_infeas_ray(const PostsolveInfo *info, Solution *sol,
         }
         else if (type == EQ_TO_INEQ)
         {
-            assert(starts[i + 1] - start == 1);
+            assert(starts[i + 1] - start == 2);
+        }
+        else if (type == PARALLEL_ROW)
+        {
+            // only used by postsolver_map_to_reduced
+            assert(starts[i + 1] - start == 2);
         }
         else
         {
@@ -592,7 +597,12 @@ void postsolver_run_dual_infeas_ray(const PostsolveInfo *info, Solution *sol,
         }
         else if (type == EQ_TO_INEQ)
         {
-            assert(starts[i + 1] - start == 1);
+            assert(starts[i + 1] - start == 2);
+        }
+        else if (type == PARALLEL_ROW)
+        {
+            // only used by postsolver_map_to_reduced
+            assert(starts[i + 1] - start == 2);
         }
         else
         {
