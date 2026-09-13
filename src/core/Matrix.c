@@ -235,7 +235,8 @@ typedef struct
     double memory_ratio;
 } ExtraSpace;
 
-/* candidates in decreasing order of slack; the last one always fits */
+/* candidates in decreasing order of slack; the last one fits whenever
+   nnz <= INT_MAX */
 static const ExtraSpace candidates[] = {
     {EXTRA_ROW_SPACE, EXTRA_MEMORY_RATIO},
     {EXTRA_ROW_SPACE, 1.0},

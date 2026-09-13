@@ -46,6 +46,7 @@
 #include "glbopts.h"
 #include "iVec.h"
 #include "pslp_thread.h"
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -211,6 +212,13 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
                          const double *lbs, const double *ubs, const double *c,
                          const Settings *stgs)
 {
+    /* the row pointers of the internal matrices are ints, so a valid CSR
+       input has at most INT_MAX non-zeros */
+    if (nnz > (size_t) INT_MAX)
+    {
+        return NULL;
+    }
+
     Timer timer;
     clock_gettime(CLOCK_MONOTONIC, &timer.start);
     Matrix *A = NULL, *AT = NULL;

@@ -111,7 +111,8 @@ extern "C"
        The presolver maintains internal deep copies of Ax, Ai, Ap, lhs, rhs, lbs,
        ubs, and c. The user is responsible for freeing the presolver using
        'free_presolver'. If the allocation fails, the function returns NULL.
-       The matrix should be given in CSR form.*/
+       The matrix should be given in CSR form. Since the row pointers are ints,
+       nnz must be at most INT_MAX; otherwise the function returns NULL.*/
     Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap,
                              size_t m, size_t n, size_t nnz, const double *lhs,
                              const double *rhs, const double *lbs, const double *ubs,
