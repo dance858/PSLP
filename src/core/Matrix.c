@@ -559,20 +559,24 @@ double insert_or_update_coeff(Matrix *A, int row, int col, double val, int *row_
 
 void remove_coeff(RowView *row, int col)
 {
-    int shift = 0;
     int len = *row->len;
-    for (int i = 0; i < len; ++i)
-    {
-        if (row->cols[i] == col)
-        {
-            shift = 1;
-        }
+    int i = 0;
 
-        row->vals[i] = row->vals[i + shift];
-        row->cols[i] = row->cols[i + shift];
+    // find the coefficient
+    while (i < len && row->cols[i] != col)
+    {
+        ++i;
+    }
+    assert(i < len);
+
+    // shift the remaining coefficients one step to the left. The loop stops
+    // at len - 1 so that nothing is read past the end of the row.
+    for (; i + 1 < len; ++i)
+    {
+        row->vals[i] = row->vals[i + 1];
+        row->cols[i] = row->cols[i + 1];
     }
 
-    assert(shift != 0);
     (*row->range).end -= 1;
     *row->len -= 1;
 }
