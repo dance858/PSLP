@@ -83,12 +83,12 @@ void fix_var_in_obj(Objective *obj, int col, double value)
     obj->offset += obj->c[col] * value;
 }
 
-void problem_clean(Problem *prob, bool remove_all)
+void problem_clean(Problem *prob)
 {
     Mapping *maps = prob->constraints->state->work->mappings;
     size_t n_cols_old = prob->constraints->n;
     size_t n_rows_old = prob->constraints->m;
-    constraints_clean(prob->constraints, maps, remove_all);
+    constraints_clean(prob->constraints, maps);
     clean_state(prob->constraints->state, maps, n_rows_old, n_cols_old);
     objective_shrink(prob->obj->c, maps->cols, n_cols_old);
 }

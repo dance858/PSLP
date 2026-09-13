@@ -230,12 +230,10 @@ void free_matrix(Matrix *A)
     PS_FREE(A);
 }
 
-void remove_extra_space(Matrix *A, const int *row_sizes, bool remove_all,
-                        const int *col_idxs_map, size_t new_n_cols)
+void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_idxs_map,
+                        size_t new_n_cols)
 {
-    int j, start, end, len, row_alloc, curr;
-    int extra_row_space = (remove_all) ? 0 : EXTRA_ROW_SPACE;
-    double extra_mem_ratio = (remove_all) ? 1.0 : EXTRA_MEMORY_RATIO;
+    int j, start, end, len, curr;
     curr = 0;
     size_t i, n_deleted_rows;
 
@@ -259,8 +257,7 @@ void remove_extra_space(Matrix *A, const int *row_sizes, bool remove_all,
         memmove(A->i + curr, A->i + start, (size_t) (len) * sizeof(int));
         A->p[i - n_deleted_rows].start = curr;
         A->p[i - n_deleted_rows].end = curr + len;
-        row_alloc = calc_memory_row(len, extra_row_space, extra_mem_ratio);
-        curr += row_alloc;
+        curr += len;
     }
 
     A->m -= n_deleted_rows;

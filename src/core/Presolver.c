@@ -732,7 +732,7 @@ PresolveStatus run_presolver(Presolver *presolver)
         remove_redundant_bounds(prob->constraints);
     }
 
-    problem_clean(prob, true);
+    problem_clean(prob);
     DEBUG(run_debugger(prob->constraints, true));
     stats->n_rows_reduced = A->m;
     stats->n_cols_reduced = A->n;

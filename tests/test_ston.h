@@ -71,7 +71,7 @@ static char *test_01_ston()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_ston_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error",
               check_row_sizes(constraints->A, constraints->state->row_sizes));
@@ -156,7 +156,7 @@ static char *test_02_ston()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_ston_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error",
               check_row_sizes(constraints->A, constraints->state->row_sizes));
@@ -242,7 +242,7 @@ static char *test_03_ston()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_ston_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error",
               check_row_sizes(constraints->A, constraints->state->row_sizes));
@@ -329,7 +329,7 @@ static char *test_04_ston()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_ston_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error",
               check_row_sizes(constraints->A, constraints->state->row_sizes));
@@ -416,7 +416,7 @@ static char *test_05_ston()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_ston_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error",
               check_row_sizes(constraints->A, constraints->state->row_sizes));
@@ -503,7 +503,7 @@ static char *test_06_ston()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_ston_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error",
               check_row_sizes(constraints->A, constraints->state->row_sizes));
@@ -591,7 +591,7 @@ static char *test_07_ston()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_ston_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error",
               check_row_sizes(constraints->A, constraints->state->row_sizes));
@@ -678,7 +678,7 @@ static char *test_08_ston()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_ston_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error",
               check_row_sizes(constraints->A, constraints->state->row_sizes));
@@ -766,7 +766,7 @@ static char *test_09_ston()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_ston_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error",
               check_row_sizes(constraints->A, constraints->state->row_sizes));
@@ -850,7 +850,7 @@ static char *test_10_ston()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_ston_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error",
               check_row_sizes(constraints->A, constraints->state->row_sizes));
@@ -934,7 +934,7 @@ static char *test_12_ston()
     Matrix *A = constraints->A;
     remove_ston_cols(prob);
     simple_dual_fix(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error",
               check_row_sizes(constraints->A, constraints->state->row_sizes));
@@ -1018,7 +1018,7 @@ static char *test_13_ston()
     Matrix *A = constraints->A;
     remove_ston_cols(prob);
     simple_dual_fix(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error",
               check_row_sizes(constraints->A, constraints->state->row_sizes));
@@ -1093,7 +1093,7 @@ static char *test_14_ston()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_ston_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error",
               check_row_sizes(constraints->A, constraints->state->row_sizes));
@@ -1138,7 +1138,7 @@ static char *test_15_ston()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_ston_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error",
               check_row_sizes(constraints->A, constraints->state->row_sizes));
@@ -1183,7 +1183,7 @@ static char *test_16_ston()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_ston_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {1, 1, 1, 1, -2, 3, -4, 5};

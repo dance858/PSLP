@@ -503,7 +503,7 @@ static char *test_6_parallel_rows()
     Matrix *A = constraints->A;
     PresolveStatus status = remove_parallel_rows(constraints);
     mu_assert("error", status == INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
@@ -545,7 +545,7 @@ static char *test_7_parallel_rows()
     Matrix *A = constraints->A;
     PresolveStatus status = remove_parallel_rows(constraints);
     mu_assert("error", status == INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
@@ -587,7 +587,7 @@ static char *test_8_parallel_rows()
     Matrix *A = constraints->A;
     PresolveStatus status = remove_parallel_rows(constraints);
     mu_assert("error", status == INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
@@ -629,7 +629,7 @@ static char *test_9_parallel_rows()
     Matrix *A = constraints->A;
     PresolveStatus status = remove_parallel_rows(constraints);
     mu_assert("error", status == INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
@@ -671,7 +671,7 @@ static char *test_10_parallel_rows()
     Matrix *A = constraints->A;
     PresolveStatus status = remove_parallel_rows(constraints);
     mu_assert("error", status == INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
@@ -713,7 +713,7 @@ static char *test_11_parallel_rows()
     Matrix *A = constraints->A;
     PresolveStatus status = remove_parallel_rows(constraints);
     mu_assert("error", status == INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
@@ -755,7 +755,7 @@ static char *test_12_parallel_rows()
     Matrix *A = constraints->A;
     PresolveStatus status = remove_parallel_rows(constraints);
     mu_assert("error", status == INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
@@ -797,7 +797,7 @@ static char *test_13_parallel_rows()
     Matrix *A = constraints->A;
     PresolveStatus status = remove_parallel_rows(constraints);
     mu_assert("error", status == INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
@@ -925,7 +925,7 @@ static char *test_14_parallel_rows()
     Matrix *A = constraints->A;
     PresolveStatus status = remove_parallel_rows(constraints);
     mu_assert("error", status != INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check A matrix
     double Ax_correct[] = {row0_vals[0], row0_vals[1], row0_vals[2], row0_vals[3],
@@ -1076,7 +1076,7 @@ static char *test_15_parallel_rows()
     Matrix *A = constraints->A;
     PresolveStatus status = remove_parallel_rows(constraints);
     mu_assert("error", status != INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check A matrix
     double Ax_correct[] = {row0_vals[0], row0_vals[1], row0_vals[2], row0_vals[3],
@@ -1225,7 +1225,7 @@ static char *test_16_parallel_rows()
     Matrix *A = constraints->A;
     PresolveStatus status = remove_parallel_rows(constraints);
     mu_assert("error", status != INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check A matrix
     double Ax_correct[] = {row0_vals[0], row0_vals[1], row0_vals[2], row0_vals[3],
@@ -1292,7 +1292,7 @@ static char *test_17_parallel_rows()
     Matrix *A = constraints->A;
     PresolveStatus status = remove_parallel_rows(constraints);
     mu_assert("error", status == INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));

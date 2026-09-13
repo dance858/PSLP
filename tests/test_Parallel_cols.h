@@ -38,7 +38,7 @@ static char *test_1_parallel_cols()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_parallel_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {-1, -1};
@@ -93,7 +93,7 @@ static char *test_2_parallel_cols()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_parallel_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {-1, -1};
@@ -148,7 +148,7 @@ static char *test_3_parallel_cols()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_parallel_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {-1, -1};
@@ -203,7 +203,7 @@ static char *test_4_parallel_cols()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_parallel_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {-1, -1};
@@ -258,7 +258,7 @@ static char *test_5_parallel_cols()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_parallel_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {-1};
@@ -313,7 +313,7 @@ static char *test_6_parallel_cols()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_parallel_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {-1};
@@ -367,7 +367,7 @@ static char *test_5_negated_parallel_cols()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_parallel_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {-1};
@@ -422,7 +422,7 @@ static char *test_6_negated_parallel_cols()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     PresolveStatus status = remove_parallel_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {-1};
@@ -538,7 +538,7 @@ static char *test_8_parallel_cols()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_parallel_cols(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {1, -2, 1, 3,  -1, 5,  -3, 1, 1,  2, 4,  -2, -6, 2,

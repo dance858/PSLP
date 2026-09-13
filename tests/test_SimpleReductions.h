@@ -78,7 +78,7 @@ static char *test_4_simple()
     Matrix *A = constraints->A;
     PresolveStatus status = remove_ston_rows(prob);
     remove_empty_rows(constraints);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {5, 2, -2, 4, -3, -1, 3, 1, 1, -1};
@@ -130,7 +130,7 @@ static char *test_11_simple()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     PresolveStatus status = check_activities(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, 11));
@@ -184,7 +184,7 @@ static char *test_13_simple()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     PresolveStatus status = check_activities(prob);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, 11));
@@ -239,7 +239,7 @@ static char *test_14_simple()
     Matrix *A = constraints->A;
     PresolveStatus status = check_activities(prob);
     // delete_inactive_rows(constraints, constraints->state->rows_to_delete);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {1, -1, 1, 1, 1, 1, -1, -1};
@@ -297,7 +297,7 @@ static char *test_15_simple()
     Matrix *A = constraints->A;
     PresolveStatus status = check_activities(prob);
     // delete_inactive_rows(constraints, constraints->state->rows_to_delete);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {1, -1, 1, 1, 1, 1, -1, -1};
@@ -355,7 +355,7 @@ static char *test_16_simple()
     Matrix *A = constraints->A;
     PresolveStatus status = check_activities(prob);
     // delete_inactive_rows(constraints, constraints->state->rows_to_delete);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {1, -1, 1, 1, 1, 1, -1, -1};
@@ -414,7 +414,7 @@ static char *test_17_simple()
     PresolveStatus status = check_activities(prob);
     mu_assert("error status", status == INFEASIBLE);
     // delete_inactive_rows(constraints, constraints->state->rows_to_delete);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
@@ -454,7 +454,7 @@ static char *test_18_simple()
     PresolveStatus status = check_activities(prob);
     mu_assert("error status", status == INFEASIBLE);
     // delete_inactive_rows(constraints, constraints->state->rows_to_delete);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));

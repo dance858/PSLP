@@ -67,8 +67,7 @@ void free_constraints(Constraints *constraints);
    new indices for both rows and columns. For example, if mapping->rows[3] = 2,
    then row 3 in the old problem is now row 2 in the new problem. If
    mapping->rows[1] = -1, then row 1 in the old problem has been removed. */
-void constraints_clean(Constraints *constraints, struct Mapping *mappings,
-                       bool remove_all);
+void constraints_clean(Constraints *constraints, struct Mapping *mappings);
 
 /* This function processes the list of deleted rows.
    1. It updates col sizes and the list of empty and singleton columns.

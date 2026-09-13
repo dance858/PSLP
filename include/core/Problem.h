@@ -42,7 +42,7 @@ void free_problem(Problem *problem);
    inactive rows and inactive columns is removed. Rows and columns
    are also re-indexed to take the removal of rows/columns into
    account. */
-void problem_clean(Problem *problem, bool remove_all);
+void problem_clean(Problem *problem);
 
 /* Constructor and destructor */
 Objective *objective_new(double *c);

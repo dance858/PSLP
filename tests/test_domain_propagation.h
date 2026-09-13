@@ -69,7 +69,7 @@ static char *test_1_domain()
     Matrix *A = constraints->A;
     PresolveStatus status = propagate_primal(prob, true);
     mu_assert("error status", status != INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {1, 3, 3, -1, -2, 2, 2, -3};
@@ -133,7 +133,7 @@ static char *test_2_domain()
     Matrix *A = constraints->A;
     PresolveStatus status = propagate_primal(prob, true);
     mu_assert("error status", status != INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {1, 3, 3, -1, -2, 2};
@@ -199,7 +199,7 @@ static char *test_3_domain()
     Matrix *A = constraints->A;
     PresolveStatus status = propagate_primal(prob, true);
     mu_assert("error status", status != INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {1, 3, 3, -1, -2, 2};
@@ -266,7 +266,7 @@ static char *test_4_domain()
     Matrix *A = constraints->A;
     PresolveStatus status = propagate_primal(prob, true);
     mu_assert("error status", status != INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {1, 3, 3, -1, -2, 2};
@@ -332,7 +332,7 @@ static char *test_5_domain()
     Matrix *A = constraints->A;
     PresolveStatus status = propagate_primal(prob, true);
     mu_assert("error status", status != INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {1, -1, 3, -1, -2, 2};
@@ -399,7 +399,7 @@ static char *test_6_domain()
     Matrix *A = constraints->A;
     PresolveStatus status = propagate_primal(prob, true);
     mu_assert("error status", status != INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {-1, -1, 3, -1, -2, 2};
@@ -465,7 +465,7 @@ static char *test_7_domain()
     PresolveStatus status = propagate_primal(prob, true);
     mu_assert("error status", status != INFEASIBLE);
 
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {1, 1, 3, -1, -2, 2};
@@ -531,7 +531,7 @@ static char *test_8_domain()
     Matrix *A = constraints->A;
     PresolveStatus status = propagate_primal(prob, true);
     mu_assert("error status", status != INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // check that new A is correct
     double Ax_correct[] = {-1, -1, 3, -1, -2, 2};
@@ -588,7 +588,7 @@ static char *test_9_domain_integer()
     Matrix *A = constraints->A;
     PresolveStatus status = propagate_primal(prob, true);
     mu_assert("error status", status != INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     mu_assert("error bound", constraints->bounds[0].ub == 4);
     mu_assert("error bound", constraints->bounds[1].ub == 1);
@@ -632,7 +632,7 @@ static char *test_9_domain_decimal()
     Matrix *A = constraints->A;
     PresolveStatus status = propagate_primal(prob, true);
     mu_assert("error status", status != INFEASIBLE);
-    problem_clean(prob, true);
+    problem_clean(prob);
 
     // mu_assert("error bound", IS_EQUAL_FEAS_TOL(constraints->bounds[0].ub, 8
     // / 3.0)); mu_assert("error bound", IS_EQUAL_FEAS_TOL(constraints->bounds[1].ub,
