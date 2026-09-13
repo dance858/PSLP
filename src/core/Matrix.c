@@ -229,20 +229,23 @@ int calc_memory_row(int size, int extra_row_space, double memory_ratio)
     return (int) (size * memory_ratio) + extra_row_space;
 }
 
+typedef struct
+{
+    int extra_row_space;
+    double memory_ratio;
+} ExtraSpace;
+
+/* candidates in decreasing order of slack; the last one always fits */
+static const ExtraSpace candidates[] = {
+    {EXTRA_ROW_SPACE, EXTRA_MEMORY_RATIO},
+    {EXTRA_ROW_SPACE, 1.0},
+    {1, 1.0},
+    {0, 1.0},
+};
+
 void choose_extra_space(size_t nnz, size_t n_rows, int *extra_row_space,
                         double *memory_ratio)
 {
-    /* candidates in decreasing order of slack; the last one always fits */
-    static const struct
-    {
-        int extra_row_space;
-        double memory_ratio;
-    } candidates[] = {
-        {EXTRA_ROW_SPACE, EXTRA_MEMORY_RATIO},
-        {EXTRA_ROW_SPACE, 1.0},
-        {1, 1.0},
-        {0, 1.0},
-    };
     const size_t n_candidates = sizeof(candidates) / sizeof(candidates[0]);
     size_t k;
 
