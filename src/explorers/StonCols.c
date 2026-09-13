@@ -378,7 +378,8 @@ static void fix_col_ston(double val, double Aik, RowView *row, ColView *col,
 static inline PresolveStatus
 process_colston_ineq(RowView *row, ColView *col, Objective *obj, double Aik,
                      bool impl_free_from_above, bool impl_free_from_below,
-                     Lock *locks, iVec *rows_to_delete, iVec *dton_rows,
+                     Activity *act, Lock *locks, iVec *rows_to_delete, size_t *A_nnz,
+                     const Bound *bounds, iVec *ston_rows, iVec *dton_rows,
                      PostsolveInfo *postsolve_info)
 {
     bool is_lhs_inf = HAS_TAG(*row->tag, R_TAG_LHS_INF);
@@ -462,12 +463,15 @@ process_colston_ineq(RowView *row, ColView *col, Objective *obj, double Aik,
         *row->lhs = *row->rhs;
         RESET_TAG(*row->tag, R_TAG_EQ);
 
-        if (*row->len == 2)
-        {
-            assert(!iVec_contains(dton_rows, row->i));
-            iVec_append(dton_rows, row->i);
-        }
-        return REDUCED;
+        // Eliminate the singleton right away so that the row leaves as a
+        // one-sided inequality with an EQ_TO_INEQ record. Leaving it as a bare
+        // equality for a later pass lets other reductions treat it as a genuine
+        // equality, whose postsolve returns a multiplier of either sign, while
+        // the original one-sided row only admits one.
+        return process_colston_eq(row, col, obj, Aik, impl_free_from_above,
+                                  impl_free_from_below, act, locks, rows_to_delete,
+                                  A_nnz, bounds, ston_rows, dton_rows,
+                                  postsolve_info);
     }
 
     // ----------------------------------------------------------------
@@ -488,13 +492,11 @@ process_colston_ineq(RowView *row, ColView *col, Objective *obj, double Aik,
         *row->rhs = *row->lhs;
         RESET_TAG(*row->tag, R_TAG_EQ);
 
-        if (*row->len == 2)
-        {
-            assert(!iVec_contains(dton_rows, row->i));
-            iVec_append(dton_rows, row->i);
-        }
-
-        return REDUCED;
+        // see the comment in the branch above
+        return process_colston_eq(row, col, obj, Aik, impl_free_from_above,
+                                  impl_free_from_below, act, locks, rows_to_delete,
+                                  A_nnz, bounds, ston_rows, dton_rows,
+                                  postsolve_info);
     }
 
     return UNCHANGED;
@@ -627,8 +629,8 @@ PresolveStatus remove_ston_cols__(Problem *prob)
         {
             status |= process_colston_ineq(
                 &row_view, &col_view, prob->obj, Aik, impl_free_from_above,
-                impl_free_from_below, locks, rows_to_delete, dton_rows,
-                postsolve_info);
+                impl_free_from_below, acts + i, locks, rows_to_delete, A_nnz, bounds,
+                ston_rows, dton_rows, postsolve_info);
         }
     }
 

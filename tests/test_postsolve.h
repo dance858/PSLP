@@ -428,6 +428,105 @@ static char *test_implied_free_col_ston_in_inequality_postsolve()
     return 0;
 }
 
+/* Column singleton x0 in a one-sided <= row whose upper part is active at an
+   optimal solution ("upper part active" branch of process_colston_ineq):
+       min. -x0 + 2 x1
+       s.t.  x0 + x1 <= 1,   0 <= x0 <= 1,   0 <= x1 <= 1.
+   The upper bound of x0 coincides with the bound implied by the row, which
+   makes the optimal dual degenerate: x = (1, 0) is optimal for every
+   y in [-1, 0]. Postsolve must return a multiplier of the sign that the
+   original <= row admits, i.e. y <= 0. */
+static char *test_colston_ineq_upper_active_dual_sign()
+{
+    double Ax[] = {1.0, 1.0};
+    int Ai[] = {0, 1};
+    int Ap[] = {0, 2};
+    int nnz = 2;
+    int n_rows = 1;
+    int n_cols = 2;
+
+    double lhs[] = {-INF};
+    double rhs[] = {1.0};
+    double lbs[] = {0.0, 0.0};
+    double ubs[] = {1.0, 1.0};
+    double c[] = {-1.0, 2.0};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->ston_cols = true;
+    stgs->verbose = false;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    mu_assert("colston ineq upper active: problem should be solved by presolve",
+              presolver->reduced_prob->m == 0 && presolver->reduced_prob->n == 0);
+
+    // the reduced problem is empty, so the reduced solution is empty
+    double x[1], y[1], z[1];
+    postsolve(presolver, x, y, z);
+
+    double correct_x[] = {1.0, 0.0};
+    double correct_y[] = {-1.0};
+    double correct_z[] = {0.0, 3.0};
+
+    mu_assert("colston ineq upper active: wrong sign on the multiplier of a "
+              "<= row",
+              is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
+                                  correct_y, presolver->sol->z, correct_z, n_rows,
+                                  n_cols, POSTSOLVE_TOL_FEAS));
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/* Mirror of the test above for a >= row ("lower part active" branch):
+       min.  x0 - 2 x1
+       s.t.  x0 + x1 >= 1,   0 <= x0 <= 1,   0 <= x1 <= 1.
+   x = (0, 1) is optimal for every y in [0, 1]; postsolve must return y >= 0. */
+static char *test_colston_ineq_lower_active_dual_sign()
+{
+    double Ax[] = {1.0, 1.0};
+    int Ai[] = {0, 1};
+    int Ap[] = {0, 2};
+    int nnz = 2;
+    int n_rows = 1;
+    int n_cols = 2;
+
+    double lhs[] = {1.0};
+    double rhs[] = {INF};
+    double lbs[] = {0.0, 0.0};
+    double ubs[] = {1.0, 1.0};
+    double c[] = {1.0, -2.0};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->ston_cols = true;
+    stgs->verbose = false;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    mu_assert("colston ineq lower active: problem should be solved by presolve",
+              presolver->reduced_prob->m == 0 && presolver->reduced_prob->n == 0);
+
+    double x[1], y[1], z[1];
+    postsolve(presolver, x, y, z);
+
+    double correct_x[] = {0.0, 1.0};
+    double correct_y[] = {1.0};
+    double correct_z[] = {0.0, -3.0};
+
+    mu_assert("colston ineq lower active: wrong sign on the multiplier of a "
+              ">= row",
+              is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
+                                  correct_y, presolver->sol->z, correct_z, n_rows,
+                                  n_cols, POSTSOLVE_TOL_FEAS));
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 /* Example 12 in test_ston, simple dual fix to lower bound */
 static char *test_col_ston_dual_fix()
 {
@@ -1064,6 +1163,8 @@ static const char *all_tests_postsolve()
     mu_run_test(test_2_postsolve, counter_postsolve);
     mu_run_test(test_implied_free_col_ston_in_inequality_postsolve,
                 counter_postsolve);
+    mu_run_test(test_colston_ineq_upper_active_dual_sign, counter_postsolve);
+    mu_run_test(test_colston_ineq_lower_active_dual_sign, counter_postsolve);
     mu_run_test(test_col_ston_dual_fix, counter_postsolve);
     mu_run_test(test_3_postsolve, counter_postsolve);
     mu_run_test(test_4_postsolve, counter_postsolve);
