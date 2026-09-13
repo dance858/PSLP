@@ -66,6 +66,13 @@ int calc_memory_row(int size, int extra_row_space, double memory_ratio);
 size_t calc_memory(size_t nnz, size_t n_rows, size_t extra_row_space,
                    double memory_ratio);
 
+/* Chooses (extra_row_space, memory_ratio) for a matrix with 'nnz' entries and
+   'n_rows' rows. Starts from EXTRA_ROW_SPACE / EXTRA_MEMORY_RATIO and reduces
+   the slack until calc_memory(...) <= INT_MAX, so that the row pointers fit in
+   an int. The final choice (0, 1.0) always fits since nnz <= INT_MAX. */
+void choose_extra_space(size_t nnz, size_t n_rows, int *extra_row_space,
+                        double *memory_ratio);
+
 // frees all allocated memory
 void free_matrix(Matrix *A);
 

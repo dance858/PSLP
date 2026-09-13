@@ -26,6 +26,7 @@
 #include "glbopts.h"
 #include "stdlib.h"
 #include "string.h"
+#include <limits.h>
 
 /* forward declaration */
 static inline void remove_explicit_zeros(Matrix *A);
@@ -38,6 +39,9 @@ Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, size_t n_rows
     RETURN_PTR_IF_NULL(A, NULL);
     size_t i, len;
     int offset, row_size, row_alloc;
+    int extra_row_space;
+    double memory_ratio;
+    choose_extra_space(nnz, n_rows, &extra_row_space, &memory_ratio);
 
     offset = 0;
     for (i = 0; i < n_rows; ++i)
@@ -48,7 +52,7 @@ Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, size_t n_rows
         memcpy(A->i + A->p[i].start, Ai + Ap[i], len * sizeof(int));
         A->p[i].end = Ap[i + 1] + offset;
         row_size = A->p[i].end - A->p[i].start;
-        row_alloc = calc_memory_row(row_size, EXTRA_ROW_SPACE, EXTRA_MEMORY_RATIO);
+        row_alloc = calc_memory_row(row_size, extra_row_space, memory_ratio);
         offset += row_alloc - row_size;
     }
 
@@ -67,7 +71,11 @@ Matrix *matrix_alloc(size_t n_rows, size_t n_cols, size_t nnz)
     A->m = n_rows;
     A->n = n_cols;
     A->nnz = nnz;
-    A->n_alloc = calc_memory(nnz, n_rows, EXTRA_ROW_SPACE, EXTRA_MEMORY_RATIO);
+    int extra_row_space;
+    double memory_ratio;
+    choose_extra_space(nnz, n_rows, &extra_row_space, &memory_ratio);
+    A->n_alloc = calc_memory(nnz, n_rows, (size_t) extra_row_space, memory_ratio);
+    assert(A->n_alloc <= (size_t) INT_MAX);
 
 #ifdef TESTING
     A->i = (int *) ps_calloc(A->n_alloc, sizeof(int));
@@ -154,6 +162,9 @@ Matrix *transpose(const Matrix *A, int *work_n_cols)
     RETURN_PTR_IF_NULL(AT, NULL);
     int i, j, start;
     int *count = work_n_cols;
+    int extra_row_space;
+    double memory_ratio;
+    choose_extra_space(A->nnz, A->n, &extra_row_space, &memory_ratio);
     memset(count, 0, A->n * sizeof(int));
 
     // -------------------------------------------------------------------
@@ -175,7 +186,7 @@ Matrix *transpose(const Matrix *A, int *work_n_cols)
         start = AT->p[i].start;
         AT->p[i].end = start + count[i];
         AT->p[i + 1].start =
-            start + calc_memory_row(count[i], EXTRA_ROW_SPACE, EXTRA_MEMORY_RATIO);
+            start + calc_memory_row(count[i], extra_row_space, memory_ratio);
         count[i] = start;
     }
 
@@ -216,6 +227,36 @@ size_t calc_memory(size_t nnz, size_t n_rows, size_t extra_row_space,
 int calc_memory_row(int size, int extra_row_space, double memory_ratio)
 {
     return (int) (size * memory_ratio) + extra_row_space;
+}
+
+void choose_extra_space(size_t nnz, size_t n_rows, int *extra_row_space,
+                        double *memory_ratio)
+{
+    /* candidates in decreasing order of slack; the last one always fits */
+    static const struct
+    {
+        int extra_row_space;
+        double memory_ratio;
+    } candidates[] = {
+        {EXTRA_ROW_SPACE, EXTRA_MEMORY_RATIO},
+        {EXTRA_ROW_SPACE, 1.0},
+        {1, 1.0},
+        {0, 1.0},
+    };
+    const size_t n_candidates = sizeof(candidates) / sizeof(candidates[0]);
+    size_t k;
+
+    for (k = 0; k < n_candidates - 1; ++k)
+    {
+        if (calc_memory(nnz, n_rows, (size_t) candidates[k].extra_row_space,
+                        candidates[k].memory_ratio) <= (size_t) INT_MAX)
+        {
+            break;
+        }
+    }
+
+    *extra_row_space = candidates[k].extra_row_space;
+    *memory_ratio = candidates[k].memory_ratio;
 }
 
 void free_matrix(Matrix *A)

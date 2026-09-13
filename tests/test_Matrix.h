@@ -4,8 +4,10 @@
 #include "Constraints.h"
 #include "Debugger.h"
 #include "Matrix.h"
+#include "glbopts.h"
 #include "minunit.h"
 #include "test_macros.h"
+#include <limits.h>
 #include <stdio.h>
 
 int counter_matrix = 0;
@@ -777,6 +779,51 @@ static char *test_18_matrix()
     return 0;
 }
 
+// choose_extra_space: the chosen slack must always make the total allocation
+// fit in an int, and must never exceed the default slack.
+static char *test_19_matrix()
+{
+    int extra;
+    double ratio;
+    size_t nnz, n_rows;
+
+    // small instance: defaults are used unchanged
+    nnz = 10;
+    n_rows = 3;
+    choose_extra_space(nnz, n_rows, &extra, &ratio);
+    mu_assert("small extra", extra == EXTRA_ROW_SPACE);
+    mu_assert("small ratio", ratio == EXTRA_MEMORY_RATIO);
+
+    // dimensions of AT for the instance in issue #47
+    nnz = 857252872;
+    n_rows = 303096179;
+    choose_extra_space(nnz, n_rows, &extra, &ratio);
+    mu_assert("issue fits",
+              calc_memory(nnz, n_rows, (size_t) extra, ratio) <= INT_MAX);
+    mu_assert("issue extra", extra <= EXTRA_ROW_SPACE);
+    mu_assert("issue ratio", ratio <= EXTRA_MEMORY_RATIO);
+
+    // forces a fallback regardless of the default constants
+    nnz = 2000000000;
+    n_rows = 100000000;
+    choose_extra_space(nnz, n_rows, &extra, &ratio);
+    mu_assert("large fits",
+              calc_memory(nnz, n_rows, (size_t) extra, ratio) <= INT_MAX);
+    mu_assert("large extra", extra <= EXTRA_ROW_SPACE);
+    mu_assert("large ratio", ratio <= EXTRA_MEMORY_RATIO);
+
+    // boundary: no slack possible at all
+    nnz = INT_MAX;
+    n_rows = 1;
+    choose_extra_space(nnz, n_rows, &extra, &ratio);
+    mu_assert("boundary extra", extra == 0);
+    mu_assert("boundary ratio", ratio == 1.0);
+    mu_assert("boundary fits",
+              calc_memory(nnz, n_rows, (size_t) extra, ratio) <= INT_MAX);
+
+    return 0;
+}
+
 static const char *all_tests_matrix()
 {
     mu_run_test(test_0_matrix, counter_matrix);
@@ -798,6 +845,7 @@ static const char *all_tests_matrix()
     mu_run_test(test_16_matrix, counter_matrix);
     mu_run_test(test_17_matrix, counter_matrix);
     // mu_run_test(test_18_matrix, counter_matrix); // we don't run this
+    mu_run_test(test_19_matrix, counter_matrix);
     return 0;
 }
 
