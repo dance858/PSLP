@@ -686,8 +686,9 @@ void save_retrieval_fixed_col_inf(PostsolveInfo *info, int col, int pos_inf,
     assert(info->vals->len == info->indices->len);
 }
 
-void save_retrieval_sub_col(PostsolveInfo *info, int col, int *cols, double *coeffs,
-                            size_t len, double rhs, int i, double ck)
+void save_retrieval_sub_col(PostsolveInfo *info, int col, const int *cols,
+                            const double *coeffs, size_t len, double rhs, int i,
+                            double ck)
 {
     u16Vec_append(info->type, SUB_COL);
     iVec_append(info->indices, col);
