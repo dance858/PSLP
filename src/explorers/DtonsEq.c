@@ -356,13 +356,6 @@ static inline
     return old_and_new_coeff;
 }
 
-static inline void subst_col_in_obj_dton(Objective *obj, int stay, int subst,
-                                         double aik, double aij, double rhs)
-{
-    obj->c[stay] -= (aij / aik) * obj->c[subst];
-    obj->offset += (rhs / aik) * obj->c[subst];
-}
-
 // lhs and rhs should point to the row whose lhs and rhs should be modified
 // rTag = row_tags[rows_subst[j]], lhs = lhs + rows_subst[j],
 // rhs = rhs + rows_subst[j], rhs_dton
@@ -699,8 +692,9 @@ static PresolveStatus remove_dton_eq_rows__(Problem *prob, int max_shift_per_row
         }
 
         //  substitute variable in objective and mark the eliminated row as
-        //  inactive
-        subst_col_in_obj_dton(prob->obj, j, k, aik, aij, *row.rhs);
+        //  inactive (ck is needed for the postsolve)
+        double ck = prob->obj->c[k];
+        sub_var_in_obj_dton(prob->obj, j, k, aik, aij, *row.rhs);
         RESET_TAG(*row.tag, R_TAG_INACTIVE);
         *row.len = SIZE_INACTIVE_ROW;
         row.range->end = row.range->start;
@@ -709,7 +703,7 @@ static PresolveStatus remove_dton_eq_rows__(Problem *prob, int max_shift_per_row
         // Substitute the variable in the constraints, using special
         // functionality
         execute_substitution(constraints, &row, j, k, aij, aik, &n_new_dton_rows,
-                             prob->obj->c[k]);
+                             ck);
     }
 
     AT->nnz = A->nnz;

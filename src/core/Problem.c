@@ -120,3 +120,10 @@ void sub_var_in_obj(Objective *obj, const double *vals, const int *cols, int len
 
     obj->offset += rhs * ratio;
 }
+
+void sub_var_in_obj_dton(Objective *obj, int stay, int subst, double aik, double aij,
+                         double rhs)
+{
+    obj->c[stay] -= (aij / aik) * obj->c[subst];
+    obj->offset += (rhs / aik) * obj->c[subst];
+}
