@@ -434,6 +434,7 @@ static inline PresolveStatus run_trivial_explorers(Problem *prob,
         //   and empty columns (if rows are marked as inactive due to a variable
         //   being set to inf)
         status |= remove_empty_cols(prob);
+        RETURN_IF_UNBNDORINFEAS(status);
         status |= simple_dual_fix(prob);
         RETURN_IF_UNBNDORINFEAS(status);
     }
