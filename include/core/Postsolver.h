@@ -112,7 +112,7 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
                                double *y_red);
 
 void retrieve_deleted_row(Solution *sol, int row, double val);
-void retrieve_added_row(Solution *sol, const int *rows, const double *vals);
+void retrieve_added_row(Solution *sol, int i, int j, double ratio);
 void retrieve_added_rows(Solution *sol, int i, const int *rows, const double *vals,
                          int len, double aik);
 

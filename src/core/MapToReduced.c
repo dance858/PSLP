@@ -77,16 +77,16 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
     {
         ReductionType type = reductions[t];
         int start = starts[t];
+        int len = starts[t + 1] - start;
 
         if (type == PARALLEL_COL)
         {
             // (xj, xk) was replaced by x_new = xj + ratio * xk
             if (map_primal)
             {
-                int j = indices[start];
-                int k = indices[start + 1];
-                double ratio = vals[start + 4];
-                x_work[j] += ratio * x_work[k];
+                ParallelColRecord r =
+                    decode_parallel_col(indices + start, vals + start, len);
+                x_work[r.j] += r.ratio * x_work[r.k];
             }
         }
         else if (type == PARALLEL_ROW)
@@ -96,11 +96,10 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
             // of row j is transferred to row i.
             if (map_dual)
             {
-                int i = indices[start];
-                int j = indices[start + 1];
-                double ratio = vals[start];
-                y_work[i] += y_work[j] / ratio;
-                y_work[j] = 0.0;
+                ParallelRowRecord r =
+                    decode_parallel_row(indices + start, vals + start, len);
+                y_work[r.i] += y_work[r.j] / r.ratio;
+                y_work[r.j] = 0.0;
             }
         }
         else if (type == EQ_TO_INEQ)
@@ -115,10 +114,10 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
             // admissible sign is exactly that redistribution.
             if (map_dual)
             {
-                int i = indices[start];
-                int sign = indices[start + 1];
-                double val = y_work[i] - vals[start];
-                y_work[i] = (sign > 0) ? MAX(val, 0.0) : MIN(val, 0.0);
+                EqToIneqRecord r =
+                    decode_eq_to_ineq(indices + start, vals + start, len);
+                double val = y_work[r.row] - r.val;
+                y_work[r.row] = (r.sign > 0) ? MAX(val, 0.0) : MIN(val, 0.0);
             }
         }
         else if (type == SIDE_RELAXED)
@@ -134,17 +133,25 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
             // another row.
             if (map_dual)
             {
-                int i = indices[start];
-                int sign = indices[start + 1];
-                y_work[i] = (sign > 0) ? MAX(y_work[i], 0.0) : MIN(y_work[i], 0.0);
+                SideRelaxedRecord r =
+                    decode_side_relaxed(indices + start, vals + start, len);
+                y_work[r.row] =
+                    (r.sign > 0) ? MAX(y_work[r.row], 0.0) : MIN(y_work[r.row], 0.0);
             }
         }
-        else if (type == ADDED_ROW || type == ADDED_ROWS)
+        else if (type == ADDED_ROW)
         {
             // row i was added to other rows to eliminate a column. Postsolve
             // adjusts yi, but row i itself is always removed afterwards (see
             // DtonsEq.c and SimpleReductions.c), so there is nothing to map.
-            assert(row_map[indices[start]] == -1);
+            assert(row_map[decode_added_row(indices + start, vals + start, len).i] ==
+                   -1);
+        }
+        else if (type == ADDED_ROWS)
+        {
+            assert(
+                row_map[decode_added_rows(indices + start, vals + start, len).i] ==
+                -1);
         }
         else if (type == LHS_CHANGE || type == RHS_CHANGE)
         {
