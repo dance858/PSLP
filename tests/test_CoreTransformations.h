@@ -32,9 +32,12 @@ static char *test_1_core()
     Constraints *constraints = presolver->prob->constraints;
 
     // fix x2 to 1
-    fix_col(constraints, 1, 1.0, 0);
+    fix_col(presolver->prob, 1, 1.0);
 
     delete_fixed_cols_from_problem(presolver->prob);
+
+    // c is zero so the offset must stay zero
+    mu_assert("error offset", presolver->prob->obj->offset == 0.0);
 
     // check that new LB and UB are correct (after call to fixcol)
     mu_assert("error", constraints->bounds[1].lb == 1.0);

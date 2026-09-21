@@ -27,8 +27,9 @@
 #include "RowColViews.h"
 #include "State.h"
 
-PresolveStatus fix_col(Constraints *constraints, int col, double val, double ck)
+PresolveStatus fix_col(Problem *prob, int col, double val)
 {
+    Constraints *constraints = prob->constraints;
     State *data = constraints->state;
     const Matrix *A = constraints->A;
     Bound *bounds = constraints->bounds;
@@ -51,9 +52,12 @@ PresolveStatus fix_col(Constraints *constraints, int col, double val, double ck)
     const int *rows = AT->i + AT->p[col].start;
     int len = AT->p[col].end - AT->p[col].start;
 
+    // The postsolve record is saved before the objective is updated so that
+    // both see the same c[col]; the objective update is the last reader of it.
     set_col_to_fixed(col, col_tag, data->fixed_cols_to_delete);
-    save_retrieval_fixed_col(data->postsolve_info, col, val, ck, vals, rows,
-                             (size_t) len);
+    save_retrieval_fixed_col(data->postsolve_info, col, val, prob->obj->c[col], vals,
+                             rows, (size_t) len);
+    fix_var_in_obj(prob->obj, col, val);
 
     bool ub_update = (is_ub_inf || val != old_ub);
     bool lb_update = (is_lb_inf || val != old_lb);
@@ -67,11 +71,13 @@ PresolveStatus fix_col(Constraints *constraints, int col, double val, double ck)
     return REDUCED;
 }
 
-void fix_col_to_negative_inf(Constraints *constraints, int col)
+void fix_col_to_negative_inf(Problem *prob, int col)
 {
+    Constraints *constraints = prob->constraints;
     assert(!HAS_TAG(constraints->col_tags[col], C_TAG_INACTIVE));
     assert(HAS_TAG(constraints->col_tags[col], C_TAG_LB_INF));
     assert(constraints->state->col_locks[col].down == 0);
+    assert(prob->obj->c[col] == 0.0);
 
     Matrix *AT = constraints->AT;
     RowTag *row_tags = constraints->row_tags;
@@ -103,11 +109,13 @@ void fix_col_to_negative_inf(Constraints *constraints, int col)
     constraints->bounds[col].ub = -INF;
 }
 
-void fix_col_to_positive_inf(Constraints *constraints, int col)
+void fix_col_to_positive_inf(Problem *prob, int col)
 {
+    Constraints *constraints = prob->constraints;
     assert(!HAS_TAG(constraints->col_tags[col], C_TAG_INACTIVE));
     assert(HAS_TAG(constraints->col_tags[col], C_TAG_UB_INF));
     assert(constraints->state->col_locks[col].up == 0);
+    assert(prob->obj->c[col] == 0.0);
 
     Matrix *AT = constraints->AT;
     RowTag *row_tags = constraints->row_tags;

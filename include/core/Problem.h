@@ -48,7 +48,9 @@ void problem_clean(Problem *problem);
 Objective *objective_new(double *c);
 void free_objective(Objective *obj);
 
-/* Updates the offset when a variable is fixed */
+/* Adds c[col] * value to the offset when variable 'col' is fixed to 'value'.
+   Called at fix time by fix_col and remove_empty_cols; the flush of fixed
+   columns (delete_fixed_cols_from_problem) does not touch the objective. */
 void fix_var_in_obj(Objective *obj, int col, double value);
 
 /* Substitutes variable 'k' from the objective using row 'i'
