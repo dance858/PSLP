@@ -684,7 +684,9 @@ void verify_activity(const ColTag *col_tags, const Bound *bounds, Activity activ
                 max += vals[i] * bounds[col].lb;
             }
         }
-        PSLP_ASSERT(ABS(activity.max - max) < 1e-6);
+        // relative tolerance: activities of rows with huge coefficients and
+        // many entries differ from the maintained value by rounding
+        PSLP_ASSERT(ABS(activity.max - max) < 1e-6 * MAX(1.0, ABS(max)));
     }
 
     // if there is a min infinite contribution, the min activity should be
@@ -718,7 +720,7 @@ void verify_activity(const ColTag *col_tags, const Bound *bounds, Activity activ
             }
         }
 
-        PSLP_ASSERT(ABS(activity.min - min) < 1e-6);
+        PSLP_ASSERT(ABS(activity.min - min) < 1e-6 * MAX(1.0, ABS(min)));
     }
 }
 
