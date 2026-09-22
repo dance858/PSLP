@@ -155,11 +155,9 @@ static void retrieve_sub_col(Solution *sol, int k, const int *cols,
 
 static void retrieve_fix_col_inf(Solution *sol, const FixedColInfRecord *r)
 {
-    int i, j, counter, row_len;
-    const int *cols;
+    int i, j, pos;
     double coeff = 0;
     double val, side;
-    const double *coeffs;
     int n_rows = r->n_rows;
     double extreme_val = r->bound;
     bool fix_to_pos_inf = r->pos_inf;
@@ -167,32 +165,29 @@ static void retrieve_fix_col_inf(Solution *sol, const FixedColInfRecord *r)
     assert(sol->x[col] == COL_NOT_RETRIEVED);
     assert(sol->z[col] == COL_NOT_RETRIEVED);
 
-    counter = 0;
+    pos = 0;
     for (i = 0; i < n_rows; ++i)
     {
-        side = r->row_vals[counter];
-        coeffs = r->row_vals + counter + 1;
-        row_len = r->row_indices[counter];
-        cols = r->row_indices + counter + 1;
-        counter += row_len + 1;
+        FixedColInfRow row = fixed_col_inf_row(r, &pos);
+        side = row.side;
 
-        for (j = 0; j < row_len; ++j)
+        for (j = 0; j < row.len; ++j)
         {
-            if (cols[j] == col)
+            if (row.cols[j] == col)
             {
-                coeff = coeffs[j];
+                coeff = row.coeffs[j];
                 continue;
             }
 
             //  If two columns are fixed to pos inf in the same row, we
             //  pretend one of them is zero while we compute the other one
-            if (sol->x[cols[j]] == COL_NOT_RETRIEVED)
+            if (sol->x[row.cols[j]] == COL_NOT_RETRIEVED)
             {
                 continue;
             }
 
-            assert(sol->x[cols[j]] != COL_NOT_RETRIEVED);
-            side -= coeffs[j] * sol->x[cols[j]];
+            assert(sol->x[row.cols[j]] != COL_NOT_RETRIEVED);
+            side -= row.coeffs[j] * sol->x[row.cols[j]];
         }
 
         val = side / coeff;

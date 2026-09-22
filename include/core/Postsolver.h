@@ -178,10 +178,8 @@ void save_retrieval_fixed_col_inf(PostsolveInfo *info, int col, int pos_inf,
                                   const struct Constraints *constraints,
                                   double bound);
 
-/* The rows are stored one after the other, starting at row_indices /
-   row_vals: row r occupies row_indices[c] = row_len, row_indices[c + 1 ..
-   c + row_len] = cols and row_vals[c] = side, row_vals[c + 1 .. c + row_len]
-   = coeffs, after which the next row starts at c + row_len + 1. */
+/* The n_rows rows are stored one after the other in row_indices / row_vals
+   and are read with fixed_col_inf_row below. */
 typedef struct FixedColInfRecord
 {
     bool pos_inf;
@@ -191,6 +189,27 @@ typedef struct FixedColInfRecord
     const int *row_indices;
     const double *row_vals;
 } FixedColInfRecord;
+
+typedef struct FixedColInfRow
+{
+    int len;
+    double side; // the finite side of the row (rhs or lhs)
+    const int *cols;
+    const double *coeffs;
+} FixedColInfRow;
+
+/* Returns the row at offset *pos of r's row area and advances *pos to the
+   next row. Start from *pos = 0 and call n_rows times. */
+static inline FixedColInfRow fixed_col_inf_row(const FixedColInfRecord *r, int *pos)
+{
+    FixedColInfRow row;
+    row.len = r->row_indices[*pos];
+    row.side = r->row_vals[*pos];
+    row.cols = r->row_indices + *pos + 1;
+    row.coeffs = r->row_vals + *pos + 1;
+    *pos += row.len + 1;
+    return row;
+}
 
 static inline FixedColInfRecord
 decode_fixed_col_inf(const int *indices, const double *vals, int record_len)
@@ -207,12 +226,13 @@ decode_fixed_col_inf(const int *indices, const double *vals, int record_len)
 
 #ifndef NDEBUG
     // the rows must fill the record exactly
-    int counter = 2;
+    int pos = 0;
     for (int i = 0; i < r.n_rows; ++i)
     {
-        counter += indices[counter] + 1;
+        assert(pos < record_len - 2);
+        (void) fixed_col_inf_row(&r, &pos);
     }
-    assert(counter == record_len);
+    assert(pos == record_len - 2);
 #else
     (void) record_len;
 #endif
