@@ -134,11 +134,14 @@ extern "C"
     void free_presolver_reduced_problem(Presolver *presolver);
 
     /* Postsolve the problem given the primal-dual solution (x, y, z) of the
-       reduced problem. The function populates presolver->sol, so if you're
-       looking for the solution to the original problem, you want to look there.
-       If the solver has added the offset to the objective when solving the reduced
-       problem, the optimal value of the original problem is the same as that of
-       the reduced problem. */
+       reduced problem, where z = c - A'y are the multipliers of the variable
+       bounds: z >= 0 for a variable at its lower bound, z <= 0 at its upper
+       bound, y >= 0 for a row active at its lhs and y <= 0 at its rhs. The
+       function populates presolver->sol, so if you're looking for the
+       solution to the original problem, you want to look there. If the
+       solver has added the offset to the objective when solving the reduced
+       problem, the optimal value of the original problem is the same as that
+       of the reduced problem. */
     void postsolve(Presolver *presolver, const double *x, const double *y,
                    const double *z);
 
