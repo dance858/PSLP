@@ -190,7 +190,10 @@ void VERIFY_PARALLEL_ROWS(const Matrix *A, const RowTag *rows_tags,
             double ratio = vals1[0] / vals2[0];
             for (k = 1; k < len1; ++k)
             {
-                assert(IS_ZERO_FEAS_TOL(vals1[k] - ratio * vals2[k]));
+                // relative tolerance: rows with large coefficients are
+                // detected through hashes of normalized values
+                assert(ABS(vals1[k] - ratio * vals2[k]) <=
+                       FEAS_TOL * MAX(1.0, ABS(vals1[k])));
             }
         }
     }
