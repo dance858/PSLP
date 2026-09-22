@@ -33,7 +33,9 @@ struct Matrix;
    activities when deleting fixed variables. This function does not
    update A or AT.
 
-   This function does not clear the list of fixed columns to delete.
+   This function does not clear the list of fixed columns to delete, and it
+   does not modify the objective: the offset contribution of a fixed column
+   is added by fix_col when the column is fixed.
 */
 void delete_fixed_cols_from_problem(struct Problem *prob);
 
@@ -104,7 +106,8 @@ PresolveStatus check_activities(struct Problem *prob);
    that 'set_col_to_fixed' isn't called, since there is no need to append an
    empty column to the list of fixed columns that should be deleted (since there
    are no coefficients of an empty column that must be deleted). We DO NOT even
-   have to call remove_fixed_cols().
+   have to call remove_fixed_cols(). Since fix_col is not used, the objective
+   offset is updated here directly through fix_var_in_obj.
 */
 PresolveStatus remove_empty_cols(struct Problem *prob);
 

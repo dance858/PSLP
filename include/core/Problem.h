@@ -48,7 +48,9 @@ void problem_clean(Problem *problem);
 Objective *objective_new(double *c);
 void free_objective(Objective *obj);
 
-/* Updates the offset when a variable is fixed */
+/* Adds c[col] * value to the offset when variable 'col' is fixed to 'value'.
+   Called at fix time by fix_col and remove_empty_cols; the flush of fixed
+   columns (delete_fixed_cols_from_problem) does not touch the objective. */
 void fix_var_in_obj(Objective *obj, int col, double value);
 
 /* Substitutes variable 'k' from the objective using row 'i'
@@ -56,5 +58,11 @@ void fix_var_in_obj(Objective *obj, int col, double value);
    (vals, cols, len, rhs) */
 void sub_var_in_obj(Objective *obj, const double *vals, const int *cols, int len,
                     int k, double aik, double rhs);
+
+/* Substitutes variable 'subst' from the objective using the doubleton
+   equality row aij * x_stay + aik * x_subst = rhs. c[subst] is left
+   unchanged; the caller stores it for the postsolve. */
+void sub_var_in_obj_dton(Objective *obj, int stay, int subst, double aik, double aij,
+                         double rhs);
 
 #endif // CORE_PROBLEM_H

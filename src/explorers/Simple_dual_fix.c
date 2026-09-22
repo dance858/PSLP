@@ -29,10 +29,9 @@
 #include "iVec.h"
 
 // a column that becomes fixed because of dual fix should have zk = ck - ak^T y
-static inline PresolveStatus _simple_dual_fix(Constraints *constraints, double ck,
-                                              double lb, double ub, Lock lock,
-                                              ColTag col_tag, int col,
-                                              iVec *cols_to_inf)
+static inline PresolveStatus _simple_dual_fix(Problem *prob, double ck, double lb,
+                                              double ub, Lock lock, ColTag col_tag,
+                                              int col, iVec *cols_to_inf)
 {
     assert(!HAS_TAG(col_tag, C_TAG_INACTIVE));
 
@@ -47,7 +46,7 @@ static inline PresolveStatus _simple_dual_fix(Constraints *constraints, double c
         }
 
         assert(!IS_ABS_INF(lb));
-        fix_col(constraints, col, lb, ck);
+        fix_col(prob, col, lb);
         return UNCHANGED;
     }
 
@@ -62,7 +61,7 @@ static inline PresolveStatus _simple_dual_fix(Constraints *constraints, double c
         }
 
         assert(!IS_ABS_INF(ub));
-        fix_col(constraints, col, ub, ck);
+        fix_col(prob, col, ub);
         return UNCHANGED;
     }
 
@@ -85,7 +84,7 @@ static inline PresolveStatus _simple_dual_fix(Constraints *constraints, double c
             else
             {
                 assert(!IS_ABS_INF(lb));
-                fix_col(constraints, col, lb, ck);
+                fix_col(prob, col, lb);
             }
             return UNCHANGED;
         }
@@ -99,7 +98,7 @@ static inline PresolveStatus _simple_dual_fix(Constraints *constraints, double c
             else
             {
                 assert(!IS_ABS_INF(ub));
-                fix_col(constraints, col, ub, ck);
+                fix_col(prob, col, ub);
             }
             return UNCHANGED;
         }
@@ -135,8 +134,8 @@ PresolveStatus simple_dual_fix(Problem *prob)
 
         // if simple_dual_fix returns UNBNDORINFEAS it will be propagated
         // to run_fast_presolvers where it is detected
-        status |= _simple_dual_fix(constraints, c[k], bounds[k].lb, bounds[k].ub,
-                                   locks[k], col_tags[k], (int) k, cols_to_inf);
+        status |= _simple_dual_fix(prob, c[k], bounds[k].lb, bounds[k].ub, locks[k],
+                                   col_tags[k], (int) k, cols_to_inf);
     }
 
     // now fix the columns that can be fixed to inf
@@ -148,11 +147,11 @@ PresolveStatus simple_dual_fix(Problem *prob)
 
         if (col < 0)
         {
-            fix_col_to_negative_inf(constraints, -col);
+            fix_col_to_negative_inf(prob, -col);
         }
         else if (col > 0)
         {
-            fix_col_to_positive_inf(constraints, col);
+            fix_col_to_positive_inf(prob, col);
         }
         else
         {
@@ -160,11 +159,11 @@ PresolveStatus simple_dual_fix(Problem *prob)
             assert(locks[col].up == 0 || locks[col].down == 0);
             if (locks[col].down == 0)
             {
-                fix_col_to_negative_inf(constraints, col);
+                fix_col_to_negative_inf(prob, col);
             }
             else if (locks[col].up == 0)
             {
-                fix_col_to_positive_inf(constraints, col);
+                fix_col_to_positive_inf(prob, col);
             }
         }
     }

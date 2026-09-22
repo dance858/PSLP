@@ -70,7 +70,7 @@ static PresolveStatus update_lb_within_propagation(double new_lb, double *lb,
                                                col, new_lb, ub, false);
 
             // doing this later would make the postsolve more elegant
-            fix_col(constraints, col, ub, prob->obj->c[col]);
+            fix_col(prob, col, ub);
             return REDUCED;
         }
     }
@@ -145,7 +145,7 @@ static PresolveStatus update_ub_within_propagation(double new_ub, double *ub,
                                                col, new_ub, lb, true);
 
             /// doing this later would make the postsolve more elegant
-            fix_col(constraints, col, lb, prob->obj->c[col]);
+            fix_col(prob, col, lb);
             return REDUCED;
         }
     }

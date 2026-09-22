@@ -56,7 +56,8 @@ void delete_fixed_cols_from_problem(Problem *prob)
         assert(!IS_ABS_INF(bounds[col].ub));
         assert(bounds[col].lb == bounds[col].ub);
 
-        // If the variable has been fixed to 0 or INF we must not do anything.
+        // A variable fixed to 0 contributes nothing to lhs, rhs or the
+        // activities. (Its objective contribution was added by fix_col.)
         // It is not necessary to update n_inf_min and n_inf_max (this has
         // already been done by boundChange).
         double ub = bounds[col].ub;
@@ -115,9 +116,6 @@ void delete_fixed_cols_from_problem(Problem *prob)
                    HAS_TAG(row_tags[row], R_TAG_EQ) ||
                    !IS_EQUAL_FEAS_TOL(lhs[row], rhs[row]));
         }
-
-        // fix variable in the objective
-        fix_var_in_obj(prob->obj, col, ub);
     }
 }
 
@@ -155,8 +153,8 @@ static inline PresolveStatus remove_stonrow(Problem *prob, int row)
     {
         assert(lhs == rhs);
 
-        // printf("fixing col %d to %f from row %d \n", k, rhs / aik, row);
-        if (fix_col(constrs, k, rhs / aik, prob->obj->c[k]) == INFEASIBLE)
+        double ck = prob->obj->c[k];
+        if (fix_col(prob, k, rhs / aik) == INFEASIBLE)
         {
             return INFEASIBLE;
         }
@@ -175,7 +173,7 @@ static inline PresolveStatus remove_stonrow(Problem *prob, int row)
         const double *vals = AT->x + AT->p[k].start;
         size_t len = (size_t) (AT->p[k].end - AT->p[k].start);
         save_retrieval_added_rows(postsolve_info, row, rows, vals, len, aik);
-        save_retrieval_deleted_row(postsolve_info, row, prob->obj->c[k] / aik);
+        save_retrieval_deleted_row(postsolve_info, row, ck / aik);
     }
     // ----------------------------------------------------------------------
     //  if the row is an inequality, we update the bounds (if they are tighter
@@ -530,8 +528,7 @@ PresolveStatus remove_empty_cols(Problem *prob)
     int *col_sizes = prob->constraints->state->col_sizes;
     ColTag *col_tags = prob->constraints->col_tags;
     Bound *bounds = prob->constraints->bounds;
-    double *c = prob->obj->c;
-    double *offset = &(prob->obj->offset);
+    const double *c = prob->obj->c;
 
     for (size_t i = 0; i < len; ++i)
     {
@@ -591,17 +588,16 @@ PresolveStatus remove_empty_cols(Problem *prob)
             bounds[k].ub = bounds[k].lb;
         }
 
-        // add offset to objective
-        *offset += c[k] * val;
-
-        // mark column as fixed
+        // mark column as fixed (not appended to fixed_cols_to_delete since
+        // there are no coefficients to delete from A and AT)
         UPDATE_TAG(col_tags[k], C_TAG_FIXED);
         col_sizes[k] = SIZE_INACTIVE_COL;
 
         // store postsolve information (for empty cols we want zk = ck)
-        // passing NULL ptrs are safe since the length is 0
-        save_retrieval_fixed_col(postsolve_info, k, val, prob->obj->c[k], NULL, NULL,
-                                 0);
+        // passing NULL ptrs are safe since the length is 0. As in fix_col,
+        // the record is saved before the objective is updated.
+        save_retrieval_fixed_col(postsolve_info, k, val, c[k], NULL, NULL, 0);
+        fix_var_in_obj(prob->obj, k, val);
     }
 
     iVec_clear_no_resize(empty_cols);
@@ -686,7 +682,6 @@ void clean_small_coeff_A(Matrix *A, const Bound *bounds, const RowTag *row_tags,
 PresolveStatus remove_variables_with_close_bounds(Problem *prob)
 {
     Constraints *constraints = prob->constraints;
-    const double *c = prob->obj->c;
     const Bound *bounds = constraints->bounds;
     const ColTag *col_tags = constraints->col_tags;
     size_t n_cols = constraints->n;
@@ -713,7 +708,7 @@ PresolveStatus remove_variables_with_close_bounds(Problem *prob)
         if (col_sizes[ii] > 0 && IS_EQUAL_FEAS_TOL(bounds[ii].lb, bounds[ii].ub))
         {
             // no need to check return value since bounds are equal
-            fix_col(constraints, (int) ii, bounds[ii].lb, c[ii]);
+            fix_col(prob, (int) ii, bounds[ii].lb);
         }
     }
 

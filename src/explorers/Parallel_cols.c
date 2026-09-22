@@ -32,7 +32,7 @@
 #include "Tags.h"
 #include "Workspace.h"
 
-static inline PresolveStatus process_single_bin(const Problem *prob, const int *bin,
+static inline PresolveStatus process_single_bin(Problem *prob, const int *bin,
                                                 int bin_size, int *rows_to_recompute)
 {
     assert(bin_size > 1);
@@ -216,7 +216,7 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
 
                     assert(!HAS_TAG(col_tags[k], C_TAG_INACTIVE));
                     assert(!IS_ABS_INF(bounds[k].lb));
-                    fix_col(constraints, k, bounds[k].lb, ck);
+                    fix_col(prob, k, bounds[k].lb);
                     continue;
                 }
                 else if (fix_xk_to_upper)
@@ -228,7 +228,7 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
 
                     assert(!HAS_TAG(col_tags[k], C_TAG_INACTIVE));
                     assert(!IS_ABS_INF(bounds[k].ub));
-                    fix_col(constraints, k, bounds[k].ub, ck);
+                    fix_col(prob, k, bounds[k].ub);
                     continue;
                 }
 
@@ -242,7 +242,7 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
 
                     assert(!HAS_TAG(col_tags[j], C_TAG_INACTIVE));
                     assert(!IS_ABS_INF(bounds[j].lb));
-                    fix_col(constraints, j, bounds[j].lb, cj);
+                    fix_col(prob, j, bounds[j].lb);
                     recount_ninfs = false;
                     //  break from checking if xj is parallel to other cols since
                     //  we fix it
@@ -257,7 +257,7 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
 
                     assert(!HAS_TAG(col_tags[j], C_TAG_INACTIVE));
                     assert(!IS_ABS_INF(bounds[j].ub));
-                    fix_col(constraints, j, bounds[j].ub, cj);
+                    fix_col(prob, j, bounds[j].ub);
                     recount_ninfs = false;
                     //  break from checking if xj is parallel to other cols since
                     //  we fix it
@@ -280,7 +280,7 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
     return UNCHANGED;
 }
 
-static PresolveStatus process_all_bins(const Problem *prob, const int *parallel_cols,
+static PresolveStatus process_all_bins(Problem *prob, const int *parallel_cols,
                                        const iVec *groups, int *rows_to_recompute)
 {
     if (groups->len <= 1)

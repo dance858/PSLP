@@ -28,6 +28,7 @@
 #include <assert.h>
 
 struct Constraints;
+struct Problem;
 struct Lock;
 struct Activity;
 struct RowView;
@@ -37,15 +38,19 @@ struct Matrix;
 struct Bound;
 
 /* Checks if fixing a column to 'val' is feasible with respect to its bounds.
-   If yes, it fixes it and updates the activities. When a variable is fixed we
-   set both its lb and ub to its value. */
-PresolveStatus fix_col(struct Constraints *constraints, int col, double val,
-                       double ck);
+   If not, it returns INFEASIBLE without modifying anything. Otherwise it tags
+   the column as fixed, stores the postsolve record, adds c[col] * val to the
+   objective offset, sets both lb and ub to val, and updates the activities.
+   The postsolve record and the objective update use the same value of c[col],
+   and the objective update is the last thing that reads it. The column must
+   be non-empty; empty columns are fixed by remove_empty_cols. */
+PresolveStatus fix_col(struct Problem *prob, int col, double val);
 
 /* Fixes a variable to infinity and marks the constraints it appears in as
-   inactive. */
-void fix_col_to_negative_inf(struct Constraints *constraints, int col);
-void fix_col_to_positive_inf(struct Constraints *constraints, int col);
+   inactive. This is only valid for a variable with a zero objective
+   coefficient (asserted), so the objective is not modified. */
+void fix_col_to_negative_inf(struct Problem *prob, int col);
+void fix_col_to_positive_inf(struct Problem *prob, int col);
 
 // These should not be called with large values of new_lb or new_ub.
 // 'row' is the row that causes the bound change.

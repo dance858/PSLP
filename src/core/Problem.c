@@ -74,10 +74,11 @@ void free_objective(Objective *obj)
     PS_FREE(obj);
 }
 
-void objective_shrink(double *c, int *map, size_t len)
+static void objective_shrink(double *c, int *map, size_t len)
 {
     dPtr_shrink(c, map, len);
 }
+
 void fix_var_in_obj(Objective *obj, int col, double value)
 {
     obj->offset += obj->c[col] * value;
@@ -118,4 +119,11 @@ void sub_var_in_obj(Objective *obj, const double *vals, const int *cols, int len
     }
 
     obj->offset += rhs * ratio;
+}
+
+void sub_var_in_obj_dton(Objective *obj, int stay, int subst, double aik, double aij,
+                         double rhs)
+{
+    obj->c[stay] -= (aij / aik) * obj->c[subst];
+    obj->offset += (rhs / aik) * obj->c[subst];
 }
