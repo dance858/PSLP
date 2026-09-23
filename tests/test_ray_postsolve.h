@@ -4,6 +4,7 @@
 #include "Numerics.h"
 #include "PSLP_API.h"
 #include "Postsolver.h"
+#include "kkt.h"
 #include "minunit.h"
 
 static int counter_ray_postsolve = 0;
@@ -47,139 +48,6 @@ static bool is_primal_ray_z_correct(const double *Ax, const int *Ai, const int *
     }
 
     return true;
-}
-
-static bool is_primal_ray_valid_certificate(const double *Ax, const int *Ai,
-                                            const int *Ap, const double *lhs,
-                                            const double *rhs, const double *lbs,
-                                            const double *ubs, const double *y,
-                                            int n_rows, int n_cols)
-{
-    double support = 0.0;
-    for (int i = 0; i < n_rows; ++i)
-    {
-        if (y[i] > FEAS_TOL)
-        {
-            if (IS_POS_INF(rhs[i]))
-            {
-                return false;
-            }
-            support += rhs[i] * y[i];
-        }
-        else if (y[i] < -FEAS_TOL)
-        {
-            if (IS_NEG_INF(lhs[i]))
-            {
-                return false;
-            }
-            support += lhs[i] * y[i];
-        }
-    }
-
-    for (int j = 0; j < n_cols; ++j)
-    {
-        double z_j = 0.0;
-        for (int i = 0; i < n_rows; ++i)
-        {
-            for (int p = Ap[i]; p < Ap[i + 1]; ++p)
-            {
-                if (Ai[p] == j)
-                {
-                    z_j -= Ax[p] * y[i];
-                }
-            }
-        }
-
-        if (z_j > FEAS_TOL)
-        {
-            if (IS_POS_INF(ubs[j]))
-            {
-                return false;
-            }
-            support += ubs[j] * z_j;
-        }
-        else if (z_j < -FEAS_TOL)
-        {
-            if (IS_NEG_INF(lbs[j]))
-            {
-                return false;
-            }
-            support += lbs[j] * z_j;
-        }
-    }
-
-    return support < -FEAS_TOL;
-}
-
-static bool is_dual_ray_valid_certificate(const double *Ax, const int *Ai,
-                                          const int *Ap, const double *lhs,
-                                          const double *rhs, const double *lbs,
-                                          const double *ubs, const double *c,
-                                          const double *x, int n_rows, int n_cols)
-{
-    for (int i = 0; i < n_rows; ++i)
-    {
-        double ax_i = 0.0;
-        for (int p = Ap[i]; p < Ap[i + 1]; ++p)
-        {
-            ax_i += Ax[p] * x[Ai[p]];
-        }
-
-        if (!IS_NEG_INF(lhs[i]) && !IS_POS_INF(rhs[i]))
-        {
-            if (!IS_ZERO_FEAS_TOL(ax_i))
-            {
-                return false;
-            }
-        }
-        else if (!IS_POS_INF(rhs[i]))
-        {
-            if (ax_i > FEAS_TOL)
-            {
-                return false;
-            }
-        }
-        else if (!IS_NEG_INF(lhs[i]))
-        {
-            if (ax_i < -FEAS_TOL)
-            {
-                return false;
-            }
-        }
-    }
-
-    for (int j = 0; j < n_cols; ++j)
-    {
-        if (!IS_NEG_INF(lbs[j]) && !IS_POS_INF(ubs[j]))
-        {
-            if (!IS_ZERO_FEAS_TOL(x[j]))
-            {
-                return false;
-            }
-        }
-        else if (!IS_POS_INF(ubs[j]))
-        {
-            if (x[j] > FEAS_TOL)
-            {
-                return false;
-            }
-        }
-        else if (!IS_NEG_INF(lbs[j]))
-        {
-            if (x[j] < -FEAS_TOL)
-            {
-                return false;
-            }
-        }
-    }
-
-    double cx = 0.0;
-    for (int j = 0; j < n_cols; ++j)
-    {
-        cx += c[j] * x[j];
-    }
-
-    return cx < -FEAS_TOL;
 }
 
 static char *test_0_primal_ray_postsolve()
@@ -771,6 +639,8 @@ static char *test_infeasible_rhs_change_primal_ray_postsolve()
     double lbs[] = {0, 0};
     double ubs[] = {INF, INF};
     double c[] = {0, 0};
+    PresolvedProblem orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -788,8 +658,7 @@ static char *test_infeasible_rhs_change_primal_ray_postsolve()
     postsolve_primal_infeas_ray(presolver, y, y_orig);
 
     mu_assert("infeasible rhs change primal ray certificate",
-              is_primal_ray_valid_certificate(Ax, Ai, Ap, lhs, rhs, lbs, ubs, y_orig,
-                                              n_rows, n_cols));
+              is_primal_ray_certificate(&orig, y_orig, FEAS_TOL));
 
     PS_FREE(stgs);
     free_presolver(presolver);
@@ -810,6 +679,8 @@ static char *test_infeasible_lhs_change_primal_ray_postsolve()
     double lbs[] = {0, 0};
     double ubs[] = {INF, INF};
     double c[] = {0, 0};
+    PresolvedProblem orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -827,8 +698,7 @@ static char *test_infeasible_lhs_change_primal_ray_postsolve()
     postsolve_primal_infeas_ray(presolver, y, y_orig);
 
     mu_assert("infeasible lhs change primal ray certificate",
-              is_primal_ray_valid_certificate(Ax, Ai, Ap, lhs, rhs, lbs, ubs, y_orig,
-                                              n_rows, n_cols));
+              is_primal_ray_certificate(&orig, y_orig, FEAS_TOL));
 
     PS_FREE(stgs);
     free_presolver(presolver);
@@ -852,6 +722,8 @@ static char *test_infeasible_both_sides_changed_primal_ray_postsolve()
     double lbs[] = {0, 0};
     double ubs[] = {INF, INF};
     double c[] = {0, 0};
+    PresolvedProblem orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -869,8 +741,7 @@ static char *test_infeasible_both_sides_changed_primal_ray_postsolve()
     postsolve_primal_infeas_ray(presolver, y, y_orig);
 
     mu_assert("both sides changed primal ray certificate",
-              is_primal_ray_valid_certificate(Ax, Ai, Ap, lhs, rhs, lbs, ubs, y_orig,
-                                              n_rows, n_cols));
+              is_primal_ray_certificate(&orig, y_orig, FEAS_TOL));
 
     PS_FREE(stgs);
     free_presolver(presolver);
@@ -891,6 +762,8 @@ static char *test_infeasible_bound_change_primal_ray_postsolve()
     double lbs[] = {0, 0};
     double ubs[] = {10, 10};
     double c[] = {0, 0};
+    PresolvedProblem orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -907,8 +780,7 @@ static char *test_infeasible_bound_change_primal_ray_postsolve()
     postsolve_primal_infeas_ray(presolver, y, y_orig);
 
     mu_assert("infeasible bound change primal ray certificate",
-              is_primal_ray_valid_certificate(Ax, Ai, Ap, lhs, rhs, lbs, ubs, y_orig,
-                                              n_rows, n_cols));
+              is_primal_ray_certificate(&orig, y_orig, FEAS_TOL));
 
     PS_FREE(stgs);
     free_presolver(presolver);
@@ -929,6 +801,8 @@ static char *test_infeasible_parallel_col_primal_ray_postsolve()
     double lbs[] = {0, 0, 0};
     double ubs[] = {10, 10, 10};
     double c[] = {0, 0, 0};
+    PresolvedProblem orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -945,8 +819,7 @@ static char *test_infeasible_parallel_col_primal_ray_postsolve()
     postsolve_primal_infeas_ray(presolver, y, y_orig);
 
     mu_assert("infeasible parallel col primal ray certificate",
-              is_primal_ray_valid_certificate(Ax, Ai, Ap, lhs, rhs, lbs, ubs, y_orig,
-                                              n_rows, n_cols));
+              is_primal_ray_certificate(&orig, y_orig, FEAS_TOL));
 
     PS_FREE(stgs);
     free_presolver(presolver);
@@ -967,6 +840,8 @@ static char *test_infeasible_fix_col_inf_primal_ray_postsolve()
     double lbs[] = {0, 0, -INF};
     double ubs[] = {INF, INF, INF};
     double c[] = {0, 0, 0};
+    PresolvedProblem orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -982,8 +857,7 @@ static char *test_infeasible_fix_col_inf_primal_ray_postsolve()
     postsolve_primal_infeas_ray(presolver, y, y_orig);
 
     mu_assert("infeasible fix col inf primal ray certificate",
-              is_primal_ray_valid_certificate(Ax, Ai, Ap, lhs, rhs, lbs, ubs, y_orig,
-                                              n_rows, n_cols));
+              is_primal_ray_certificate(&orig, y_orig, FEAS_TOL));
 
     PS_FREE(stgs);
     free_presolver(presolver);
@@ -1004,6 +878,8 @@ static char *test_unbounded_fix_col_inf_dual_ray_postsolve()
     double lbs[] = {0, 0, -INF};
     double ubs[] = {INF, INF, INF};
     double c[] = {-1, -1, 0};
+    PresolvedProblem orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -1021,8 +897,7 @@ static char *test_unbounded_fix_col_inf_dual_ray_postsolve()
     postsolve_dual_infeas_ray(presolver, x, x_orig);
 
     mu_assert("unbounded fix col inf dual ray certificate",
-              is_dual_ray_valid_certificate(Ax, Ai, Ap, lhs, rhs, lbs, ubs, c,
-                                            x_orig, n_rows, n_cols));
+              is_dual_ray_certificate(&orig, x_orig, FEAS_TOL));
 
     PS_FREE(stgs);
     free_presolver(presolver);
@@ -1043,6 +918,8 @@ static char *test_unbounded_negated_fix_col_inf_dual_ray_postsolve()
     double lbs[] = {0, 0, -INF};
     double ubs[] = {INF, INF, INF};
     double c[] = {-1, -1, 0};
+    PresolvedProblem orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -1060,8 +937,7 @@ static char *test_unbounded_negated_fix_col_inf_dual_ray_postsolve()
     postsolve_dual_infeas_ray(presolver, x, x_orig);
 
     mu_assert("unbounded negated fix col inf dual ray certificate",
-              is_dual_ray_valid_certificate(Ax, Ai, Ap, lhs, rhs, lbs, ubs, c,
-                                            x_orig, n_rows, n_cols));
+              is_dual_ray_certificate(&orig, x_orig, FEAS_TOL));
 
     PS_FREE(stgs);
     free_presolver(presolver);

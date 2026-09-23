@@ -5,6 +5,7 @@
 #include "Numerics.h"
 #include "PSLP_API.h"
 #include "PSLP_sol.h"
+#include "kkt.h"
 #include "minunit.h"
 #include "test_macros.h"
 #include <assert.h>
@@ -53,6 +54,11 @@ static bool check_round_trip(Presolver *presolver, const double *x, const double
     double x_red[MAP_MAX_DIM], y_red[MAP_MAX_DIM], z_red[MAP_MAX_DIM];
     assert(n <= MAP_MAX_DIM && m <= MAP_MAX_DIM);
     map_original_sol_to_reduced(presolver, x, y, x_red, y_red, z_red);
+    if (!is_kkt_point(presolver->reduced_prob, x_red, y_red, z_red, MAP_TOL))
+    {
+        printf("mapped point is not optimal for the reduced problem\n");
+        return false;
+    }
     postsolve(presolver, x_red, y_red, z_red);
     return is_solution_correct(presolver->sol->x, x, presolver->sol->y, y,
                                presolver->sol->z, z, (int) n_rows, (int) n_cols,

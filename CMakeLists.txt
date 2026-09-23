@@ -137,10 +137,13 @@ if(PSLP_BUILD_TESTING)
   enable_testing()
   message(STATUS "PSLP testing enabled (this should be disabled for production builds!!!)")
 
-  add_executable(all_tests tests/all_tests.c tests/test_macros.c)
+  add_executable(all_tests tests/all_tests.c tests/test_macros.c tests/kkt.c)
 
   # Link PSLP library
   target_link_libraries(all_tests PRIVATE PSLP)
+  if(UNIX)
+    target_link_libraries(all_tests PRIVATE m)
+  endif()
   target_compile_definitions(PSLP PRIVATE TESTING)
 
     # Add include directories explicitly for the test target
