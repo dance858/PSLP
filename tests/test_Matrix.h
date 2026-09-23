@@ -824,6 +824,39 @@ static char *test_19_matrix()
     return 0;
 }
 
+// matrix_valid_csr_input on the 2 x 3 matrix [1 0 2; 0 3 0]
+static char *test_20_matrix()
+{
+    int Ai[] = {0, 2, 1};
+    int Ap[] = {0, 2, 3};
+    mu_assert("valid", matrix_valid_csr_input(Ai, Ap, 2, 3, 3));
+
+    int Ap_empty[] = {0, 0, 0};
+    mu_assert("empty", matrix_valid_csr_input(NULL, Ap_empty, 2, 3, 0));
+
+    int Ap_first[] = {1, 2, 3};
+    mu_assert("Ap[0] != 0", !matrix_valid_csr_input(Ai, Ap_first, 2, 3, 3));
+
+    int Ap_decreasing[] = {0, 2, 1};
+    mu_assert("decreasing Ap", !matrix_valid_csr_input(Ai, Ap_decreasing, 2, 3, 1));
+
+    mu_assert("Ap[m] != nnz", !matrix_valid_csr_input(Ai, Ap, 2, 3, 2));
+
+    int Ai_large[] = {0, 3, 1};
+    mu_assert("index >= n", !matrix_valid_csr_input(Ai_large, Ap, 2, 3, 3));
+
+    int Ai_negative[] = {-1, 2, 1};
+    mu_assert("negative index", !matrix_valid_csr_input(Ai_negative, Ap, 2, 3, 3));
+
+    int Ai_unsorted[] = {2, 0, 1};
+    mu_assert("unsorted row", !matrix_valid_csr_input(Ai_unsorted, Ap, 2, 3, 3));
+
+    int Ai_duplicate[] = {0, 0, 1};
+    mu_assert("duplicate index", !matrix_valid_csr_input(Ai_duplicate, Ap, 2, 3, 3));
+
+    return 0;
+}
+
 static const char *all_tests_matrix()
 {
     mu_run_test(test_0_matrix, counter_matrix);
@@ -846,6 +879,7 @@ static const char *all_tests_matrix()
     mu_run_test(test_17_matrix, counter_matrix);
     // mu_run_test(test_18_matrix, counter_matrix); // we don't run this
     mu_run_test(test_19_matrix, counter_matrix);
+    mu_run_test(test_20_matrix, counter_matrix);
     return 0;
 }
 
