@@ -133,6 +133,34 @@ Matrix *matrix_new_no_extra_space(const double *Ax, const int *Ai, const int *Ap
     return A;
 }
 
+bool matrix_valid_csr_input(const int *Ai, const int *Ap, size_t n_rows,
+                            size_t n_cols, size_t nnz)
+{
+    if (Ap[0] != 0)
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < n_rows; ++i)
+    {
+        if (Ap[i + 1] < Ap[i])
+        {
+            return false;
+        }
+
+        for (int j = Ap[i]; j < Ap[i + 1]; ++j)
+        {
+            if (Ai[j] < 0 || (size_t) Ai[j] >= n_cols ||
+                (j > Ap[i] && Ai[j] <= Ai[j - 1]))
+            {
+                return false;
+            }
+        }
+    }
+
+    return Ap[n_rows] >= 0 && (size_t) Ap[n_rows] == nnz;
+}
+
 static inline void remove_explicit_zeros(Matrix *A)
 {
     int i, j, shift;
