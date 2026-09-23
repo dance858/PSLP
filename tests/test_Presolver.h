@@ -136,11 +136,40 @@ static char *test_02_presolver()
     return 0;
 }
 
+// An empty column with negative cost and no upper bound is unbounded.
+static char *test_03_presolver()
+{
+    double Ax[] = {1};
+    int Ai[] = {0};
+    int Ap[] = {0, 1};
+    int nnz = 1;
+    int n_rows = 1;
+    int n_cols = 2;
+    double lhs[] = {1};
+    double rhs[] = {INF};
+    double lbs[] = {0, 0};
+    double ubs[] = {10, INF};
+    double c[] = {1, -1};
+
+    Settings *stgs = default_settings();
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("Presolver initialization failed", presolver != NULL);
+
+    PresolveStatus status = run_presolver(presolver);
+    mu_assert("Expected infeasible or unbounded status", status == UNBNDORINFEAS);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_presolver()
 {
     mu_run_test(test_00_presolver, counter_presolver);
     mu_run_test(test_01_presolver, counter_presolver);
     mu_run_test(test_02_presolver, counter_presolver);
+    mu_run_test(test_03_presolver, counter_presolver);
     return 0;
 }
 
