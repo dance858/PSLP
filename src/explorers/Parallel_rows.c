@@ -376,8 +376,10 @@ static inline PresolveStatus process_single_bin(const Constraints *constraints,
             double eq_scaled =
                 rhs[other_row_idx] *
                 (remaining_row_coeff / A->x[A->p[other_row_idx].start]);
-            if ((!is_rhs_inf_remaining_row && eq_scaled > remaining_row_new_rhs) ||
-                (!is_lhs_inf_remaining_row && eq_scaled < remaining_row_new_lhs))
+            if ((!is_rhs_inf_remaining_row &&
+                 IS_GT_FEAS_TOL(eq_scaled, remaining_row_new_rhs)) ||
+                (!is_lhs_inf_remaining_row &&
+                 IS_LT_FEAS_TOL(eq_scaled, remaining_row_new_lhs)))
             {
                 return INFEASIBLE;
             }
@@ -418,14 +420,16 @@ static inline PresolveStatus process_single_bin(const Constraints *constraints,
         // -----------------------------------------------------------------------
         else if (is_remaining_row_eq)
         {
-            bool infeas_rhs =
-                !is_rhs_inf_other_row &&
-                ((ratio > 0 && remaining_row_new_rhs > other_row_rhs_scaled) ||
-                 (ratio < 0 && remaining_row_new_rhs < other_row_rhs_scaled));
-            bool infeas_lhs =
-                !is_lhs_inf_other_row &&
-                ((ratio > 0 && remaining_row_new_rhs < other_row_lhs_scaled) ||
-                 (ratio < 0 && remaining_row_new_rhs > other_row_lhs_scaled));
+            bool infeas_rhs = !is_rhs_inf_other_row &&
+                              ((ratio > 0 && IS_GT_FEAS_TOL(remaining_row_new_rhs,
+                                                            other_row_rhs_scaled)) ||
+                               (ratio < 0 && IS_LT_FEAS_TOL(remaining_row_new_rhs,
+                                                            other_row_rhs_scaled)));
+            bool infeas_lhs = !is_lhs_inf_other_row &&
+                              ((ratio > 0 && IS_LT_FEAS_TOL(remaining_row_new_rhs,
+                                                            other_row_lhs_scaled)) ||
+                               (ratio < 0 && IS_GT_FEAS_TOL(remaining_row_new_rhs,
+                                                            other_row_lhs_scaled)));
 
             if (infeas_rhs || infeas_lhs)
             {
