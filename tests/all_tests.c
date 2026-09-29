@@ -5,6 +5,7 @@
 #include "test_Parallel_rows.h"
 #include "test_Presolver.h"
 #include "test_SimpleReductions.h"
+#include "test_SparseAccumulator.h"
 #include "test_domain_propagation.h"
 #include "test_dton.h"
 #include "test_iVec.h"
@@ -21,6 +22,7 @@ const char *run_all_tests()
     mu_assert("matrix error", test_matrix());
     mu_assert("constraints error", test_constraints());
     mu_assert("iVec error", test_iVec());
+    mu_assert("sparse accumulator error", test_sparse_accumulator());
     mu_assert("dton error", test_dton());
     mu_assert("core error", test_core());
     mu_assert("ston error", test_ston());
