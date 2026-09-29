@@ -35,12 +35,14 @@ struct Work;
    claim order. ws->substs.col_subst[k] indexes it (-1 when k is not claimed). */
 typedef struct DtonSubst
 {
-    int k;           /* substituted column */
-    int owner;       /* owner row */
-    int j;           /* direct stay column */
+    int k;      /* substituted column */
+    int owner;  /* owner row */
+    int j;      /* direct stay column */
+    int target; /* composed survivor of the round */
+    double aik; /* owner row: aij * x_j + aik * x_k = rhs */
+    double aij;
     double dir_mult; /* x_k = dir_shift + dir_mult * x_j */
     double dir_shift;
-    int target;  /* composed survivor of the round */
     double mult; /* x_k = shift + mult * x_target */
     double shift;
 } DtonSubst;

@@ -140,8 +140,10 @@ bool dton_claim(Problem *prob, DtonWorkspace *ws, int *deferred, int *n_deferred
         rec->k = k;
         rec->owner = i;
         rec->j = cols[stay];
-        rec->dir_mult = -vals[stay] / vals[subst];
-        rec->dir_shift = rhs[i] / vals[subst];
+        rec->aik = vals[subst];
+        rec->aij = vals[stay];
+        rec->dir_mult = -rec->aij / rec->aik;
+        rec->dir_shift = rhs[i] / rec->aik;
         ws->substs.col_subst[k] = ws->substs.n++;
     }
     return true;
@@ -280,7 +282,6 @@ static PresolveStatus dton_transfer_bounds_link(Constraints *constraints, int i,
 PresolveStatus dton_transfer_bounds(Problem *prob, DtonWorkspace *ws)
 {
     Constraints *constraints = prob->constraints;
-    const Matrix *A = constraints->A;
     const double *rhs = constraints->rhs;
     const Bound *bounds = constraints->bounds;
     const ColTag *col_tags = constraints->col_tags;
@@ -295,19 +296,10 @@ PresolveStatus dton_transfer_bounds(Problem *prob, DtonWorkspace *ws)
         int j = rec->j;
         assert(ii == 0 ||
                ws->substs.depth[order[ii - 1]] >= ws->substs.depth[order[ii]]);
-        assert(A->p[i].end - A->p[i].start == 2);
-
-        // the owner row is untouched until the apply sweep
-        const int *cols = A->i + A->p[i].start;
-        const double *vals = A->x + A->p[i].start;
-        int slot = (cols[0] == k) ? 0 : 1;
-        assert(cols[slot] == k && cols[1 - slot] == j);
-        double aik = vals[slot];
-        double aij = vals[1 - slot];
 
         PresolveStatus status =
-            dton_transfer_bounds_link(constraints, i, aij, aik, rhs[i], bounds[k].lb,
-                                      bounds[k].ub, j, col_tags[k]);
+            dton_transfer_bounds_link(constraints, i, rec->aij, rec->aik, rhs[i],
+                                      bounds[k].lb, bounds[k].ub, j, col_tags[k]);
         RETURN_IF_INFEASIBLE(status);
 
         // update_lb/update_ub cannot fix or deactivate columns
@@ -317,20 +309,16 @@ PresolveStatus dton_transfer_bounds(Problem *prob, DtonWorkspace *ws)
     return UNCHANGED;
 }
 
-/* Phase 3b: postsolve records, three per still-eliminated column k with
-   owner row i and survivor s: ADDED_ROWS(i, pre-round column k, aik),
-   SUB_COL_DTON(k, s, mult, shift), DELETED_ROW(i, ck / aik). Replayed in
-   reverse they give x_k from the survivor and
+/* Phase 3b: postsolve records, three per eliminated column k with owner row i
+   and survivor s: ADDED_ROWS(i, column k, aik), SUB_COL_DTON(k, s, mult,
+   shift) and DELETED_ROW(i, c_k / aik). Replayed in reverse they give x_k and
        y_i = (c_k - sum_{r != i} a_rk y_r) / a_ik,
-   stationarity for x_k written with the column and c_k of the round start.
-   The rows r include the owner rows of this round whose stay column is k.
-   Those are strictly deeper, so the columns are emitted in ascending depth
-   and replayed deepest first. Runs before any mutation (the columns are
-   read from the pre-round AT, c_k before the objective update). */
+   where the sum includes the owner rows whose stay column is k. Those records
+   are deeper, so the columns are emitted by ascending depth and replayed
+   deepest first. */
 void dton_record(Problem *prob, DtonWorkspace *ws)
 {
     Constraints *constraints = prob->constraints;
-    const Matrix *A = constraints->A;
     const Matrix *AT = constraints->AT; // pre-round transpose
     const double *c = prob->obj->c;     // pre-round objective
     PostsolveInfo *info = constraints->state->postsolve_info;
@@ -341,25 +329,17 @@ void dton_record(Problem *prob, DtonWorkspace *ws)
         const DtonSubst *rec = ws->substs.recs + ws->substs.order[ii];
         int k = rec->k;
         int i = rec->owner;
-
-        // a_ik from the owner row, still intact
-        const int *cols = A->i + A->p[i].start;
-        const double *vals = A->x + A->p[i].start;
-        assert(A->p[i].end - A->p[i].start == 2);
-        assert(cols[0] == k || cols[1] == k);
-        double aik = (cols[0] == k) ? vals[0] : vals[1];
+        double aik = rec->aik;
 
         const int *rows = AT->i + AT->p[k].start;
         const double *col_vals = AT->x + AT->p[k].start;
         size_t len = (size_t) (AT->p[k].end - AT->p[k].start);
 
 #ifndef NDEBUG
-        // every row of the pre-round column is active: explorers flush their
-        // deleted rows from AT before returning and this round has not
-        // deactivated its owner rows yet
-        for (size_t p = 0; p < len; ++p)
+        // every row of the pre-round column is active
+        for (size_t jj = 0; jj < len; ++jj)
         {
-            assert(!HAS_TAG(constraints->row_tags[rows[p]], R_TAG_INACTIVE));
+            assert(!HAS_TAG(constraints->row_tags[rows[jj]], R_TAG_INACTIVE));
         }
 #endif
 
