@@ -4,6 +4,7 @@
 #include "test_Parallel_cols.h"
 #include "test_Parallel_rows.h"
 #include "test_Presolver.h"
+#include "test_RowSlots.h"
 #include "test_SimpleReductions.h"
 #include "test_SparseAccumulator.h"
 #include "test_chains.h"
@@ -24,6 +25,7 @@ const char *run_all_tests()
     mu_assert("constraints error", test_constraints());
     mu_assert("iVec error", test_iVec());
     mu_assert("chains error", test_chains());
+    mu_assert("row slots error", test_rowslots());
     mu_assert("sparse accumulator error", test_sparse_accumulator());
     mu_assert("dton error", test_dton());
     mu_assert("core error", test_core());
