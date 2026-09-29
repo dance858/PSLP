@@ -31,6 +31,10 @@ static inline size_t dton_extra_memory(size_t nnz)
     return nnz / 16 > 1024 ? nnz / 16 : 1024;
 }
 
+/* Allocates the eliminator's workspace (work->dton). Returns NULL if any
+   allocation fails. */
+struct DtonWorkspace *dton_ws_new(size_t n_rows, size_t n_cols);
+
 /* Frees the eliminator's workspace (work->dton). */
 void dton_ws_free(struct DtonWorkspace *ws);
 

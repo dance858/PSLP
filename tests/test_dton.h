@@ -65,22 +65,20 @@ static char *test_dton_workspace()
     mu_assert("presolver allocation failed", presolver != NULL);
 
     Work *work = presolver->prob->constraints->state->work;
-    mu_assert("dton workspace must not be pre-allocated", work->dton == NULL);
-
-    remove_dton_eq_rows(presolver->prob);
-
-    mu_assert("dton workspace must be lazily allocated", work->dton != NULL);
+    mu_assert("dton workspace must be allocated", work->dton != NULL);
     mu_assert("workspace m mismatch", work->dton->m == (size_t) n_rows);
     mu_assert("workspace n mismatch", work->dton->n == (size_t) n_cols);
 
-    free_presolver(presolver); // frees the workspace
+    run_presolver(presolver);
+    mu_assert("dton workspace must be freed after presolve", work->dton == NULL);
+    free_presolver(presolver);
 
+    stgs->dton_eq = false;
     presolver =
         new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
     mu_assert("presolver allocation failed", presolver != NULL);
     work = presolver->prob->constraints->state->work;
-    run_presolver(presolver);
-    mu_assert("dton workspace must be freed after presolve", work->dton == NULL);
+    mu_assert("dton workspace must not be allocated", work->dton == NULL);
 
     free_presolver(presolver);
     PS_FREE(stgs);
@@ -323,6 +321,7 @@ static char *test_dton_eliminate_isolated()
 
     Settings *stgs = default_settings();
     set_settings_false(stgs);
+    stgs->dton_eq = true;
     Presolver *presolver =
         new_presolver(Ax, Ai, Ap, 2, 3, 4, lhs, rhs, lbs, ubs, c, stgs);
     mu_assert("presolver allocation failed", presolver != NULL);
@@ -391,6 +390,7 @@ static char *test_dton_apply_substitution()
 
     Settings *stgs = default_settings();
     set_settings_false(stgs);
+    stgs->dton_eq = true;
     Presolver *presolver =
         new_presolver(Ax, Ai, Ap, 4, 5, 10, lhs, rhs, lbs, ubs, c, stgs);
     mu_assert("presolver allocation failed", presolver != NULL);
@@ -466,6 +466,7 @@ static char *test_dton_cancellation()
 
     Settings *stgs = default_settings();
     set_settings_false(stgs);
+    stgs->dton_eq = true;
     Presolver *presolver =
         new_presolver(Ax, Ai, Ap, 3, 5, 8, lhs, rhs, lbs, ubs, c, stgs);
     mu_assert("presolver allocation failed", presolver != NULL);
@@ -519,6 +520,7 @@ static char *test_dton_chain_empties_matrix()
 
     Settings *stgs = default_settings();
     set_settings_false(stgs);
+    stgs->dton_eq = true;
     Presolver *presolver =
         new_presolver(Ax, Ai, Ap, 3, 4, 6, lhs, rhs, lbs, ubs, c, stgs);
     mu_assert("presolver allocation failed", presolver != NULL);
@@ -575,6 +577,7 @@ static char *test_dton_chain_bounds_live()
 
     Settings *stgs = default_settings();
     set_settings_false(stgs);
+    stgs->dton_eq = true;
     Presolver *presolver =
         new_presolver(Ax, Ai, Ap, 3, 4, 6, lhs, rhs, lbs, ubs, c, stgs);
     mu_assert("presolver allocation failed", presolver != NULL);
@@ -620,6 +623,7 @@ static char *test_dton_chain_bounds_live_tags()
 
     Settings *stgs = default_settings();
     set_settings_false(stgs);
+    stgs->dton_eq = true;
     Presolver *presolver =
         new_presolver(Ax, Ai, Ap, 3, 4, 6, lhs, rhs, lbs, ubs, c, stgs);
     mu_assert("presolver allocation failed", presolver != NULL);
@@ -746,14 +750,9 @@ static char *dton_check_postsolve(double *Ax, int *Ai, int *Ap, int m, int n,
     {
         return "presolver allocation failed";
     }
-    // pre-create the workspace to steer the transpose refresh: 1e9 never
-    // rebuilds (refresh path), 0.0 always rebuilds (fallback path)
+    // steer the transpose refresh: 1e9 never rebuilds (refresh path), 0.0
+    // always rebuilds (fallback path)
     Work *work = ps->prob->constraints->state->work;
-    work->dton = dton_ws_new((size_t) m, (size_t) n);
-    if (work->dton == NULL)
-    {
-        return "workspace allocation failed";
-    }
     work->dton->tuning.rebuild_dirty_frac = dirty_frac;
     if (run_presolver(ps) != REDUCED)
     {
@@ -1021,7 +1020,7 @@ static char *test_dton_dual_ray()
 /* ------------------------------------------------------------------------
    Transpose refresh (phase 5). The transpose is compact, so a target whose
    length does not grow is merged in place and one that grows is moved to the tail.
-   Each test pre-creates the workspace with rebuild_dirty_frac = 1e9 (small LPs
+   Each test sets the workspace's rebuild_dirty_frac to 1e9 (small LPs
    always trip the default quarter-of-nnz guard) and ends with the debugger's
    comparison against a fresh transpose.
    ------------------------------------------------------------------------ */
@@ -1038,7 +1037,6 @@ static Presolver *dton_new_presolver(double *Ax, int *Ai, int *Ap, int m, int n,
     if (presolver != NULL)
     {
         Work *work = presolver->prob->constraints->state->work;
-        work->dton = dton_ws_new((size_t) m, (size_t) n);
         work->dton->tuning.rebuild_dirty_frac = dirty_frac;
     }
     *stgs_out = stgs;

@@ -31,8 +31,8 @@ typedef struct
     int end;
 } RowRange;
 
-// Sparse matrix in CSR format with an explicit range per row; the rows need
-// not be contiguous or in index order.
+// Sparse matrix in CSR format with an explicit range per row. The rows can be
+// stored in any order.
 typedef struct Matrix
 {
     size_t m;

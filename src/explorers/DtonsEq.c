@@ -974,12 +974,7 @@ PresolveStatus remove_dton_eq_rows(Problem *prob)
     assert(state->empty_cols->len == 0);
     DEBUG(verify_problem_up_to_date(constraints));
 
-    if (work->dton == NULL)
-    {
-        work->dton = dton_ws_new(constraints->m, constraints->n);
-        // on allocation failure, skip the reduction (nothing was mutated)
-        RETURN_PTR_IF_NULL(work->dton, UNCHANGED);
-    }
+    assert(work->dton != NULL);
 
     DtonWorkspace *ws = work->dton;
     dton_ws_attach(ws, work);

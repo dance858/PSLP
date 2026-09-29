@@ -116,9 +116,10 @@ typedef struct DtonTuning
     bool last_round_rebuilt;   /* the last round took the rebuild path */
 } DtonTuning;
 
-/* Scratch for the doubleton eliminator, lazily allocated on first use
-   (work->dton). Only 'at' persists across calls; the rest is per round or per
-   row and is reset through the round's own lists. */
+/* Scratch for the doubleton eliminator (work->dton). Only 'at' persists across
+   calls; the rest is per round or per row and is reset through the round's own
+   lists. The per-round arrays are reserved by the first round and the borrowed
+   arrays are unset until dton_ws_attach. */
 typedef struct DtonWorkspace
 {
     size_t m; /* rows of A at allocation */
@@ -135,10 +136,6 @@ typedef struct DtonWorkspace
     DtonLog log;
     DtonTuning tuning;
 } DtonWorkspace;
-
-/* Returns NULL if any allocation fails. The per-round arrays are reserved by
-   the first round; the borrowed arrays are unset until dton_ws_attach. */
-DtonWorkspace *dton_ws_new(size_t n_rows, size_t n_cols);
 
 /* Points the borrowed per-column arrays at the presolver's shared scratch and
    initializes them (col_subst and col_to_target to -1, cstamp to 0). Once per

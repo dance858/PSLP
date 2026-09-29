@@ -21,6 +21,7 @@
 
 #include "Bounds.h"
 #include "iVec.h"
+#include <stdbool.h>
 
 typedef struct Mapping
 {
@@ -54,11 +55,11 @@ typedef struct Work
 
     Mapping *mappings;
 
-    // lazily allocated by the doubleton explorer
+    // allocated when the doubleton explorer is on
     struct DtonWorkspace *dton;
 } Work;
 
-Work *new_work(size_t n_rows, size_t n_col);
+Work *new_work(size_t n_rows, size_t n_cols, bool dton_eq);
 void free_work(Work *work);
 
 #endif // CORE_WORKSPACE_H

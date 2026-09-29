@@ -24,12 +24,12 @@
 
 #define INT_VEC_INITIALIZATION 25
 
-Work *new_work(size_t n_rows, size_t n_cols)
+Work *new_work(size_t n_rows, size_t n_cols, bool dton_eq)
 {
     Work *work = (Work *) ps_malloc(1, sizeof(Work));
     RETURN_PTR_IF_NULL(work, NULL);
 
-    work->dton = NULL;
+    work->dton = dton_eq ? dton_ws_new(n_rows, n_cols) : NULL;
     work->iwork_n_cols = (int *) ps_calloc(n_cols, sizeof(int));
     work->iwork_n_rows = (int *) ps_calloc(n_rows, sizeof(int));
     work->iwork1_max_nrows_ncols =
@@ -45,7 +45,7 @@ Work *new_work(size_t n_rows, size_t n_cols)
     if (!work->iwork_n_cols || !work->iwork_n_rows ||
         !work->iwork1_max_nrows_ncols || !work->iwork2_max_nrows_ncols ||
         !work->int_vec || !work->mappings || !work->mappings->cols ||
-        !work->mappings->rows || !work->radix_aux)
+        !work->mappings->rows || !work->radix_aux || (dton_eq && !work->dton))
     {
         free_work(work);
         return NULL;

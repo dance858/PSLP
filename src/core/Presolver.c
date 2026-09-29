@@ -246,7 +246,7 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     c_copy = (double *) ps_malloc(n_cols, sizeof(double));
     col_tags = (ColTag *) ps_calloc(n_cols, sizeof(ColTag));
     bounds = (Bound *) ps_malloc(n_cols, sizeof(Bound));
-    work = new_work(n_rows, n_cols);
+    work = new_work(n_rows, n_cols, stgs->dton_eq);
     row_sizes = (int *) ps_malloc(n_rows, sizeof(int));
     col_sizes = (int *) ps_malloc(n_cols, sizeof(int));
 
