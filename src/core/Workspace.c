@@ -54,6 +54,22 @@ Work *new_work(size_t n_rows, size_t n_cols, bool dton_eq)
     return work;
 }
 
+void free_work_scratch(Work *work)
+{
+    PS_FREE(work->iwork_n_cols);
+    PS_FREE(work->iwork_n_rows);
+    PS_FREE(work->iwork1_max_nrows_ncols);
+    PS_FREE(work->iwork2_max_nrows_ncols);
+    PS_FREE(work->radix_aux);
+    if (work->int_vec)
+    {
+        iVec_free(work->int_vec);
+        work->int_vec = NULL;
+    }
+    dton_ws_free(work->dton);
+    work->dton = NULL;
+}
+
 void free_work(Work *work)
 {
     if (work == NULL)
@@ -61,15 +77,9 @@ void free_work(Work *work)
         return;
     }
 
-    PS_FREE(work->iwork_n_cols);
-    PS_FREE(work->iwork_n_rows);
-    PS_FREE(work->iwork1_max_nrows_ncols);
-    PS_FREE(work->iwork2_max_nrows_ncols);
-    iVec_free(work->int_vec);
-    dton_ws_free(work->dton);
+    free_work_scratch(work);
     PS_FREE(work->mappings->cols);
     PS_FREE(work->mappings->rows);
     PS_FREE(work->mappings);
-    PS_FREE(work->radix_aux);
     PS_FREE(work);
 }

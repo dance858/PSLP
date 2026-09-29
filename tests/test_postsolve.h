@@ -57,6 +57,10 @@ static char *test_0_postsolve()
     run_presolver(presolver);
     mu_assert("transpose should be released after presolve",
               constraints->AT == NULL);
+    Work *work = prob->constraints->state->work;
+    mu_assert("presolve scratch should be released after presolve",
+              work->iwork_n_cols == NULL && work->int_vec == NULL &&
+                  work->radix_aux == NULL && work->mappings != NULL);
     Mapping *maps = prob->constraints->state->work->mappings;
     int *rows_map = maps->rows;
     int *cols_map = maps->cols;

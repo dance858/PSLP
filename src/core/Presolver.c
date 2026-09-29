@@ -650,6 +650,15 @@ static inline PresolveStatus final_status(PresolveStats *stats)
     }
 }
 
+/* Frees the memory that only presolve uses. Postsolve keeps the recorded
+   reductions and the row/column mappings. */
+static void free_presolve_scratch(Problem *prob)
+{
+    free_matrix(prob->constraints->AT);
+    prob->constraints->AT = NULL;
+    free_work_scratch(prob->constraints->state->work);
+}
+
 PresolveStatus run_presolver(Presolver *presolver)
 {
     Timer inner_timer, outer_timer;
@@ -750,12 +759,7 @@ PresolveStatus run_presolver(Presolver *presolver)
     DEBUG(run_debugger_stats_consistency_check(stats));
     populate_presolved_problem(presolver);
 
-    // The transpose and the doubleton workspace are only needed during
-    // presolve. Postsolve uses the recorded reductions and row/column mappings.
-    free_matrix(prob->constraints->AT);
-    prob->constraints->AT = NULL;
-    dton_ws_free(prob->constraints->state->work->dton);
-    prob->constraints->state->work->dton = NULL;
+    free_presolve_scratch(prob);
 
     clock_gettime(CLOCK_MONOTONIC, &outer_timer.end);
     stats->time_presolve = GET_ELAPSED_SECONDS(outer_timer);

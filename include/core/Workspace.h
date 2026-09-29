@@ -62,4 +62,7 @@ typedef struct Work
 Work *new_work(size_t n_rows, size_t n_cols, bool dton_eq);
 void free_work(Work *work);
 
+/* Frees the arrays that only presolve uses. The mappings stay. */
+void free_work_scratch(Work *work);
+
 #endif // CORE_WORKSPACE_H
