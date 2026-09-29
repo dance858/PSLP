@@ -38,15 +38,9 @@ struct DtonWorkspace *dton_ws_new(size_t n_rows, size_t n_cols);
 /* Frees the eliminator's workspace (work->dton). */
 void dton_ws_free(struct DtonWorkspace *dton_work);
 
-/* Doubleton equality row elimination, one pass per round: claim the
-   substituted column of each doubleton row, compose substitution chains,
-   transfer bounds per link in descending chain depth, emit the postsolve
-   records, apply all substitutions to A in a single sweep, and refresh the
-   changed columns of A transpose once per round.
-
-   Returns INFEASIBLE when a bound transferred through a doubleton row
-   contradicts the bounds of the column that stays. Otherwise UNCHANGED (the
-   elimination itself cannot detect unboundedness). */
+/* Eliminates the doubleton equality rows on state->dton_rows, round by round.
+   Returns INFEASIBLE when a transferred bound contradicts the bounds of the
+   column that stays, UNCHANGED otherwise. */
 PresolveStatus remove_dton_eq_rows(struct Problem *prob);
 
 #endif

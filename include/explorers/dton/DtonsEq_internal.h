@@ -32,8 +32,7 @@ struct Problem;
 struct Work;
 
 /* One substitution of the round: row 'owner' eliminates column k. Appended in
-   claim order. dton_work->substs.col_subst[k] indexes it (-1 when k is not claimed).
- */
+   claim order. substs.col_subst[k] indexes it (-1 when k is not claimed). */
 typedef struct DtonSubst
 {
     int k;      /* substituted column */
@@ -60,19 +59,18 @@ typedef struct DtonSubsts
     int *stamp;         /* [cap] compute_chain_depths scratch */
     int cap;            /* also sizes DtonTargets.list/old_size and DtonLog.start */
     int n;
-    int *col_subst; /* [n] record index of a claimed column, -1 otherwise */
+    int *col_subst; /* [n] record index of a claimed column, -1 otherwise. Reset
+                       through recs. */
 } DtonSubsts;
 
 /* Phase 4: the rows of the eliminated columns, read from the pre-round AT
-   (one entry per column entry, so with duplicates) and sorted (idx is the
-   permutation, aux the sort scratch). */
+   (one entry per column entry, so with duplicates) and sorted. */
 typedef struct DtonRows
 {
     int *list;
-    int *idx;
-    int *aux;
+    int *perm;         /* sort permutation of list */
+    int *sort_scratch; /* scratch of the sort */
     int cap;
-    int n;
 } DtonRows;
 
 /* Phases 4-5: the unique composed targets with their pre-round sizes, for
@@ -90,17 +88,18 @@ typedef struct DtonTargets
 /* Phases 4-5: change log of the sweep, one (target, row, value) tuple for
    every target entry a swept row ends up with, and value 0 for a present
    target entry that was dropped (A holds no exact zeros, so 0 marks a
-   delete). Rows ascending. The refresh sorts it by target into row2/val2
-   (stable, so rows stay ascending) and applies it onto the old column. */
+   delete). Rows ascending. The merge sorts it by target into sorted_row and
+   sorted_val (stable, so rows stay ascending) and applies it onto the old
+   column. */
 typedef struct DtonLog
 {
     int *target_index; /* index into DtonTargets.list */
     int *row;
     double *val;
-    int *row2;
-    double *val2;
+    int *sorted_row;
+    double *sorted_val;
     int len;
-    int alloc;
+    int cap;
     int max_len;     /* bound on len: the pre-round nnz of A */
     bool incomplete; /* an append failed: the round falls back to a rebuild */
     int *start;      /* [DtonSubsts.cap + 1] segment starts of the sorted log per
@@ -155,10 +154,10 @@ bool dton_reserve_rows(struct Problem *prob, DtonWorkspace *dton_work);
 void dton_apply(struct Problem *prob, DtonWorkspace *dton_work, int *deferred,
                 int *n_deferred);
 
-/* The full-transpose fallback of the A transpose refresh. */
+/* The full-transpose fallback of dton_update_AT. */
 void dton_rebuild_AT(struct Problem *prob, DtonWorkspace *dton_work);
 
 /* Phase 5: brings A transpose up to date. */
-void dton_refresh_AT(struct Problem *prob, DtonWorkspace *dton_work);
+void dton_update_AT(struct Problem *prob, DtonWorkspace *dton_work);
 
 #endif

@@ -34,21 +34,19 @@ DtonWorkspace *dton_ws_new(size_t n_rows, size_t n_cols)
     dton_work->acc.value = (double *) ps_malloc(n_cols, sizeof(double));
     dton_work->acc.flags = (uint8_t *) ps_malloc(n_cols, sizeof(uint8_t));
     dton_work->at.cap = (int *) ps_malloc(n_cols, sizeof(int));
-    dton_work->log.alloc = 1024;
-    dton_work->log.target_index =
-        (int *) ps_malloc((size_t) dton_work->log.alloc, sizeof(int));
-    dton_work->log.row =
-        (int *) ps_malloc((size_t) dton_work->log.alloc, sizeof(int));
-    dton_work->log.val =
-        (double *) ps_malloc((size_t) dton_work->log.alloc, sizeof(double));
-    dton_work->log.row2 =
-        (int *) ps_malloc((size_t) dton_work->log.alloc, sizeof(int));
-    dton_work->log.val2 =
-        (double *) ps_malloc((size_t) dton_work->log.alloc, sizeof(double));
+
+    DtonLog *change_log = &dton_work->log;
+    size_t log_cap = 1024;
+    change_log->cap = (int) log_cap;
+    change_log->target_index = (int *) ps_malloc(log_cap, sizeof(int));
+    change_log->row = (int *) ps_malloc(log_cap, sizeof(int));
+    change_log->val = (double *) ps_malloc(log_cap, sizeof(double));
+    change_log->sorted_row = (int *) ps_malloc(log_cap, sizeof(int));
+    change_log->sorted_val = (double *) ps_malloc(log_cap, sizeof(double));
 
     if (!dton_work->acc.value || !dton_work->acc.flags || !dton_work->at.cap ||
-        !dton_work->log.target_index || !dton_work->log.row || !dton_work->log.val ||
-        !dton_work->log.row2 || !dton_work->log.val2)
+        !change_log->target_index || !change_log->row || !change_log->val ||
+        !change_log->sorted_row || !change_log->sorted_val)
     {
         dton_ws_free(dton_work);
         return NULL;
@@ -73,14 +71,14 @@ void dton_ws_free(DtonWorkspace *dton_work)
     PS_FREE(dton_work->acc.value);
     PS_FREE(dton_work->acc.flags);
     PS_FREE(dton_work->rows.list);
-    PS_FREE(dton_work->rows.idx);
-    PS_FREE(dton_work->rows.aux);
+    PS_FREE(dton_work->rows.perm);
+    PS_FREE(dton_work->rows.sort_scratch);
     PS_FREE(dton_work->at.cap);
     PS_FREE(dton_work->log.target_index);
     PS_FREE(dton_work->log.row);
     PS_FREE(dton_work->log.val);
-    PS_FREE(dton_work->log.row2);
-    PS_FREE(dton_work->log.val2);
+    PS_FREE(dton_work->log.sorted_row);
+    PS_FREE(dton_work->log.sorted_val);
     PS_FREE(dton_work);
 }
 
@@ -115,38 +113,34 @@ PresolveStatus remove_dton_eq_rows(Problem *prob)
     DtonWorkspace *dton_work = work->dton;
     dton_ws_attach(dton_work, work);
 
-    // double ptr in case the appends realloc the vector
-    iVec **dton_rows = &state->dton_rows;
+    iVec *dton_rows = state->dton_rows;
+    int *deferred = work->iwork_n_rows;
 
-    while ((*dton_rows)->len > 0)
+    while (dton_rows->len > 0)
     {
-        int *deferred = work->iwork_n_rows;
         int n_deferred = 0;
 
-        DEBUG(verify_no_duplicates_sort(*dton_rows));
+        DEBUG(verify_no_duplicates_sort(dton_rows));
 
-        // a failed reservation (records or rows) gives the round up before
-        // anything is mutated
+        /* A failed reservation (records or rows) gives the round up before
+           anything is mutated. */
         bool progress = dton_claim(prob, dton_work, deferred, &n_deferred);
         dton_compose(dton_work, deferred, &n_deferred);
-        progress = progress && dton_work->substs.n > 0;
-        if (progress && !dton_reserve_rows(prob, dton_work))
-        {
-            progress = false;
-        }
+        progress = progress && dton_work->substs.n > 0 &&
+                   dton_reserve_rows(prob, dton_work);
 
         if (progress)
         {
-            /* an infeasible transfer ends the presolve */
+            /* An infeasible transfer ends the presolve. */
             if (dton_transfer_bounds(prob, dton_work) == INFEASIBLE)
             {
                 return INFEASIBLE;
             }
             dton_record(prob, dton_work);
             dton_apply(prob, dton_work, deferred, &n_deferred);
-            dton_refresh_AT(prob, dton_work);
+            dton_update_AT(prob, dton_work);
 
-            /* clear the substitutions for next round */
+            /* Clear the substitutions for the next round. */
             for (int idx = 0; idx < dton_work->substs.n; ++idx)
             {
                 dton_work->substs.col_subst[dton_work->substs.recs[idx].k] = -1;
@@ -154,18 +148,18 @@ PresolveStatus remove_dton_eq_rows(Problem *prob)
             dton_work->substs.n = 0;
         }
 
-        // the worklist becomes the deferred rows plus the sweep's new
-        // doubleton candidates
-        iVec_clear_no_resize(*dton_rows);
+        /* The worklist becomes the deferred rows plus the sweep's new doubleton
+           candidates. */
+        iVec_clear_no_resize(dton_rows);
         if (n_deferred > 0)
         {
             DEBUG(verify_no_duplicates_sort_ptr(deferred, (size_t) n_deferred));
-            iVec_append_array(*dton_rows, deferred, (size_t) n_deferred);
+            iVec_append_array(dton_rows, deferred, (size_t) n_deferred);
         }
 
         if (!progress)
         {
-            break; // only deferrals: retrying now would spin
+            break; /* Only deferrals: retrying now would spin. */
         }
     }
 

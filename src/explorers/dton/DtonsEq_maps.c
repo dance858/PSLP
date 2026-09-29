@@ -37,13 +37,13 @@ int dton_choose_subst(const double *row_vals, int col_size0, int col_size1)
     double a_abs = ABS(row_vals[0]);
     double b_abs = ABS(row_vals[1]);
 
-    /* choose column with larger absolute value */
+    /* Choose the column with the larger absolute value. */
     if (a_abs != b_abs)
     {
         return (a_abs > b_abs) ? 0 : 1;
     }
 
-    /* equal magnitude: the sparser column */
+    /* Equal magnitude: the sparser column. */
     return (col_size0 < col_size1) ? 0 : 1;
 }
 
@@ -93,8 +93,8 @@ bool dton_claim(Problem *prob, DtonWorkspace *dton_work, int *deferred,
 
     int i, ii, col0, col1, subst, stay, k;
 
-    // every worklist row claims at most one record, and the targets and log
-    // segments are bounded by the records
+    /* Every worklist row claims at most one record, and the targets and log
+       segments are bounded by the records. */
     if (!dton_reserve_records(dton_work, (size_t) dton_rows->len))
     {
         return false;
@@ -104,7 +104,7 @@ bool dton_claim(Problem *prob, DtonWorkspace *dton_work, int *deferred,
     {
         i = dton_rows->data[ii];
 
-        /* a row that used to be dton might have been modified */
+        /* A row that used to be a doubleton might have been modified. */
         if (row_sizes[i] < 2)
         {
             continue;
@@ -128,8 +128,8 @@ bool dton_claim(Problem *prob, DtonWorkspace *dton_work, int *deferred,
 
         k = cols[subst];
 
-        /* the column this dton row wants to substitute has already been claimed
-         * by another dtonrow in this round */
+        /* The column this row wants to substitute is already claimed by another
+           row this round. */
         if (dton_work->substs.col_subst[k] >= 0)
         {
             deferred[(*n_deferred)++] = i;
@@ -160,22 +160,25 @@ void dton_compose(DtonWorkspace *dton_work, int *deferred, int *n_deferred)
     int *succ = dton_work->substs.succ;
     int *depth = dton_work->substs.depth;
     int *order = dton_work->substs.order;
+    int *drop_priority = dton_work->substs.drop_priority;
+    int *stamp = dton_work->substs.stamp;
     int n = dton_work->substs.n;
 
-    /* set drop priority for cycle breaking to the owner row of each record */
+    /* Inputs of compute_chain_depths: the record of each stay column (-1 when
+       the stay column survives) and each record's owner row as drop priority. */
     for (int idx = 0; idx < n; ++idx)
     {
-        succ[idx] = col_subst[recs[idx].j]; // -1 when the stay column survives
-        dton_work->substs.drop_priority[idx] = recs[idx].owner;
+        succ[idx] = col_subst[recs[idx].j];
+        drop_priority[idx] = recs[idx].owner;
     }
 
-    /* break cycles */
+    /* Break cycles. The accumulator's touched list serves as the path scratch. */
     int *dropped = deferred + *n_deferred;
-    int n_dropped = compute_chain_depths(
-        n, succ, dton_work->substs.drop_priority, depth, order, dropped,
-        dton_work->substs.stamp, dton_work->acc.touched);
+    int n_dropped = compute_chain_depths(n, succ, drop_priority, depth, order,
+                                         dropped, stamp, dton_work->acc.touched);
 
-    /* update the deferred list with the dropped records */
+    /* Turn the dropped records into their owner rows, in place at the end of
+       'deferred'. */
     for (int ii = 0; ii < n_dropped; ++ii)
     {
         int idx = dropped[ii];
@@ -184,7 +187,9 @@ void dton_compose(DtonWorkspace *dton_work, int *deferred, int *n_deferred)
     }
     *n_deferred += n_dropped;
 
-    /* map every eliminated col onto the surviving column at the end of its chain */
+    /* Map every eliminated column onto the surviving column at the end of its
+       chain. Walking order backwards visits a record's child before the
+       record. */
     int n_kept = n - n_dropped;
     for (int ii = n_kept - 1; ii >= 0; --ii)
     {
@@ -205,8 +210,9 @@ void dton_compose(DtonWorkspace *dton_work, int *deferred, int *n_deferred)
         }
     }
 
-    /* remove dropped records, keep claim order, and renumber col_subst and order */
-    int *map = dton_work->substs.stamp;
+    /* Remove the dropped records, keep claim order, and renumber col_subst and
+       order. stamp is free after compute_chain_depths. */
+    int *new_index = stamp;
     int out = 0;
     for (int idx = 0; idx < n; ++idx)
     {
@@ -217,60 +223,45 @@ void dton_compose(DtonWorkspace *dton_work, int *deferred, int *n_deferred)
         recs[out] = recs[idx];
         depth[out] = depth[idx];
         col_subst[recs[out].k] = out;
-        map[idx] = out++;
+        new_index[idx] = out++;
     }
     dton_work->substs.n = out;
     for (int ii = 0; ii < n_kept; ++ii)
     {
-        order[ii] = map[order[ii]];
+        order[ii] = new_index[order[ii]];
     }
 }
 
-/* Transfers the bounds of x_subst onto x_stay through the doubleton equality
-   row i: aij * x_stay + aik * x_subst = rhs. Returns INFEASIBLE when a
-   transferred bound contradicts the bounds of x_stay, UNCHANGED otherwise. */
+/* Transfers the bounds of x_k onto x_j through the doubleton equality row i:
+   aij * x_j + aik * x_k = rhs. Returns INFEASIBLE when a transferred bound
+   contradicts the bounds of x_j, UNCHANGED otherwise. */
 static PresolveStatus dton_transfer_bounds_link(Constraints *constraints, int i,
-                                                double aij, double aik, double rhs,
-                                                double lb_subst, double ub_subst,
-                                                int stay, ColTag col_tag_subst)
+                                                int j, double aij, double aik,
+                                                double rhs, double lb_k, double ub_k,
+                                                ColTag col_tag_k)
 {
     assert(aij != 0 && aik != 0);
     bool same_sign = (aik * aij > 0.0);
     PresolveStatus status = UNCHANGED;
 
-    if (same_sign)
+    /* A finite lb_k bounds x_j from above when the signs agree, else from
+       below. */
+    if (!HAS_TAG(col_tag_k, C_TAG_LB_INF))
     {
-        if (!HAS_TAG(col_tag_subst, C_TAG_LB_INF))
-        {
-            double new_ub_cand = (rhs - aik * lb_subst) / aij;
-            status =
-                update_ub(constraints, stay, new_ub_cand, i HUGE_BOUND_IS_NOT_OK);
-            RETURN_IF_INFEASIBLE(status);
-        }
-
-        if (!HAS_TAG(col_tag_subst, C_TAG_UB_INF))
-        {
-            double new_lb_cand = (rhs - aik * ub_subst) / aij;
-            status =
-                update_lb(constraints, stay, new_lb_cand, i HUGE_BOUND_IS_NOT_OK);
-        }
+        double bound = (rhs - aik * lb_k) / aij;
+        status = same_sign
+                     ? update_ub(constraints, j, bound, i HUGE_BOUND_IS_NOT_OK)
+                     : update_lb(constraints, j, bound, i HUGE_BOUND_IS_NOT_OK);
+        RETURN_IF_INFEASIBLE(status);
     }
-    else
-    {
-        if (!HAS_TAG(col_tag_subst, C_TAG_LB_INF))
-        {
-            double new_lb_cand = (rhs - aik * lb_subst) / aij;
-            status =
-                update_lb(constraints, stay, new_lb_cand, i HUGE_BOUND_IS_NOT_OK);
-            RETURN_IF_INFEASIBLE(status);
-        }
 
-        if (!HAS_TAG(col_tag_subst, C_TAG_UB_INF))
-        {
-            double new_ub_cand = (rhs - aik * ub_subst) / aij;
-            status =
-                update_ub(constraints, stay, new_ub_cand, i HUGE_BOUND_IS_NOT_OK);
-        }
+    /* A finite ub_k bounds x_j from the other side. */
+    if (!HAS_TAG(col_tag_k, C_TAG_UB_INF))
+    {
+        double bound = (rhs - aik * ub_k) / aij;
+        status = same_sign
+                     ? update_lb(constraints, j, bound, i HUGE_BOUND_IS_NOT_OK)
+                     : update_ub(constraints, j, bound, i HUGE_BOUND_IS_NOT_OK);
     }
     return status;
 }
@@ -299,11 +290,11 @@ PresolveStatus dton_transfer_bounds(Problem *prob, DtonWorkspace *dton_work)
                               dton_work->substs.depth[order[ii]]);
 
         PresolveStatus status =
-            dton_transfer_bounds_link(constraints, i, rec->aij, rec->aik, rhs[i],
-                                      bounds[k].lb, bounds[k].ub, j, col_tags[k]);
+            dton_transfer_bounds_link(constraints, i, j, rec->aij, rec->aik, rhs[i],
+                                      bounds[k].lb, bounds[k].ub, col_tags[k]);
         RETURN_IF_INFEASIBLE(status);
 
-        // update_lb/update_ub cannot fix or deactivate columns
+        /* update_lb and update_ub cannot fix or deactivate columns. */
         assert(!HAS_TAG(col_tags[j], C_TAG_INACTIVE));
         assert(!HAS_TAG(col_tags[k], C_TAG_INACTIVE));
     }
@@ -320,11 +311,11 @@ PresolveStatus dton_transfer_bounds(Problem *prob, DtonWorkspace *dton_work)
 void dton_record(Problem *prob, DtonWorkspace *dton_work)
 {
     Constraints *constraints = prob->constraints;
-    const Matrix *AT = constraints->AT; // pre-round transpose
-    const double *c = prob->obj->c;     // pre-round objective
+    const Matrix *AT = constraints->AT; /* pre-round transpose */
+    const double *c = prob->obj->c;     /* pre-round objective */
     PostsolveInfo *info = constraints->state->postsolve_info;
 
-    // ascending depth (the order lists the records by descending depth)
+    /* Ascending depth: order lists the records by descending depth. */
     for (int ii = dton_work->substs.n - 1; ii >= 0; --ii)
     {
         const DtonSubst *rec = dton_work->substs.recs + dton_work->substs.order[ii];
@@ -337,7 +328,7 @@ void dton_record(Problem *prob, DtonWorkspace *dton_work)
         int len = AT->p[k].end - AT->p[k].start;
 
 #ifndef NDEBUG
-        // every row of the pre-round column is active
+        /* Every row of the pre-round column is active. */
         for (int jj = 0; jj < len; ++jj)
         {
             assert(!HAS_TAG(constraints->row_tags[rows[jj]], R_TAG_INACTIVE));

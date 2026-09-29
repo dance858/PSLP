@@ -754,7 +754,7 @@ static char *dton_check_postsolve(double *Ax, int *Ai, int *Ap, int m, int n,
     {
         return "presolver allocation failed";
     }
-    // steer the transpose refresh: 1e9 never rebuilds (refresh path), 0.0
+    // steer the transpose update: 1e9 never rebuilds (merge path), 0.0
     // always rebuilds (fallback path)
     Work *work = ps->prob->constraints->state->work;
     work->dton->rebuild_dirty_frac = dirty_frac;
@@ -1022,7 +1022,7 @@ static char *test_dton_dual_ray()
 }
 
 /* ------------------------------------------------------------------------
-   Transpose refresh (phase 5). The transpose is compact, so a target whose
+   Transpose update (phase 5). The transpose is compact, so a target whose
    length does not grow is merged in place and one that grows is moved to the tail.
    Each test sets the workspace's rebuild_dirty_frac to 1e9 (small LPs
    always trip the default quarter-of-nnz guard) and ends with the debugger's
@@ -1079,7 +1079,7 @@ static bool dton_spans_ordered(const Matrix *AT)
 
 /* Same substitution with four fill-in rows: x0's column {r0, r5} grows to
    5 > 2 entries, so it moves to the tail reserved by the initial transpose. */
-static char *test_dton_refresh_relocate()
+static char *test_dton_merge_relocate()
 {
     // r0: x0 + 2 x1 = 1, r1..r4: x1 + x_{2..5} <= 5, r5: x0 + x6 <= 5
     double Ax[] = {1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
@@ -1102,7 +1102,7 @@ static char *test_dton_refresh_relocate()
 
     remove_dton_eq_rows(ps->prob);
 
-    mu_assert("refresh path taken", !dton_work->last_round_rebuilt);
+    mu_assert("merge path taken", !dton_work->last_round_rebuilt);
     mu_assert("x1 span empty", AT->p[1].end == AT->p[1].start);
     mu_assert("x0 moved to the tail",
               AT->p[0].start >= dton_work->at.tail_base &&
@@ -1136,7 +1136,7 @@ static char *test_dton_refresh_relocate()
 
 /* Shrink and cancellation: x0's column {r0, r1, r2} loses the owner row r0
    and the r1 entry that cancels (2 x0 - 2 x0), keeping only r2. */
-static char *test_dton_refresh_shrink()
+static char *test_dton_merge_shrink()
 {
     // r0: x0 + 2 x1 = 1, r1: 0.5 x0 + x1 + x2 <= 5, r2: x0 + x3 <= 3
     double Ax[] = {1, 2, 0.5, 1, 1, 1, 1};
@@ -1158,7 +1158,7 @@ static char *test_dton_refresh_shrink()
 
     remove_dton_eq_rows(ps->prob);
 
-    mu_assert("refresh path taken", !dton_work->last_round_rebuilt);
+    mu_assert("merge path taken", !dton_work->last_round_rebuilt);
     mu_assert("x0 stayed in place", AT->p[0].start == old_start);
     int rows[] = {2};
     double vals[] = {1};
@@ -1176,7 +1176,7 @@ static char *test_dton_refresh_shrink()
 
 /* The relocation LP through the full presolver (all explorers) with a
    postsolve round trip: later explorers must cope with a relocated column. */
-static char *test_dton_refresh_full_presolve()
+static char *test_dton_merge_full_presolve()
 {
     // the relocation LP plus a dense row r6 so that no column is a singleton
     // (otherwise the singleton-column pass removes everything before the
@@ -1367,7 +1367,7 @@ static double dton_coeff(const Constraints *cs, int q, int j)
 
 /* r0's x120 entry (coefficient 1.5) cancels against its two sources
    (x110 = 1 - x120 contributes -1, x130 = (1 - x120)/2 contributes -0.5): the
-   target is dropped from r0 and the refresh applies the delete tuple. */
+   target is dropped from r0 and the merge applies the delete tuple. */
 static char *test_dton_cancellation_log()
 {
     DtonLongLP lp;
@@ -1379,7 +1379,7 @@ static char *test_dton_cancellation_log()
     mu_assert("presolver allocation failed", ps != NULL);
     remove_dton_eq_rows(ps->prob);
     const Constraints *cs = ps->prob->constraints;
-    mu_assert("refresh path taken", !cs->state->work->dton->last_round_rebuilt);
+    mu_assert("merge path taken", !cs->state->work->dton->last_round_rebuilt);
     mu_assert("x120 dropped from r0", dton_coeff(cs, 0, 120) == 0.0);
     // 199 - 3 eliminated (x110, x130, x150) + x5 inserted - x120 dropped
     mu_assert("r0 length", cs->state->row_sizes[0] == 196);
@@ -1568,9 +1568,9 @@ static const char *all_tests_dton()
     mu_run_test(test_dton_free_subst, counter_dton);
     mu_run_test(test_dton_primal_ray, counter_dton);
     mu_run_test(test_dton_dual_ray, counter_dton);
-    mu_run_test(test_dton_refresh_relocate, counter_dton);
-    mu_run_test(test_dton_refresh_shrink, counter_dton);
-    mu_run_test(test_dton_refresh_full_presolve, counter_dton);
+    mu_run_test(test_dton_merge_relocate, counter_dton);
+    mu_run_test(test_dton_merge_shrink, counter_dton);
+    mu_run_test(test_dton_merge_full_presolve, counter_dton);
     mu_run_test(test_dton_postsolve_chain_rebuild_path, counter_dton);
     mu_run_test(test_dton_record_growth, counter_dton);
     mu_run_test(test_dton_cancellation_log, counter_dton);
