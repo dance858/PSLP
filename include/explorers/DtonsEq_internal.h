@@ -19,8 +19,8 @@
 #ifndef DTONS_EQ_INTERNAL_H
 #define DTONS_EQ_INTERNAL_H
 
-/* Workspace and round kernels of the doubleton eliminator. Internal to
-   DtonsEq.c and included by the unit tests. */
+/* Workspace and round kernels of the doubleton eliminator. Internal to the
+   DtonsEq*.c files and included by the unit tests. */
 
 #include "DtonsEq.h"
 #include "RowSlots.h"
@@ -137,8 +137,15 @@ bool dton_claim(struct Problem *prob, DtonWorkspace *ws, int *deferred,
 /* Phase 2: composes the substitution chains and breaks cycles. */
 void dton_compose(DtonWorkspace *ws, int *deferred, int *n_deferred);
 
+/* Phase 3: transfers the bounds of the eliminated columns onto their stay
+   columns. INFEASIBLE if a transfer contradicts a bound. */
+PresolveStatus dton_transfer_bounds(struct Problem *prob, DtonWorkspace *ws);
+
 /* Phase 3b: emits the postsolve records of the round. */
 void dton_record(struct Problem *prob, DtonWorkspace *ws);
+
+/* Reserves the row list of the round. False if the allocation fails. */
+bool dton_reserve_rows(struct Problem *prob, DtonWorkspace *ws);
 
 /* Phase 4: applies the round to A, the row sides, worklists and objective. */
 void dton_apply(struct Problem *prob, DtonWorkspace *ws, int *deferred,
@@ -146,5 +153,8 @@ void dton_apply(struct Problem *prob, DtonWorkspace *ws, int *deferred,
 
 /* The full-transpose fallback of the A transpose refresh. */
 void dton_rebuild_AT(struct Problem *prob, DtonWorkspace *ws);
+
+/* Phase 5: brings A transpose up to date. */
+void dton_refresh_AT(struct Problem *prob, DtonWorkspace *ws);
 
 #endif
