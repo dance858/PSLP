@@ -57,7 +57,6 @@ typedef struct DtonSubsts
     int *stamp;         /* [cap] compute_chain_depths scratch */
     int cap;            /* also sizes DtonTargets.list/old_size and DtonLog.start */
     int n;
-    int maxdepth;   /* max chain depth this round */
     int *col_subst; /* [n] record index of a claimed column, -1 otherwise */
 } DtonSubsts;
 

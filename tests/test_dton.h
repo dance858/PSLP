@@ -252,7 +252,6 @@ static char *test_dton_cycle_break()
     mu_assert("one column survives the break", ws->substs.n == 1);
     mu_assert("x0 stays eliminated", ws->substs.recs[0].k == 0);
     mu_assert("record depth filled", ws->substs.depth[0] == 0);
-    mu_assert("round maxdepth", ws->substs.maxdepth == 0);
     mu_assert("x1 un-eliminated", ws->substs.col_subst[1] < 0);
     mu_assert("broken owner deferred", n_deferred == 1 && deferred[0] == 1);
     mu_assert("x0 composes onto x1", dton_rec(ws, 0)->target == 1);
