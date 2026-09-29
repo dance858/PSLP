@@ -55,6 +55,9 @@ struct PostsolveInfo;
    reject the reduction if the fill-in is too large, or add a more sophisticated
    rejection criteria for numerical stability. Perhaps we should only
    allow the substitution if the new bound is not too large?
+
+   Returns INFEASIBLE if a transferred bound proves the problem infeasible,
+   UNCHANGED otherwise.
  */
 PresolveStatus remove_dton_eq_rows(struct Problem *prob, int max_shift);
 
