@@ -186,31 +186,37 @@ static inline void can_dton_be_eliminated(Matrix *AT, const double *row_vals,
     *subst = row_cols[*subst];
 }
 
-// lb and ub are bounds on variable that gets substituted
-static inline void modify_bounds(Constraints *constraints, int i, double aij,
-                                 double aik, double rhs, double lb_subst,
-                                 double ub_subst, int stay, ColTag col_tag_subst)
+// lb and ub are bounds on variable that gets substituted. Returns INFEASIBLE
+// if a transferred bound contradicts the bounds of the variable that stays.
+static inline PresolveStatus modify_bounds(Constraints *constraints, int i,
+                                           double aij, double aik, double rhs,
+                                           double lb_subst, double ub_subst,
+                                           int stay, ColTag col_tag_subst)
 {
     assert(aij != 0 && aik != 0);
     bool same_sign = (aik * aij > 0.0);
+    PresolveStatus status = UNCHANGED;
 
     if (same_sign)
     {
         if (!HAS_TAG(col_tag_subst, C_TAG_LB_INF))
         {
             double new_ub_cand = (rhs - aik * lb_subst) / aij;
-            update_ub(constraints, stay, new_ub_cand, i HUGE_BOUND_IS_NOT_OK);
+            status =
+                update_ub(constraints, stay, new_ub_cand, i HUGE_BOUND_IS_NOT_OK);
+            RETURN_IF_INFEASIBLE(status);
 
             if (HAS_TAG(constraints->col_tags[stay], C_TAG_FIXED))
             {
-                return;
+                return UNCHANGED;
             }
         }
 
         if (!HAS_TAG(col_tag_subst, C_TAG_UB_INF))
         {
             double new_lb_cand = (rhs - aik * ub_subst) / aij;
-            update_lb(constraints, stay, new_lb_cand, i HUGE_BOUND_IS_NOT_OK);
+            status =
+                update_lb(constraints, stay, new_lb_cand, i HUGE_BOUND_IS_NOT_OK);
         }
     }
     else
@@ -218,20 +224,24 @@ static inline void modify_bounds(Constraints *constraints, int i, double aij,
         if (!HAS_TAG(col_tag_subst, C_TAG_LB_INF))
         {
             double new_lb_cand = (rhs - aik * lb_subst) / aij;
-            update_lb(constraints, stay, new_lb_cand, i HUGE_BOUND_IS_NOT_OK);
+            status =
+                update_lb(constraints, stay, new_lb_cand, i HUGE_BOUND_IS_NOT_OK);
+            RETURN_IF_INFEASIBLE(status);
 
             if (HAS_TAG(constraints->col_tags[stay], C_TAG_FIXED))
             {
-                return;
+                return UNCHANGED;
             }
         }
 
         if (!HAS_TAG(col_tag_subst, C_TAG_UB_INF))
         {
             double new_ub_cand = (rhs - aik * ub_subst) / aij;
-            update_ub(constraints, stay, new_ub_cand, i HUGE_BOUND_IS_NOT_OK);
+            status =
+                update_ub(constraints, stay, new_ub_cand, i HUGE_BOUND_IS_NOT_OK);
         }
     }
+    return status;
 }
 
 #ifndef TESTING
@@ -683,8 +693,11 @@ static PresolveStatus remove_dton_eq_rows__(Problem *prob, int max_shift_per_row
 
         // transfer bounds to variable that stays and skip the reduction
         // if the variable that stays was fixed because of the bound change
-        modify_bounds(constraints, i, aij, aik, *row.rhs, bounds[k].lb, bounds[k].ub,
-                      j, col_tags[k]);
+        if (modify_bounds(constraints, i, aij, aik, *row.rhs, bounds[k].lb,
+                          bounds[k].ub, j, col_tags[k]) == INFEASIBLE)
+        {
+            return INFEASIBLE;
+        }
 
         if (HAS_TAG(col_tags[j], C_TAG_INACTIVE))
         {
@@ -734,6 +747,7 @@ PresolveStatus remove_dton_eq_rows(Problem *prob, int max_shift_per_row)
     while ((*dton_rows)->len > 0)
     {
         PresolveStatus temp = remove_dton_eq_rows__(prob, max_shift_per_row);
+        RETURN_IF_INFEASIBLE(temp);
 
         if (temp != REDUCED)
         {
@@ -750,6 +764,5 @@ PresolveStatus remove_dton_eq_rows(Problem *prob, int max_shift_per_row)
 
     DEBUG(verify_problem_up_to_date(prob->constraints));
 
-    // always return UNCHANGED because this function can't detect infeas/unbnd.
     return UNCHANGED;
 }

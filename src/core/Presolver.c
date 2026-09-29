@@ -489,6 +489,7 @@ static inline PresolveStatus run_fast_explorers(Problem *prob, const Settings *s
         status |= remove_dton_eq_rows(prob, stgs->max_shift);
         clock_gettime(CLOCK_MONOTONIC, &timer.end);
         stats->time_dton_rows += GET_ELAPSED_SECONDS(timer);
+        RETURN_IF_INFEASIBLE(status);
         // after removing doubleton equality rows, there can be new empty rows,
         // new singleton rows, and new empty columns
         status |= run_trivial_explorers(prob, stgs);

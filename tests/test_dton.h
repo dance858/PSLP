@@ -750,45 +750,6 @@ static char *test_4_dton()
     return 0;
 }
 
-/*  Two identical doubleton rows, infeasible problem.
-    min. [2  -1 -1 3 2]x
-    s.t. [2 -4  -1  3  2]     [2]
-         [1 -2   0  0  0] x = [-1]
-         [1 -2   1  3  1]     [4]
-         [1 -2   0  0  0]     [-1 + 1e-15]
-         1 <= x1 <= 2
-         x3, x4, x5 >= 0
-         x2 >= 1.1
-*/
-
-static char *test_5_dton()
-{
-    double Ax[] = {2, 1, -1, 3, 2, 1, -2, 1, -2, 1, 3, 1};
-    int Ai[] = {0, 1, 2, 3, 4, 0, 1, 0, 1, 2, 3, 4};
-    int Ap[] = {0, 5, 7, 12};
-    int nnz = 12;
-    int n_rows = 3;
-    int n_cols = 5;
-
-    double lhs[] = {2, -1, 4};
-    double rhs[] = {2, -1, 4};
-    double lbs[] = {0.4, 0, 0, 0, 0};
-    double ubs[] = {0.6, INF, INF, INF, INF};
-    double c[] = {2, -1, -1, 3, 2};
-
-    Settings *stgs = default_settings();
-    set_settings_false(stgs);
-    stgs->dton_eq = true;
-    Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
-
-    PS_FREE(stgs);
-    // DEBUG(run_debugger(constraints, false));
-    free_presolver(presolver);
-    mu_assert("error", 1 == 0);
-    return 0;
-}
-
 /*  Two doubleton rows, presolver wants to substitute the same variable
          from both
     min. [2  -1 -1 3]x
@@ -1693,6 +1654,70 @@ static char *test_19_dton()
     return 0;
 }
 
+/* x0 + x1 = 1 with x0 in [0, 0.2] and x1 in [0, 0.5]: the bound transfer is
+   infeasible whichever column is substituted. */
+static char *test_dton_infeasible_transfer()
+{
+    // r0: x0 + x1 = 1, r1: x0 + x2 <= 10, r2: x1 + x2 <= 10
+    double Ax[] = {1, 1, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 2, 1, 2};
+    int Ap[] = {0, 2, 4, 6};
+    double lhs[] = {1, -INF, -INF};
+    double rhs[] = {1, 10, 10};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {0.2, 0.5, 10};
+    double c[] = {1, 1, 1};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dton_eq = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 3, 3, 6, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("infeasible", remove_dton_eq_rows(presolver->prob, 10) == INFEASIBLE);
+
+    free_presolver(presolver);
+    PS_FREE(stgs);
+    return 0;
+}
+
+/* x0 + x1 = 1 with x0 in [0, 0.4] and x1 + x3 = 1 with x3 in [0.5, 1]. Each
+   row is feasible alone, together they are not. Checked with only the
+   doubleton explorer, and with the default explorers minus singleton
+   columns. */
+static char *test_dton_infeasible_two_rows()
+{
+    // r0: x0 + x1 = 1, r1: x1 + x3 = 1, r2: x0 + x2 <= 10, r3: x2 + x3 <= 10
+    double Ax[] = {1, 1, 1, 1, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 1, 3, 0, 2, 2, 3};
+    int Ap[] = {0, 2, 4, 6, 8};
+    double lhs[] = {1, 1, -INF, -INF};
+    double rhs[] = {1, 1, 10, 10};
+    double lbs[] = {0, 0, 0, 0.5};
+    double ubs[] = {0.4, 1, 10, 1};
+    double c[] = {1, 1, 1, 1};
+
+    for (int variant = 0; variant < 2; ++variant)
+    {
+        Settings *stgs = default_settings();
+        stgs->verbose = false;
+        if (variant == 0)
+        {
+            set_settings_false(stgs);
+            stgs->dton_eq = true;
+        }
+        else
+        {
+            stgs->ston_cols = false;
+        }
+        Presolver *presolver =
+            new_presolver(Ax, Ai, Ap, 4, 4, 8, lhs, rhs, lbs, ubs, c, stgs);
+        mu_assert("infeasible", run_presolver(presolver) == INFEASIBLE);
+        free_presolver(presolver);
+        PS_FREE(stgs);
+    }
+    return 0;
+}
+
 static const char *all_tests_dton()
 {
     mu_run_test(test_00_dton, counter_dton);  // implemented
@@ -1707,13 +1732,12 @@ static const char *all_tests_dton()
     mu_run_test(test_3_dton, counter_dton);   // implemented
     mu_run_test(test_004_dton, counter_dton); // implemented
     mu_run_test(test_4_dton, counter_dton);   // implemented
-    // mu_run_test(test_5_dton, counter_dton);
-    mu_run_test(test_6_dton, counter_dton);  // implemented
-    mu_run_test(test_7_dton, counter_dton);  // implemented
-    mu_run_test(test_8_dton, counter_dton);  // implemented
-    mu_run_test(test_9_dton, counter_dton);  // implemented
-    mu_run_test(test_10_dton, counter_dton); // implemented
-    mu_run_test(test_11_dton, counter_dton); // implemented
+    mu_run_test(test_6_dton, counter_dton);   // implemented
+    mu_run_test(test_7_dton, counter_dton);   // implemented
+    mu_run_test(test_8_dton, counter_dton);   // implemented
+    mu_run_test(test_9_dton, counter_dton);   // implemented
+    mu_run_test(test_10_dton, counter_dton);  // implemented
+    mu_run_test(test_11_dton, counter_dton);  // implemented
     //   mu_run_test(test_12_dton, counter_dton);
     mu_run_test(test_13_dton, counter_dton); // implemented
     mu_run_test(test_14_dton, counter_dton); // implemented
@@ -1721,6 +1745,8 @@ static const char *all_tests_dton()
     mu_run_test(test_16_dton, counter_dton); // implemented
     mu_run_test(test_17_dton, counter_dton); // implemented
     mu_run_test(test_18_dton, counter_dton); // implemented
+    mu_run_test(test_dton_infeasible_transfer, counter_dton);
+    mu_run_test(test_dton_infeasible_two_rows, counter_dton);
     //    mu_run_test(test_19_dton, counter_dton); // implemented but we don't
     //    run it
     return 0;
