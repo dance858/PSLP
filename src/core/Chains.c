@@ -18,6 +18,66 @@
 
 #include "Chains.h"
 
+/* Returns the node with the highest drop_priority on the cycle formed by
+   path[len - 1] pointing back to cycle_at, an earlier node of the path. */
+static int highest_priority_on_cycle(const int *path, int len, int cycle_at,
+                                     const int *drop_priority)
+{
+    int ci = 0;
+    while (path[ci] != cycle_at)
+    {
+        ci++;
+    }
+    int drop = cycle_at;
+    for (int q = ci + 1; q < len; ++q)
+    {
+        if (drop_priority[path[q]] > drop_priority[drop])
+        {
+            drop = path[q];
+        }
+    }
+    return drop;
+}
+
+/* Stores the nodes with depth >= 0 in 'order' by descending depth, with ties
+   in index order. Every depth is below n. 'count' is scratch of n ints. */
+static void sort_by_descending_depth(int n, const int *depth, int *order, int *count)
+{
+    int maxdepth = -1;
+    for (int i = 0; i < n; ++i)
+    {
+        if (depth[i] > maxdepth)
+        {
+            maxdepth = depth[i];
+        }
+    }
+    for (int d = 0; d <= maxdepth; ++d)
+    {
+        count[d] = 0;
+    }
+    for (int i = 0; i < n; ++i)
+    {
+        if (depth[i] >= 0)
+        {
+            count[depth[i]]++;
+        }
+    }
+    int run = 0;
+    for (int d = maxdepth; d >= 0; --d)
+    {
+        int c = count[d];
+        count[d] = run;
+        run += c;
+    }
+    for (int i = 0; i < n; ++i)
+    {
+        if (depth[i] >= 0)
+        {
+            order[count[depth[i]]++] = i;
+        }
+    }
+}
+
 int compute_chain_depths(int n, const int *succ, const int *drop_priority,
                          int *depth, int *order, int *dropped, int *stamp, int *path)
 {
@@ -68,21 +128,8 @@ int compute_chain_depths(int n, const int *succ, const int *drop_priority,
 
             if (cycle_at >= 0)
             {
-                // the cycle is the path from cycle_at on: drop its node with
-                // the highest drop priority
-                int ci = 0;
-                while (path[ci] != cycle_at)
-                {
-                    ci++;
-                }
-                int drop = path[ci];
-                for (int q = ci + 1; q < len; ++q)
-                {
-                    if (drop_priority[path[q]] > drop_priority[drop])
-                    {
-                        drop = path[q];
-                    }
-                }
+                int drop =
+                    highest_priority_on_cycle(path, len, cycle_at, drop_priority);
                 depth[drop] = CHAINS_DROPPED;
                 dropped[n_dropped++] = drop;
                 continue;
@@ -96,41 +143,7 @@ int compute_chain_depths(int n, const int *succ, const int *drop_priority,
         }
     }
 
-    // order: stable counting sort of the resolved nodes by descending depth
-    // (stamp[] is free now; a depth is below n)
-    int maxdepth = -1;
-    for (int i = 0; i < n; ++i)
-    {
-        if (depth[i] > maxdepth)
-        {
-            maxdepth = depth[i];
-        }
-    }
-    int *count = stamp;
-    for (int d = 0; d <= maxdepth; ++d)
-    {
-        count[d] = 0;
-    }
-    for (int i = 0; i < n; ++i)
-    {
-        if (depth[i] >= 0)
-        {
-            count[depth[i]]++;
-        }
-    }
-    int run = 0;
-    for (int d = maxdepth; d >= 0; --d)
-    {
-        int c = count[d];
-        count[d] = run;
-        run += c;
-    }
-    for (int i = 0; i < n; ++i)
-    {
-        if (depth[i] >= 0)
-        {
-            order[count[depth[i]]++] = i;
-        }
-    }
+    // stamp is free now
+    sort_by_descending_depth(n, depth, order, stamp);
     return n_dropped;
 }
