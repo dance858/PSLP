@@ -22,11 +22,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* Sums values into the columns of one sparse vector at a time. Each column
-   holds a value and flag bits that are OR-ed together. A column counts as
-   touched once something is added to it in the current vector, and only
-   touched columns are read. Starting a new vector clears it without writing
-   to the n columns. */
+/* Builds a sparse vector of length n from (column, value) contributions.
+   Contributions to the same column are summed, and each column also keeps
+   the OR of its flag bits. The touched columns are listed in the order they
+   were first added, and sparse_accumulator_sort puts them in ascending order. */
 typedef struct SparseAccumulator
 {
     int *stamp;     /* [n] version that last touched the column */
