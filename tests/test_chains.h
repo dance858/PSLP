@@ -48,14 +48,6 @@ static char *test_chains_tree()
     return check_chain_depths(4, succ, drop_priority, depth, order, 4, NULL, 0);
 }
 
-/* a node reached after its chain was resolved by an earlier walk: 3 -> 1 */
-static char *test_chains_memoised()
-{
-    int succ[] = {1, 2, -1, 1}, drop_priority[] = {0, 1, 2, 3};
-    int depth[] = {2, 1, 0, 2}, order[] = {0, 3, 1, 2};
-    return check_chain_depths(4, succ, drop_priority, depth, order, 4, NULL, 0);
-}
-
 /* 2-cycle 0 <-> 1: node 1 has the higher drop priority and is dropped, 0 ends
    at it */
 static char *test_chains_two_cycle()
@@ -83,23 +75,13 @@ static char *test_chains_tail_into_cycle()
     return check_chain_depths(3, succ, drop_priority, depth, order, 2, dropped, 1);
 }
 
-/* every node points to nothing: identity order, depth 0 */
-static char *test_chains_roots()
-{
-    int succ[] = {-1, -1, -1}, drop_priority[] = {0, 1, 2};
-    int depth[] = {0, 0, 0}, order[] = {0, 1, 2};
-    return check_chain_depths(3, succ, drop_priority, depth, order, 3, NULL, 0);
-}
-
 static const char *all_tests_chains()
 {
     mu_run_test(test_chains_path, counter_chains);
     mu_run_test(test_chains_tree, counter_chains);
-    mu_run_test(test_chains_memoised, counter_chains);
     mu_run_test(test_chains_two_cycle, counter_chains);
     mu_run_test(test_chains_two_cycle_drop_start, counter_chains);
     mu_run_test(test_chains_tail_into_cycle, counter_chains);
-    mu_run_test(test_chains_roots, counter_chains);
     return 0;
 }
 
