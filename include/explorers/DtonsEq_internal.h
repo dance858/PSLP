@@ -108,14 +108,6 @@ typedef struct DtonLog
                       target */
 } DtonLog;
 
-/* Tunables and diagnostics, visible to the tests; nothing depends on them
-   for correctness. */
-typedef struct DtonTuning
-{
-    double rebuild_dirty_frac; /* rebuild when dirty content > frac * nnz (0.25) */
-    bool last_round_rebuilt;   /* the last round took the rebuild path */
-} DtonTuning;
-
 /* Scratch for the doubleton eliminator (work->dton). Only 'at' persists across
    calls; the rest is per round or per row and is reset through the round's own
    lists. The per-round arrays are reserved by the first round and the borrowed
@@ -134,7 +126,9 @@ typedef struct DtonWorkspace
     RowSlots at;   /* slots of A transpose's rows, persist across calls */
     bool at_valid; /* 'at' matches the layout of A transpose */
     DtonLog log;
-    DtonTuning tuning;
+    /* For the tests. Nothing depends on them for correctness. */
+    double rebuild_dirty_frac; /* rebuild when dirty content > frac * nnz (0.25) */
+    bool last_round_rebuilt;   /* the last round took the rebuild path */
 } DtonWorkspace;
 
 /* Points the borrowed per-column arrays at the presolver's shared scratch and

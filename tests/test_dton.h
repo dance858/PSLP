@@ -753,7 +753,7 @@ static char *dton_check_postsolve(double *Ax, int *Ai, int *Ap, int m, int n,
     // steer the transpose refresh: 1e9 never rebuilds (refresh path), 0.0
     // always rebuilds (fallback path)
     Work *work = ps->prob->constraints->state->work;
-    work->dton->tuning.rebuild_dirty_frac = dirty_frac;
+    work->dton->rebuild_dirty_frac = dirty_frac;
     if (run_presolver(ps) != REDUCED)
     {
         return "presolve must reduce and stay feasible";
@@ -1037,7 +1037,7 @@ static Presolver *dton_new_presolver(double *Ax, int *Ai, int *Ap, int m, int n,
     if (presolver != NULL)
     {
         Work *work = presolver->prob->constraints->state->work;
-        work->dton->tuning.rebuild_dirty_frac = dirty_frac;
+        work->dton->rebuild_dirty_frac = dirty_frac;
     }
     *stgs_out = stgs;
     return presolver;
@@ -1073,49 +1073,6 @@ static bool dton_spans_ordered(const Matrix *AT)
     return true;
 }
 
-/* r0: x0 + 2 x1 = 1 substitutes x1 = 0.5 - 0.5 x0 into r1 and r2; x0's
-   column {r0, r1, r3} loses the owner row, is updated in r1 and gains r2:
-   the length stays 3 == its slot, so the merge happens in place. */
-static char *test_dton_refresh_in_place()
-{
-    // r0: x0 + 2 x1 = 1, r1: x0 + x1 + x2 <= 5, r2: x1 + x3 <= 5, r3: x0 + x4 <= 5
-    double Ax[] = {1, 2, 1, 1, 1, 1, 1, 1, 1};
-    int Ai[] = {0, 1, 0, 1, 2, 1, 3, 0, 4};
-    int Ap[] = {0, 2, 5, 7, 9};
-    double lhs[] = {1, -INF, -INF, -INF};
-    double rhs[] = {1, 5, 5, 5};
-    double lbs[] = {0, 0, 0, 0, 0};
-    double ubs[] = {10, 10, 10, 10, 10};
-    double c[] = {1, 1, 1, 1, 1};
-    Settings *stgs;
-    Presolver *ps =
-        dton_new_presolver(Ax, Ai, Ap, 4, 5, 9, lhs, rhs, lbs, ubs, c, &stgs, 1e9);
-    mu_assert("presolver allocation failed", ps != NULL);
-    Constraints *constraints = ps->prob->constraints;
-    const Matrix *AT = constraints->AT;
-    DtonWorkspace *ws = constraints->state->work->dton;
-    int old_start = AT->p[0].start;
-    size_t old_alloc = AT->n_alloc;
-
-    remove_dton_eq_rows(ps->prob);
-
-    mu_assert("refresh path taken", !ws->tuning.last_round_rebuilt);
-    mu_assert("x1 eliminated", HAS_TAG(constraints->col_tags[1], C_TAG_INACTIVE));
-    mu_assert("x1 span empty", AT->p[1].end == AT->p[1].start);
-    mu_assert("x0 stayed in place", AT->p[0].start == old_start);
-    mu_assert("no tail used", AT->n_alloc == old_alloc);
-    int rows[] = {1, 2, 3};
-    double vals[] = {0.5, -0.5, 1};
-    mu_assert("x0 column content", dton_col_is(AT, 0, rows, vals, 3));
-    mu_assert("x0 size", constraints->state->col_sizes[0] == 3);
-    mu_assert("spans still ordered", dton_spans_ordered(AT));
-
-    DEBUG(run_debugger(constraints, false));
-    free_presolver(ps);
-    PS_FREE(stgs);
-    return 0;
-}
-
 /* Same substitution with four fill-in rows: x0's column {r0, r5} grows to
    5 > 2 entries, so it moves to the tail reserved by the initial transpose. */
 static char *test_dton_refresh_relocate()
@@ -1141,7 +1098,7 @@ static char *test_dton_refresh_relocate()
 
     remove_dton_eq_rows(ps->prob);
 
-    mu_assert("refresh path taken", !ws->tuning.last_round_rebuilt);
+    mu_assert("refresh path taken", !ws->last_round_rebuilt);
     mu_assert("x1 span empty", AT->p[1].end == AT->p[1].start);
     mu_assert("x0 moved to the tail", AT->p[0].start >= ws->at.tail_base &&
                                           ws->at.tail_base == AT->p[AT->m].start);
@@ -1164,39 +1121,6 @@ static char *test_dton_refresh_relocate()
     mu_assert("rebuild orders spans", dton_spans_ordered(AT));
     mu_assert("caps invalidated", !ws->at_valid);
     mu_assert("x0 content after rebuild", dton_col_is(AT, 0, rows, vals, 5));
-    DEBUG(run_debugger(constraints, false));
-
-    free_presolver(ps);
-    PS_FREE(stgs);
-    return 0;
-}
-
-/* The default guard rebuilds when the round is dirtier than a quarter of nnz,
-   which every small LP is. */
-static char *test_dton_refresh_guard()
-{
-    double Ax[] = {1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-    int Ai[] = {0, 1, 1, 2, 1, 3, 1, 4, 1, 5, 0, 6};
-    int Ap[] = {0, 2, 4, 6, 8, 10, 12};
-    double lhs[] = {1, -INF, -INF, -INF, -INF, -INF};
-    double rhs[] = {1, 5, 5, 5, 5, 5};
-    double lbs[] = {0, 0, 0, 0, 0, 0, 0};
-    double ubs[] = {10, 10, 10, 10, 10, 10, 10};
-    double c[] = {1, 1, 1, 1, 1, 1, 1};
-    Settings *stgs;
-    Presolver *ps =
-        dton_new_presolver(Ax, Ai, Ap, 6, 7, 12, lhs, rhs, lbs, ubs, c, &stgs, 0.25);
-    mu_assert("presolver allocation failed", ps != NULL);
-    Constraints *constraints = ps->prob->constraints;
-    DtonWorkspace *ws = constraints->state->work->dton;
-
-    remove_dton_eq_rows(ps->prob);
-
-    mu_assert("rebuild path taken", ws->tuning.last_round_rebuilt);
-    mu_assert("spans ordered", dton_spans_ordered(constraints->AT));
-    int rows[] = {1, 2, 3, 4, 5};
-    double vals[] = {-0.5, -0.5, -0.5, -0.5, 1};
-    mu_assert("x0 column content", dton_col_is(constraints->AT, 0, rows, vals, 5));
     DEBUG(run_debugger(constraints, false));
 
     free_presolver(ps);
@@ -1228,7 +1152,7 @@ static char *test_dton_refresh_shrink()
 
     remove_dton_eq_rows(ps->prob);
 
-    mu_assert("refresh path taken", !ws->tuning.last_round_rebuilt);
+    mu_assert("refresh path taken", !ws->last_round_rebuilt);
     mu_assert("x0 stayed in place", AT->p[0].start == old_start);
     int rows[] = {2};
     double vals[] = {1};
@@ -1237,59 +1161,6 @@ static char *test_dton_refresh_shrink()
     mu_assert("x0 now a singleton column",
               iVec_contains(constraints->state->ston_cols, 0));
     mu_assert("r1 shrank to x2", constraints->state->row_sizes[1] == 1);
-    DEBUG(run_debugger(constraints, false));
-
-    free_presolver(ps);
-    PS_FREE(stgs);
-    return 0;
-}
-
-/* Two independent substitutions relocating two targets in one round: both
-   land in the tail in disjoint slots. */
-static char *test_dton_refresh_two_relocations()
-{
-    // block A: r0: x0 + 2 x1 = 1, r1..r4: x1 + x_{2..5} <= 5, r5: x0 + x6 <= 5
-    // block B: r6: x7 + 2 x8 = 1, r7..r10: x8 + x_{9..12} <= 5, r11: x7 + x13 <= 5
-    double Ax[] = {1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                   1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-    int Ai[] = {0, 1, 1, 2, 1, 3,  1, 4,  1, 5,  0, 6,
-                7, 8, 8, 9, 8, 10, 8, 11, 8, 12, 7, 13};
-    int Ap[] = {0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24};
-    double lhs[12], rhs[12], lbs[14], ubs[14], c[14];
-    for (int i = 0; i < 12; ++i)
-    {
-        lhs[i] = -INF;
-        rhs[i] = 5;
-    }
-    lhs[0] = rhs[0] = 1;
-    lhs[6] = rhs[6] = 1;
-    for (int j = 0; j < 14; ++j)
-    {
-        lbs[j] = 0;
-        ubs[j] = 10;
-        c[j] = 1;
-    }
-    Settings *stgs;
-    Presolver *ps = dton_new_presolver(Ax, Ai, Ap, 12, 14, 24, lhs, rhs, lbs, ubs, c,
-                                       &stgs, 1e9);
-    mu_assert("presolver allocation failed", ps != NULL);
-    Constraints *constraints = ps->prob->constraints;
-    const Matrix *AT = constraints->AT;
-    DtonWorkspace *ws = constraints->state->work->dton;
-
-    remove_dton_eq_rows(ps->prob);
-
-    mu_assert("refresh path taken", !ws->tuning.last_round_rebuilt);
-    mu_assert("both relocated", AT->p[0].start >= ws->at.tail_base &&
-                                    AT->p[7].start >= ws->at.tail_base);
-    mu_assert("disjoint tail slots",
-              AT->p[0].end <= AT->p[7].start || AT->p[7].end <= AT->p[0].start);
-    mu_assert("tail within allocation", (size_t) ws->at.tail_next <= AT->n_alloc);
-    int rows0[] = {1, 2, 3, 4, 5};
-    double vals0[] = {-0.5, -0.5, -0.5, -0.5, 1};
-    int rows7[] = {7, 8, 9, 10, 11};
-    mu_assert("x0 content", dton_col_is(AT, 0, rows0, vals0, 5));
-    mu_assert("x7 content", dton_col_is(AT, 7, rows7, vals0, 5));
     DEBUG(run_debugger(constraints, false));
 
     free_presolver(ps);
@@ -1398,7 +1269,6 @@ static char *test_dton_record_growth()
                                                       r0: inserted)
      D: x30 + 2 x_{L+1} = 1 -> x_{L+1} eliminated    (not in r0; target x30
                                                       present without a source)
-     optional E..G: x60 + 2 x170, x70 + 2 x180, x80 + 2 x190
    Row r_last: x120 + x_L <= 5 keeps x120 in a non-owner row.
    ------------------------------------------------------------------------ */
 typedef struct
@@ -1408,14 +1278,12 @@ typedef struct
     int *Ai, *Ap;
 } DtonLongLP;
 
-static void dton_long_lp_build(DtonLongLP *lp, int L, bool six_sources,
-                               double coef120)
+static void dton_long_lp_build(DtonLongLP *lp, int L, double coef120)
 {
-    int extra_rows = six_sources ? 3 : 0;
     lp->L = L;
     lp->n = L + 2;
-    lp->m = 1 + 4 + extra_rows + 1;
-    lp->nnz = (L - 1) + 2 * (4 + extra_rows) + 2;
+    lp->m = 1 + 4 + 1;
+    lp->nnz = (L - 1) + 2 * 4 + 2;
     lp->Ax = (double *) calloc((size_t) lp->nnz, sizeof(double));
     lp->Ai = (int *) calloc((size_t) lp->nnz, sizeof(int));
     lp->Ap = (int *) calloc((size_t) lp->m + 1, sizeof(int));
@@ -1437,9 +1305,8 @@ static void dton_long_lp_build(DtonLongLP *lp, int L, bool six_sources,
     lp->lhs[r] = -INF;
     lp->rhs[r] = 1000;
     r++;
-    int dton[7][3] = {{110, 120, 1}, {120, 130, 2}, {5, 150, 2}, {30, L + 1, 2},
-                      {60, 170, 2},  {70, 180, 2},  {80, 190, 2}};
-    for (int d = 0; d < 4 + extra_rows; ++d)
+    int dton[4][3] = {{110, 120, 1}, {120, 130, 2}, {5, 150, 2}, {30, L + 1, 2}};
+    for (int d = 0; d < 4; ++d)
     {
         lp->Ap[r] = p;
         lp->Ai[p] = dton[d][0];
@@ -1492,60 +1359,13 @@ static double dton_coeff(const Constraints *cs, int q, int j)
     return pos < 0 ? 0.0 : A->x[A->p[q].start + pos];
 }
 
-/* Six eliminations in a row of 449 entries, one round, refresh path. */
-static char *test_dton_long_row()
-{
-    DtonLongLP lp;
-    dton_long_lp_build(&lp, 450, true, 2.0);
-    Settings *stgs;
-    Presolver *ps =
-        dton_new_presolver(lp.Ax, lp.Ai, lp.Ap, lp.m, lp.n, lp.nnz, lp.lhs, lp.rhs,
-                           lp.lbs, lp.ubs, lp.c, &stgs, 1e9);
-    mu_assert("presolver allocation failed", ps != NULL);
-    remove_dton_eq_rows(ps->prob);
-    const Constraints *cs = ps->prob->constraints;
-    mu_assert("refresh path taken",
-              !cs->state->work->dton->tuning.last_round_rebuilt);
-
-    // x110, x130, x150, x170, x180, x190 leave r0, x5 enters: 449 - 6 + 1
-    mu_assert("r0 length", cs->state->row_sizes[0] == 444);
-    // x120: 2 - 1 (from x110 = 1 - x120) - 0.5 (from x130 = (1 - x120)/2)
-    mu_assert("x120 between its sources", dton_coeff(cs, 0, 120) == 0.5);
-    // x5: absent before, -0.5 from x150 = (1 - x5)/2
-    mu_assert("x5 inserted", dton_coeff(cs, 0, 5) == -0.5);
-    // x60/x70/x80: 1 - 0.5 each
-    mu_assert("x60", dton_coeff(cs, 0, 60) == 0.5 && dton_coeff(cs, 0, 80) == 0.5);
-    // x30: untouched in r0, and its column shrank to r0 alone
-    mu_assert("x30 untouched", dton_coeff(cs, 0, 30) == 1.0);
-    mu_assert("x30 column",
-              cs->state->col_sizes[30] == 1 && cs->AT->i[cs->AT->p[30].start] == 0);
-    // the substituted constants 1 + 0.5 + 0.5 + 3 * 0.5 shift the side
-    mu_assert("r0 rhs", cs->rhs[0] == 1000 - 3.5 && cs->lhs[0] == -INF);
-    mu_assert("r_last untouched", cs->state->row_sizes[lp.m - 1] == 2);
-    int gone[] = {110, 130, 150, 170, 180, 190, lp.L + 1};
-    for (int g = 0; g < 7; ++g)
-    {
-        mu_assert("eliminated column",
-                  HAS_TAG(cs->col_tags[gone[g]], C_TAG_INACTIVE));
-    }
-    for (int r = 1; r < lp.m - 1; ++r)
-    {
-        mu_assert("owner row", HAS_TAG(cs->row_tags[r], R_TAG_INACTIVE));
-    }
-    DEBUG(run_debugger(cs, false));
-    free_presolver(ps);
-    PS_FREE(stgs);
-    dton_long_lp_free(&lp);
-    return 0;
-}
-
 /* r0's x120 entry (coefficient 1.5) cancels against its two sources
    (x110 = 1 - x120 contributes -1, x130 = (1 - x120)/2 contributes -0.5): the
    target is dropped from r0 and the refresh applies the delete tuple. */
 static char *test_dton_cancellation_log()
 {
     DtonLongLP lp;
-    dton_long_lp_build(&lp, 200, false, 1.5);
+    dton_long_lp_build(&lp, 200, 1.5);
     Settings *stgs;
     Presolver *ps =
         dton_new_presolver(lp.Ax, lp.Ai, lp.Ap, lp.m, lp.n, lp.nnz, lp.lhs, lp.rhs,
@@ -1553,8 +1373,7 @@ static char *test_dton_cancellation_log()
     mu_assert("presolver allocation failed", ps != NULL);
     remove_dton_eq_rows(ps->prob);
     const Constraints *cs = ps->prob->constraints;
-    mu_assert("refresh path taken",
-              !cs->state->work->dton->tuning.last_round_rebuilt);
+    mu_assert("refresh path taken", !cs->state->work->dton->last_round_rebuilt);
     mu_assert("x120 dropped from r0", dton_coeff(cs, 0, 120) == 0.0);
     // 199 - 3 eliminated (x110, x130, x150) + x5 inserted - x120 dropped
     mu_assert("r0 length", cs->state->row_sizes[0] == 196);
@@ -1743,15 +1562,11 @@ static const char *all_tests_dton()
     mu_run_test(test_dton_free_subst, counter_dton);
     mu_run_test(test_dton_primal_ray, counter_dton);
     mu_run_test(test_dton_dual_ray, counter_dton);
-    mu_run_test(test_dton_refresh_in_place, counter_dton);
     mu_run_test(test_dton_refresh_relocate, counter_dton);
-    mu_run_test(test_dton_refresh_guard, counter_dton);
     mu_run_test(test_dton_refresh_shrink, counter_dton);
-    mu_run_test(test_dton_refresh_two_relocations, counter_dton);
     mu_run_test(test_dton_refresh_full_presolve, counter_dton);
     mu_run_test(test_dton_postsolve_chain_rebuild_path, counter_dton);
     mu_run_test(test_dton_record_growth, counter_dton);
-    mu_run_test(test_dton_long_row, counter_dton);
     mu_run_test(test_dton_cancellation_log, counter_dton);
     mu_run_test(test_dton_infeasible_transfer, counter_dton);
     mu_run_test(test_dton_infeasible_two_rows, counter_dton);

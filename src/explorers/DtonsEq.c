@@ -69,7 +69,7 @@ DtonWorkspace *dton_ws_new(size_t n_rows, size_t n_cols)
         return NULL;
     }
 
-    ws->tuning.rebuild_dirty_frac = 0.25;
+    ws->rebuild_dirty_frac = 0.25;
     return ws;
 }
 
@@ -910,9 +910,9 @@ static void dton_refresh_AT(Problem *prob, DtonWorkspace *ws)
     }
     bool waste =
         ws->at_valid && (size_t) (ws->at.tail_next - ws->at.tail_base) > 2 * A->nnz;
-    bool rebuild =
-        ws->log.overflow ||
-        (double) dirty > ws->tuning.rebuild_dirty_frac * (double) A->nnz || waste;
+    bool rebuild = ws->log.overflow ||
+                   (double) dirty > ws->rebuild_dirty_frac * (double) A->nnz ||
+                   waste;
 
     if (!rebuild && !dton_at_refresh(prob, ws))
     {
@@ -922,7 +922,7 @@ static void dton_refresh_AT(Problem *prob, DtonWorkspace *ws)
     {
         dton_rebuild_AT(prob, ws);
     }
-    ws->tuning.last_round_rebuilt = rebuild;
+    ws->last_round_rebuilt = rebuild;
     AT = constraints->AT;
     assert(AT->nnz == A->nnz);
 
