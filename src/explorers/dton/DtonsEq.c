@@ -129,7 +129,7 @@ PresolveStatus remove_dton_eq_rows(Problem *prob)
 
         if (progress)
         {
-            // an infeasible transfer ends the presolve
+            /* an infeasible transfer ends the presolve */
             if (dton_transfer_bounds(prob, ws) == INFEASIBLE)
             {
                 return INFEASIBLE;
@@ -138,8 +138,7 @@ PresolveStatus remove_dton_eq_rows(Problem *prob)
             dton_apply(prob, ws, deferred, &n_deferred);
             dton_refresh_AT(prob, ws);
 
-            // reset the claim state. The eliminated columns are inactive
-            // and can never be claimed again
+            /* clear the substitutions for next round */
             for (int idx = 0; idx < ws->substs.n; ++idx)
             {
                 ws->substs.col_subst[ws->substs.recs[idx].k] = -1;
