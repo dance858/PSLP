@@ -36,7 +36,7 @@ static inline size_t dton_extra_memory(size_t nnz)
 struct DtonWorkspace *dton_ws_new(size_t n_rows, size_t n_cols);
 
 /* Frees the eliminator's workspace (work->dton). */
-void dton_ws_free(struct DtonWorkspace *ws);
+void dton_ws_free(struct DtonWorkspace *dton_work);
 
 /* Doubleton equality row elimination, one pass per round: claim the
    substituted column of each doubleton row, compose substitution chains,

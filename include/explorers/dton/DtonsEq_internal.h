@@ -32,7 +32,8 @@ struct Problem;
 struct Work;
 
 /* One substitution of the round: row 'owner' eliminates column k. Appended in
-   claim order. ws->substs.col_subst[k] indexes it (-1 when k is not claimed). */
+   claim order. dton_work->substs.col_subst[k] indexes it (-1 when k is not claimed).
+ */
 typedef struct DtonSubst
 {
     int k;      /* substituted column */
@@ -93,7 +94,7 @@ typedef struct DtonTargets
    (stable, so rows stay ascending) and applies it onto the old column. */
 typedef struct DtonLog
 {
-    int *col;
+    int *target_index; /* index into DtonTargets.list */
     int *row;
     double *val;
     int *row2;
@@ -111,8 +112,8 @@ typedef struct DtonLog
    lists. */
 typedef struct DtonWorkspace
 {
-    size_t m; /* rows of A at allocation */
-    size_t n; /* cols of A at allocation */
+    int m; /* rows of A at allocation */
+    int n; /* cols of A at allocation */
     DtonSubsts substs;
     DtonRows rows;
     SparseAccumulator acc;
@@ -127,37 +128,37 @@ typedef struct DtonWorkspace
 
 /* Points the borrowed per-column arrays at the presolver's shared scratch and
    initializes them. Once per call of the eliminator, before any kernel runs. */
-void dton_ws_attach(DtonWorkspace *ws, struct Work *work);
+void dton_ws_attach(DtonWorkspace *dton_work, struct Work *work);
 
 /* Which entry (0 or 1) of a doubleton equality row to substitute. */
 int dton_choose_subst(const double *row_vals, int col_size0, int col_size1);
 
 /* Phase 1: claims the substituted column of every eliminable row. False if
    the round's records could not be reserved. */
-bool dton_claim(struct Problem *prob, DtonWorkspace *ws, int *deferred,
+bool dton_claim(struct Problem *prob, DtonWorkspace *dton_work, int *deferred,
                 int *n_deferred);
 
 /* Phase 2: composes the substitution chains and breaks cycles. */
-void dton_compose(DtonWorkspace *ws, int *deferred, int *n_deferred);
+void dton_compose(DtonWorkspace *dton_work, int *deferred, int *n_deferred);
 
 /* Phase 3: transfers the bounds of the eliminated columns onto their stay
    columns. INFEASIBLE if a transfer contradicts a bound. */
-PresolveStatus dton_transfer_bounds(struct Problem *prob, DtonWorkspace *ws);
+PresolveStatus dton_transfer_bounds(struct Problem *prob, DtonWorkspace *dton_work);
 
 /* Phase 3b: emits the postsolve records of the round. */
-void dton_record(struct Problem *prob, DtonWorkspace *ws);
+void dton_record(struct Problem *prob, DtonWorkspace *dton_work);
 
 /* Reserves the row list of the round. False if the allocation fails. */
-bool dton_reserve_rows(struct Problem *prob, DtonWorkspace *ws);
+bool dton_reserve_rows(struct Problem *prob, DtonWorkspace *dton_work);
 
 /* Phase 4: applies the round to A, the row sides, worklists and objective. */
-void dton_apply(struct Problem *prob, DtonWorkspace *ws, int *deferred,
+void dton_apply(struct Problem *prob, DtonWorkspace *dton_work, int *deferred,
                 int *n_deferred);
 
 /* The full-transpose fallback of the A transpose refresh. */
-void dton_rebuild_AT(struct Problem *prob, DtonWorkspace *ws);
+void dton_rebuild_AT(struct Problem *prob, DtonWorkspace *dton_work);
 
 /* Phase 5: brings A transpose up to date. */
-void dton_refresh_AT(struct Problem *prob, DtonWorkspace *ws);
+void dton_refresh_AT(struct Problem *prob, DtonWorkspace *dton_work);
 
 #endif

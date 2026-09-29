@@ -26,17 +26,17 @@
 static int counter_dton = 0;
 
 /* The claim record of column k (must be claimed in the current round). */
-static const DtonSubst *dton_rec(const DtonWorkspace *ws, int k)
+static const DtonSubst *dton_rec(const DtonWorkspace *dton_work, int k)
 {
-    assert(ws->substs.col_subst[k] >= 0);
-    return ws->substs.recs + ws->substs.col_subst[k];
+    assert(dton_work->substs.col_subst[k] >= 0);
+    return dton_work->substs.recs + dton_work->substs.col_subst[k];
 }
 
 /* The chain depth of column k's record after composition. */
-static int dton_depth(const DtonWorkspace *ws, int k)
+static int dton_depth(const DtonWorkspace *dton_work, int k)
 {
-    assert(ws->substs.col_subst[k] >= 0);
-    return ws->substs.depth[ws->substs.col_subst[k]];
+    assert(dton_work->substs.col_subst[k] >= 0);
+    return dton_work->substs.depth[dton_work->substs.col_subst[k]];
 }
 
 /* Workspace lifecycle: allocated lazily by the first elimination, sized by
@@ -66,8 +66,8 @@ static char *test_dton_workspace()
 
     Work *work = presolver->prob->constraints->state->work;
     mu_assert("dton workspace must be allocated", work->dton != NULL);
-    mu_assert("workspace m mismatch", work->dton->m == (size_t) n_rows);
-    mu_assert("workspace n mismatch", work->dton->n == (size_t) n_cols);
+    mu_assert("workspace m mismatch", work->dton->m == n_rows);
+    mu_assert("workspace n mismatch", work->dton->n == n_cols);
 
     run_presolver(presolver);
     mu_assert("dton workspace must be freed after presolve", work->dton == NULL);
@@ -130,31 +130,32 @@ static char *test_dton_claim_conflict()
         new_presolver(Ax, Ai, Ap, 3, 3, 6, lhs, rhs, lbs, ubs, c, stgs);
     mu_assert("presolver allocation failed", presolver != NULL);
 
-    DtonWorkspace *ws = dton_ws_new(3, 3);
-    dton_ws_attach(ws, presolver->prob->constraints->state->work);
+    DtonWorkspace *dton_work = dton_ws_new(3, 3);
+    dton_ws_attach(dton_work, presolver->prob->constraints->state->work);
     int deferred[8];
     int n_deferred = 0;
-    mu_assert("claim", dton_claim(presolver->prob, ws, deferred, &n_deferred));
+    mu_assert("claim",
+              dton_claim(presolver->prob, dton_work, deferred, &n_deferred));
 
-    mu_assert("one column claimed", ws->substs.n == 1);
-    mu_assert("x0 claimed", ws->substs.recs[0].k == 0);
-    mu_assert("x0 owned by r0", dton_rec(ws, 0)->owner == 0);
-    mu_assert("record owner", ws->substs.recs[0].owner == 0);
-    mu_assert("x0 stays into x1", dton_rec(ws, 0)->j == 1);
-    mu_assert("record stay col", ws->substs.recs[0].j == 1);
-    mu_assert("dir_mult", dton_rec(ws, 0)->dir_mult == -1.0 / 3.0);
-    mu_assert("dir_shift", dton_rec(ws, 0)->dir_shift == 1.0 / 3.0);
+    mu_assert("one column claimed", dton_work->substs.n == 1);
+    mu_assert("x0 claimed", dton_work->substs.recs[0].k == 0);
+    mu_assert("x0 owned by r0", dton_rec(dton_work, 0)->owner == 0);
+    mu_assert("record owner", dton_work->substs.recs[0].owner == 0);
+    mu_assert("x0 stays into x1", dton_rec(dton_work, 0)->j == 1);
+    mu_assert("record stay col", dton_work->substs.recs[0].j == 1);
+    mu_assert("dir_mult", dton_rec(dton_work, 0)->dir_mult == -1.0 / 3.0);
+    mu_assert("dir_shift", dton_rec(dton_work, 0)->dir_shift == 1.0 / 3.0);
     mu_assert("loser deferred", n_deferred == 1 && deferred[0] == 1);
 
-    dton_compose(ws, deferred, &n_deferred);
-    mu_assert("still one eliminated", ws->substs.n == 1);
-    mu_assert("composed target", dton_rec(ws, 0)->target == 1);
-    mu_assert("composed mult", dton_rec(ws, 0)->mult == -1.0 / 3.0);
-    mu_assert("composed shift", dton_rec(ws, 0)->shift == 1.0 / 3.0);
-    mu_assert("depth 0", dton_depth(ws, 0) == 0);
+    dton_compose(dton_work, deferred, &n_deferred);
+    mu_assert("still one eliminated", dton_work->substs.n == 1);
+    mu_assert("composed target", dton_rec(dton_work, 0)->target == 1);
+    mu_assert("composed mult", dton_rec(dton_work, 0)->mult == -1.0 / 3.0);
+    mu_assert("composed shift", dton_rec(dton_work, 0)->shift == 1.0 / 3.0);
+    mu_assert("depth 0", dton_depth(dton_work, 0) == 0);
     mu_assert("compose defers nothing here", n_deferred == 1);
 
-    dton_ws_free(ws);
+    dton_ws_free(dton_work);
     free_presolver(presolver);
     PS_FREE(stgs);
     return 0;
@@ -181,35 +182,36 @@ static char *test_dton_chain_depth2()
         new_presolver(Ax, Ai, Ap, 3, 4, 6, lhs, rhs, lbs, ubs, c, stgs);
     mu_assert("presolver allocation failed", presolver != NULL);
 
-    DtonWorkspace *ws = dton_ws_new(3, 4);
-    dton_ws_attach(ws, presolver->prob->constraints->state->work);
+    DtonWorkspace *dton_work = dton_ws_new(3, 4);
+    dton_ws_attach(dton_work, presolver->prob->constraints->state->work);
     int deferred[8];
     int n_deferred = 0;
-    mu_assert("claim", dton_claim(presolver->prob, ws, deferred, &n_deferred));
+    mu_assert("claim",
+              dton_claim(presolver->prob, dton_work, deferred, &n_deferred));
 
-    mu_assert("two columns claimed", ws->substs.n == 2);
+    mu_assert("two columns claimed", dton_work->substs.n == 2);
     mu_assert("no deferrals", n_deferred == 0);
-    mu_assert("x0 -> x1", dton_rec(ws, 0)->j == 1);
-    mu_assert("x1 -> x2", dton_rec(ws, 1)->j == 2);
+    mu_assert("x0 -> x1", dton_rec(dton_work, 0)->j == 1);
+    mu_assert("x1 -> x2", dton_rec(dton_work, 1)->j == 2);
 
-    dton_compose(ws, deferred, &n_deferred);
+    dton_compose(dton_work, deferred, &n_deferred);
 
     // x1 = -0.5 x2 + 2, depth 0
-    mu_assert("x1 target", dton_rec(ws, 1)->target == 2);
-    mu_assert("x1 mult", dton_rec(ws, 1)->mult == -0.5);
-    mu_assert("x1 shift", dton_rec(ws, 1)->shift == 2.0);
-    mu_assert("x1 depth", dton_depth(ws, 1) == 0);
+    mu_assert("x1 target", dton_rec(dton_work, 1)->target == 2);
+    mu_assert("x1 mult", dton_rec(dton_work, 1)->mult == -0.5);
+    mu_assert("x1 shift", dton_rec(dton_work, 1)->shift == 2.0);
+    mu_assert("x1 depth", dton_depth(dton_work, 1) == 0);
 
     // x0 = -x1 + 1 = 0.5 x2 - 1, depth 1
-    mu_assert("x0 target", dton_rec(ws, 0)->target == 2);
-    mu_assert("x0 mult", dton_rec(ws, 0)->mult == 0.5);
-    mu_assert("x0 shift", dton_rec(ws, 0)->shift == -1.0);
-    mu_assert("x0 depth", dton_depth(ws, 0) == 1);
+    mu_assert("x0 target", dton_rec(dton_work, 0)->target == 2);
+    mu_assert("x0 mult", dton_rec(dton_work, 0)->mult == 0.5);
+    mu_assert("x0 shift", dton_rec(dton_work, 0)->shift == -1.0);
+    mu_assert("x0 depth", dton_depth(dton_work, 0) == 1);
 
-    mu_assert("both survive composition", ws->substs.n == 2);
+    mu_assert("both survive composition", dton_work->substs.n == 2);
     mu_assert("compose defers nothing", n_deferred == 0);
 
-    dton_ws_free(ws);
+    dton_ws_free(dton_work);
     free_presolver(presolver);
     PS_FREE(stgs);
     return 0;
@@ -236,30 +238,31 @@ static char *test_dton_cycle_break()
         new_presolver(Ax, Ai, Ap, 2, 2, 4, lhs, rhs, lbs, ubs, c, stgs);
     mu_assert("presolver allocation failed", presolver != NULL);
 
-    DtonWorkspace *ws = dton_ws_new(2, 2);
-    dton_ws_attach(ws, presolver->prob->constraints->state->work);
+    DtonWorkspace *dton_work = dton_ws_new(2, 2);
+    dton_ws_attach(dton_work, presolver->prob->constraints->state->work);
     int deferred[8];
     int n_deferred = 0;
-    mu_assert("claim", dton_claim(presolver->prob, ws, deferred, &n_deferred));
+    mu_assert("claim",
+              dton_claim(presolver->prob, dton_work, deferred, &n_deferred));
 
-    mu_assert("both columns claimed", ws->substs.n == 2);
-    mu_assert("cycle x0 -> x1", dton_rec(ws, 0)->j == 1);
-    mu_assert("cycle x1 -> x0", dton_rec(ws, 1)->j == 0);
+    mu_assert("both columns claimed", dton_work->substs.n == 2);
+    mu_assert("cycle x0 -> x1", dton_rec(dton_work, 0)->j == 1);
+    mu_assert("cycle x1 -> x0", dton_rec(dton_work, 1)->j == 0);
     mu_assert("no claim deferrals", n_deferred == 0);
 
-    dton_compose(ws, deferred, &n_deferred);
+    dton_compose(dton_work, deferred, &n_deferred);
 
-    mu_assert("one column survives the break", ws->substs.n == 1);
-    mu_assert("x0 stays eliminated", ws->substs.recs[0].k == 0);
-    mu_assert("record depth filled", ws->substs.depth[0] == 0);
-    mu_assert("x1 un-eliminated", ws->substs.col_subst[1] < 0);
+    mu_assert("one column survives the break", dton_work->substs.n == 1);
+    mu_assert("x0 stays eliminated", dton_work->substs.recs[0].k == 0);
+    mu_assert("record depth filled", dton_work->substs.depth[0] == 0);
+    mu_assert("x1 un-eliminated", dton_work->substs.col_subst[1] < 0);
     mu_assert("broken owner deferred", n_deferred == 1 && deferred[0] == 1);
-    mu_assert("x0 composes onto x1", dton_rec(ws, 0)->target == 1);
-    mu_assert("x0 mult", dton_rec(ws, 0)->mult == -0.5);
-    mu_assert("x0 shift", dton_rec(ws, 0)->shift == 0.0);
-    mu_assert("x0 depth", dton_depth(ws, 0) == 0);
+    mu_assert("x0 composes onto x1", dton_rec(dton_work, 0)->target == 1);
+    mu_assert("x0 mult", dton_rec(dton_work, 0)->mult == -0.5);
+    mu_assert("x0 shift", dton_rec(dton_work, 0)->shift == 0.0);
+    mu_assert("x0 depth", dton_depth(dton_work, 0) == 0);
 
-    dton_ws_free(ws);
+    dton_ws_free(dton_work);
     free_presolver(presolver);
     PS_FREE(stgs);
     return 0;
@@ -285,17 +288,19 @@ static char *test_dton_pivot_large()
         new_presolver(Ax, Ai, Ap, 1, 2, 2, lhs, rhs, lbs, ubs, c, stgs);
     mu_assert("presolver allocation failed", presolver != NULL);
 
-    DtonWorkspace *ws = dton_ws_new(1, 2);
-    dton_ws_attach(ws, presolver->prob->constraints->state->work);
+    DtonWorkspace *dton_work = dton_ws_new(1, 2);
+    dton_ws_attach(dton_work, presolver->prob->constraints->state->work);
     int deferred[8];
     int n_deferred = 0;
-    mu_assert("claim", dton_claim(presolver->prob, ws, deferred, &n_deferred));
+    mu_assert("claim",
+              dton_claim(presolver->prob, dton_work, deferred, &n_deferred));
 
-    mu_assert("one claim", ws->substs.n == 1 && n_deferred == 0);
-    mu_assert("x0 substituted", dton_rec(ws, 0)->k == 0 && dton_rec(ws, 0)->j == 1);
-    mu_assert("multiplier -1e-9", dton_rec(ws, 0)->dir_mult == -1e-9);
+    mu_assert("one claim", dton_work->substs.n == 1 && n_deferred == 0);
+    mu_assert("x0 substituted",
+              dton_rec(dton_work, 0)->k == 0 && dton_rec(dton_work, 0)->j == 1);
+    mu_assert("multiplier -1e-9", dton_rec(dton_work, 0)->dir_mult == -1e-9);
 
-    dton_ws_free(ws);
+    dton_ws_free(dton_work);
     free_presolver(presolver);
     PS_FREE(stgs);
     return 0;
@@ -1091,20 +1096,22 @@ static char *test_dton_refresh_relocate()
     mu_assert("presolver allocation failed", ps != NULL);
     Constraints *constraints = ps->prob->constraints;
     const Matrix *AT = constraints->AT;
-    DtonWorkspace *ws = constraints->state->work->dton;
+    DtonWorkspace *dton_work = constraints->state->work->dton;
     size_t old_alloc = AT->n_alloc;
     int old_start_x2 = AT->p[2].start;
 
     remove_dton_eq_rows(ps->prob);
 
-    mu_assert("refresh path taken", !ws->last_round_rebuilt);
+    mu_assert("refresh path taken", !dton_work->last_round_rebuilt);
     mu_assert("x1 span empty", AT->p[1].end == AT->p[1].start);
-    mu_assert("x0 moved to the tail", AT->p[0].start >= ws->at.tail_base &&
-                                          ws->at.tail_base == AT->p[AT->m].start);
+    mu_assert("x0 moved to the tail",
+              AT->p[0].start >= dton_work->at.tail_base &&
+                  dton_work->at.tail_base == AT->p[AT->m].start);
     mu_assert("tail reserved up front, no realloc",
-              AT->n_alloc == old_alloc && (size_t) ws->at.tail_next <= AT->n_alloc &&
-                  (size_t) ws->at.tail_base < AT->n_alloc);
-    mu_assert("relocated slot fits exactly", ws->at.cap[0] == 5);
+              AT->n_alloc == old_alloc &&
+                  (size_t) dton_work->at.tail_next <= AT->n_alloc &&
+                  (size_t) dton_work->at.tail_base < AT->n_alloc);
+    mu_assert("relocated slot fits exactly", dton_work->at.cap[0] == 5);
     mu_assert("neighbour untouched", AT->p[2].start == old_start_x2);
     int rows[] = {1, 2, 3, 4, 5};
     double vals[] = {-0.5, -0.5, -0.5, -0.5, 1};
@@ -1115,10 +1122,10 @@ static char *test_dton_refresh_relocate()
     DEBUG(run_debugger(constraints, false));
 
     // a rebuild restores the ordered compact layout and invalidates the caps
-    dton_rebuild_AT(ps->prob, ws);
+    dton_rebuild_AT(ps->prob, dton_work);
     AT = constraints->AT;
     mu_assert("rebuild orders spans", dton_spans_ordered(AT));
-    mu_assert("caps invalidated", !ws->at_valid);
+    mu_assert("caps invalidated", !dton_work->at_valid);
     mu_assert("x0 content after rebuild", dton_col_is(AT, 0, rows, vals, 5));
     DEBUG(run_debugger(constraints, false));
 
@@ -1146,12 +1153,12 @@ static char *test_dton_refresh_shrink()
     mu_assert("presolver allocation failed", ps != NULL);
     Constraints *constraints = ps->prob->constraints;
     const Matrix *AT = constraints->AT;
-    DtonWorkspace *ws = constraints->state->work->dton;
+    DtonWorkspace *dton_work = constraints->state->work->dton;
     int old_start = AT->p[0].start;
 
     remove_dton_eq_rows(ps->prob);
 
-    mu_assert("refresh path taken", !ws->last_round_rebuilt);
+    mu_assert("refresh path taken", !dton_work->last_round_rebuilt);
     mu_assert("x0 stayed in place", AT->p[0].start == old_start);
     int rows[] = {2};
     double vals[] = {1};
@@ -1234,19 +1241,19 @@ static char *test_dton_record_growth()
                                        ubs, c, &stgs, 1e9);
     mu_assert("presolver allocation failed", ps != NULL);
     Constraints *constraints = ps->prob->constraints;
-    DtonWorkspace *ws = constraints->state->work->dton;
-    mu_assert("initial capacity below the round", ws->substs.cap < N);
+    DtonWorkspace *dton_work = constraints->state->work->dton;
+    mu_assert("initial capacity below the round", dton_work->substs.cap < N);
 
     remove_dton_eq_rows(ps->prob);
 
-    mu_assert("records grew", ws->substs.cap >= N);
+    mu_assert("records grew", dton_work->substs.cap >= N);
     for (int i = 0; i < N; ++i)
     {
         mu_assert("every row eliminated",
                   HAS_TAG(constraints->row_tags[i], R_TAG_INACTIVE));
         mu_assert("odd columns eliminated",
                   HAS_TAG(constraints->col_tags[2 * i + 1], C_TAG_INACTIVE));
-        mu_assert("claim state reset", ws->substs.col_subst[2 * i + 1] == -1);
+        mu_assert("claim state reset", dton_work->substs.col_subst[2 * i + 1] == -1);
     }
     mu_assert("matrix empty", constraints->A->nnz == 0);
     DEBUG(run_debugger(constraints, false));
