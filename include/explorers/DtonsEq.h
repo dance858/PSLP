@@ -45,7 +45,7 @@ void dton_ws_free(struct DtonWorkspace *ws);
    changed columns of A transpose once per round.
 
    Returns INFEASIBLE when a bound transferred through a doubleton row
-   contradicts the bounds of the column that stays; otherwise UNCHANGED (the
+   contradicts the bounds of the column that stays. Otherwise UNCHANGED (the
    elimination itself cannot detect unboundedness). */
 PresolveStatus remove_dton_eq_rows(struct Problem *prob);
 

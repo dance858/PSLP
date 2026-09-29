@@ -99,8 +99,6 @@ void dton_ws_free(DtonWorkspace *ws)
     PS_FREE(ws);
 }
 
-/* Points the borrowed per-column arrays at the presolver's scratch and
-   initializes them. */
 void dton_ws_attach(DtonWorkspace *ws, Work *work)
 {
     ws->substs.col_subst = work->iwork1_max_nrows_ncols;
@@ -124,7 +122,7 @@ int dton_choose_subst(const double *row_vals, int col_size0, int col_size1)
     double b_abs = ABS(row_vals[1]);
 
     // the substitution and the postsolve divide by the substituted
-    // coefficient, so it is the larger one; the fill-in multiplier is then
+    // coefficient, so it is the larger one. The fill-in multiplier is then
     // at most 1 in magnitude
     if (a_abs != b_abs)
     {
@@ -143,9 +141,8 @@ int dton_choose_subst(const double *row_vals, int col_size0, int col_size1)
 }
 
 /* Phase 1, no mutation: walks state->dton_rows and claims the substituted
-   column of every eliminable row into ws (the column-indexed map plus a
-   packed DtonSubst record per accepted claim). A row whose chosen column is
-   already claimed is appended to 'deferred' and retried next round; stale
+   column of every eliminable row into ws. A row whose chosen column is
+   already claimed is appended to 'deferred' and retried next round. Stale
    worklist entries are dropped. False if the round's records cannot be
    reserved (nothing is claimed then). */
 bool dton_claim(Problem *prob, DtonWorkspace *ws, int *deferred, int *n_deferred)
@@ -218,7 +215,7 @@ bool dton_claim(Problem *prob, DtonWorkspace *ws, int *deferred, int *n_deferred
         int k = cols[slot];
 
         // claim conflict: the column is already owned by an earlier row
-        // this round; the loser stays active and is retried next round
+        // this round. The loser stays active and is retried next round
         // (no orientation flip)
         if (ws->substs.col_subst[k] >= 0)
         {
@@ -240,13 +237,10 @@ bool dton_claim(Problem *prob, DtonWorkspace *ws, int *deferred, int *n_deferred
 
 /* Phase 2, no mutation: composes the per-link maps into maps onto the
    round's final survivors and computes chain depths. The substitutions form a
-   functional graph, record -> record of its stay column, that compute_chain_depths
-   turns into depths; a cycle is broken by un-eliminating the record with the
-   largest owner row on it, and that owner row is appended to 'deferred'. On
-   return ws->substs.recs holds exactly the still-eliminated substitutions in
-   claim order, ws->substs.depth their chain depths, ws->substs.maxdepth the
-   round's maximum chain depth, and ws->substs.order the records by descending
-   depth. */
+   functional graph, record -> record of its stay column, that
+   compute_chain_depths turns into depths. A cycle is broken by un-eliminating
+   the record with the largest owner row on it, and that owner row is appended
+   to 'deferred'. */
 void dton_compose(DtonWorkspace *ws, int *deferred, int *n_deferred)
 {
     DtonSubst *recs = ws->substs.recs;
@@ -262,8 +256,8 @@ void dton_compose(DtonWorkspace *ws, int *deferred, int *n_deferred)
         ws->substs.drop_priority[idx] = recs[idx].owner;
     }
 
-    // the dropped records go straight to the deferred list, as owner rows;
-    // the accumulator's touched list is free to serve as the walk path
+    // the dropped records go straight to the deferred list, as owner rows.
+    // The accumulator's touched list is free to serve as the walk path
     int *dropped = deferred + *n_deferred;
     int n_dropped =
         compute_chain_depths(n, succ, ws->substs.drop_priority, depth, order,
@@ -299,7 +293,7 @@ void dton_compose(DtonWorkspace *ws, int *deferred, int *n_deferred)
         }
     }
 
-    // compact the records in claim order; col_subst and order follow them
+    // compact the records in claim order. col_subst and order follow them
     // (stamp is free now and maps old to new indices)
     int *map = ws->substs.stamp;
     int out = 0;
@@ -405,7 +399,7 @@ static PresolveStatus dton_transfer_bounds(Problem *prob, DtonWorkspace *ws)
     const int *order = ws->substs.order;
 
     // descending depth so a link's transfer sees the bounds and tags already
-    // tightened by the deeper links; hence the substituted column's state is
+    // tightened by the deeper links. Hence the substituted column's state is
     // read live
     for (int o = 0; o < ws->substs.n; ++o)
     {
@@ -431,7 +425,7 @@ static PresolveStatus dton_transfer_bounds(Problem *prob, DtonWorkspace *ws)
         RETURN_IF_INFEASIBLE(status);
 
         // update_lb/update_ub cannot fix or deactivate columns, so the claim
-        // set stays valid; if column fixing is ever added to them, the
+        // set stays valid. If column fixing is ever added to them, the
         // eliminator needs an un-elimination cascade
         assert(!HAS_TAG(col_tags[j], C_TAG_INACTIVE));
         assert(!HAS_TAG(col_tags[k], C_TAG_INACTIVE));
@@ -445,8 +439,8 @@ static PresolveStatus dton_transfer_bounds(Problem *prob, DtonWorkspace *ws)
    reverse they give x_k from the survivor and
        y_i = (c_k - sum_{r != i} a_rk y_r) / a_ik,
    stationarity for x_k written with the column and c_k of the round start.
-   The rows r include the owner rows of this round whose stay column is k;
-   those are strictly deeper, so the columns are emitted in ascending depth
+   The rows r include the owner rows of this round whose stay column is k.
+   Those are strictly deeper, so the columns are emitted in ascending depth
    and replayed deepest first. Runs before any mutation (the columns are
    read from the pre-round AT, c_k before the objective update). */
 void dton_record(Problem *prob, DtonWorkspace *ws)
@@ -522,7 +516,7 @@ static inline void dton_log_push(DtonWorkspace *ws, int col, int row, double val
 }
 
 /* Reserves the row list for the round (one slot per entry of the eliminated
-   columns in the pre-round AT). False if the allocation fails; nothing has
+   columns in the pre-round AT). False if the allocation fails. Nothing has
    been mutated at that point. */
 static bool dton_reserve_rows(Problem *prob, DtonWorkspace *ws)
 {
@@ -609,8 +603,8 @@ static void dton_sweep_row_finish(Problem *prob, int q, int old_len, int new_len
 }
 
 /* Rewrites row q in place through the sparse accumulator. Every entry of an
-   eliminated column lands on its composed target; untouched entries are kept
-   verbatim; a touched value below ZERO_TOL is dropped as a cancellation. The
+   eliminated column lands on its composed target. Untouched entries are kept
+   verbatim. A touched value below ZERO_TOL is dropped as a cancellation. The
    activity is recomputed from scratch. */
 static void dton_sweep_row(Problem *prob, DtonWorkspace *ws, int q, int *deferred,
                            int *n_deferred)
@@ -672,7 +666,7 @@ static void dton_sweep_row(Problem *prob, DtonWorkspace *ws, int q, int *deferre
     }
     int new_len = w - start;
 
-    // full activity recompute for the rewritten row; Activity_init resets the
+    // full activity recompute for the rewritten row. Activity_init resets the
     // status, which is restored. A row listed in updated_activities must have
     // status ADDED and a computable side (verify_row_states), so a NOT_ADDED
     // row is promoted when it gains one.
@@ -694,8 +688,7 @@ static void dton_sweep_row(Problem *prob, DtonWorkspace *ws, int q, int *deferre
 }
 
 /* Phase 4: applies the round. Deactivates the owner rows, rewrites every
-   affected row in place through the composed maps (the ZERO_TOL drop applies
-   only to entries the substitution changed), shifts finite row sides,
+   affected row in place through the composed maps, shifts finite row sides,
    updates the affected rows' activities, feeds the row worklists (new
    doubleton-equality candidates go to 'deferred'), updates the objective and
    deactivates the eliminated columns. */
@@ -776,7 +769,7 @@ void dton_apply(Problem *prob, DtonWorkspace *ws, int *deferred, int *n_deferred
     }
 
     // composed one-shot objective update in descending depth (a fixed order
-    // keeps the summation into c[target] reproducible); targets are never
+    // keeps the summation into c[target] reproducible). Targets are never
     // eliminated, so no c[k] read is clobbered by a c[target] write
     for (int o = 0; o < ws->substs.n; ++o)
     {
@@ -798,10 +791,9 @@ void dton_apply(Problem *prob, DtonWorkspace *ws, int *deferred, int *n_deferred
     }
 }
 
-/* Full rebuild: the fallback of the refresh and the compaction of the tail
-   (exported for unit tests). Transposes A into AT's existing allocation, which
-   always has room since nnz never grows; the tail is whatever the allocation
-   has left after the rows. */
+/* Full rebuild: the fallback of the refresh and the compaction of the tail.
+   Transposes A into AT's existing allocation, which always has room since nnz
+   never grows. The tail is whatever the allocation has left after the rows. */
 void dton_rebuild_AT(Problem *prob, DtonWorkspace *ws)
 {
     Constraints *constraints = prob->constraints;
@@ -820,7 +812,7 @@ void dton_rebuild_AT(Problem *prob, DtonWorkspace *ws)
 }
 
 /* Applies the round to AT column by column. Returns false if the tail ran
-   out; the caller then rebuilds. A partial refresh leaves nothing the rebuild
+   out. The caller then rebuilds. A partial refresh leaves nothing the rebuild
    depends on: it only reads A. */
 static bool dton_at_refresh(Problem *prob, DtonWorkspace *ws)
 {
@@ -836,7 +828,7 @@ static bool dton_at_refresh(Problem *prob, DtonWorkspace *ws)
         ws->at_valid = true;
     }
 
-    // stable counting sort of the log by target; the cursor array reuses the
+    // stable counting sort of the log by target. The cursor array reuses the
     // accumulator's touched list, which is free now
     int *cursor = ws->acc.touched;
     for (int t = 0; t <= ws->targets.n; ++t)
@@ -867,7 +859,7 @@ static bool dton_at_refresh(Problem *prob, DtonWorkspace *ws)
     }
 
     // each target merges its log segment (rows ascending) into its old
-    // column; the owner rows of the round are inactive and dropped
+    // column. The owner rows of the round are inactive and dropped
     for (int t = 0; t < ws->targets.n; ++t)
     {
         int T = ws->targets.list[t];
@@ -886,14 +878,13 @@ static bool dton_at_refresh(Problem *prob, DtonWorkspace *ws)
 }
 
 /* Phase 5: brings A transpose up to date. The eliminated columns are
-   emptied; each composed target (the only other columns whose content
+   emptied. Each composed target (the only other columns whose content
    changed) becomes its old column minus the deactivated rows, merged with
    the sweep's log entries for it, in place when it fits its slot and
    otherwise moved to the tail. Falls back to a full rebuild into the existing
-   allocation when the dirty content exceeds a quarter of nnz, the tail is
-   full or its waste exceeds 2 nnz, or the change log could not grow. Then pushes the
-   targets' size transitions to the empty/singleton column worklists and recounts
-   their locks. */
+   allocation when the refresh does not pay off or cannot finish. Then pushes
+   the targets' size transitions to the empty/singleton column worklists and
+   recounts their locks. */
 static void dton_refresh_AT(Problem *prob, DtonWorkspace *ws)
 {
     Constraints *constraints = prob->constraints;
@@ -1006,7 +997,7 @@ PresolveStatus remove_dton_eq_rows(Problem *prob)
 
         if (progress)
         {
-            // an infeasible transfer ends the presolve; nothing else has been
+            // an infeasible transfer ends the presolve. Nothing else has been
             // mutated, and the claim state is released for hygiene
             if (dton_transfer_bounds(prob, ws) == INFEASIBLE)
             {
@@ -1021,7 +1012,7 @@ PresolveStatus remove_dton_eq_rows(Problem *prob)
             dton_apply(prob, ws, deferred, &n_deferred);
             dton_refresh_AT(prob, ws);
 
-            // reset the claim state; the eliminated columns are inactive
+            // reset the claim state. The eliminated columns are inactive
             // and can never be claimed again
             for (int idx = 0; idx < ws->substs.n; ++idx)
             {
@@ -1045,7 +1036,7 @@ PresolveStatus remove_dton_eq_rows(Problem *prob)
         }
     }
 
-    // bounds transfers cannot fix columns today; kept in case that changes
+    // bounds transfers cannot fix columns today. Kept in case that changes
     if (state->fixed_cols_to_delete->len > 0)
     {
         delete_fixed_cols_from_problem(prob);

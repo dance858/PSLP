@@ -20,8 +20,7 @@
 #define DTONS_EQ_INTERNAL_H
 
 /* Workspace and round kernels of the doubleton eliminator. Internal to
-   DtonsEq.c; included by the unit tests. Each phase is documented at its
-   definition. */
+   DtonsEq.c and included by the unit tests. */
 
 #include "DtonsEq.h"
 #include "RowSlots.h"
@@ -33,7 +32,7 @@ struct Problem;
 struct Work;
 
 /* One substitution of the round: row 'owner' eliminates column k. Appended in
-   claim order; ws->substs.col_subst[k] indexes it (-1 when k is not claimed). */
+   claim order. ws->substs.col_subst[k] indexes it (-1 when k is not claimed). */
 typedef struct DtonSubst
 {
     int k;           /* substituted column */
@@ -47,8 +46,7 @@ typedef struct DtonSubst
 } DtonSubst;
 
 /* Phases 1-2: the round's substitutions in claim order, compacted after
-   composition to the still-eliminated columns. Reserved exactly per round
-   (one slot per worklist row) by dton_claim. */
+   composition to the still-eliminated columns. */
 typedef struct DtonSubsts
 {
     DtonSubst *recs; /* [cap] */
@@ -60,14 +58,12 @@ typedef struct DtonSubsts
     int cap;            /* also sizes DtonTargets.list/old_size and DtonLog.start */
     int n;
     int maxdepth;   /* max chain depth this round */
-    int *col_subst; /* [n] record index of a claimed column, -1 otherwise
-                       (borrowed: iwork1_max_nrows_ncols) */
+    int *col_subst; /* [n] record index of a claimed column, -1 otherwise */
 } DtonSubsts;
 
 /* Phase 4: the rows of the eliminated columns, read from the pre-round AT
    (one entry per column entry, so with duplicates) and sorted (idx is the
-   permutation, aux the sort scratch). Reserved per round with the exact
-   count by dton_reserve_rows. */
+   permutation, aux the sort scratch). */
 typedef struct DtonRows
 {
     int *list;
@@ -85,14 +81,14 @@ typedef struct DtonTargets
     int *list;     /* [DtonSubsts.cap] */
     int *old_size; /* [DtonSubsts.cap] parallel to list */
     int n;
-    int *col_to_target; /* [n] index into list, -1 otherwise; reset through list
-                        (borrowed: iwork2_max_nrows_ncols) */
+    int *col_to_target; /* [n] index into list, -1 otherwise. Reset through
+                           list. */
 } DtonTargets;
 
 /* Phases 4-5: change log of the sweep, one (target, row, value) tuple for
    every target entry a swept row ends up with, and value 0 for a present
    target entry that was dropped (A holds no exact zeros, so 0 marks a
-   delete); rows ascending. The refresh sorts it by target into row2/val2
+   delete). Rows ascending. The refresh sorts it by target into row2/val2
    (stable, so rows stay ascending) and applies it onto the old column. */
 typedef struct DtonLog
 {
@@ -109,21 +105,17 @@ typedef struct DtonLog
 } DtonLog;
 
 /* Scratch for the doubleton eliminator (work->dton). Only 'at' persists across
-   calls; the rest is per round or per row and is reset through the round's own
-   lists. The per-round arrays are reserved by the first round and the borrowed
-   arrays are unset until dton_ws_attach. */
+   calls. The rest is per round or per row and is reset through the round's own
+   lists. */
 typedef struct DtonWorkspace
 {
     size_t m; /* rows of A at allocation */
     size_t n; /* cols of A at allocation */
     DtonSubsts substs;
     DtonRows rows;
-    /* Phase 4: the row being rewritten. stamp is borrowed from radix_aux and
-       touched from iwork_n_cols. touched also serves as the compose path and
-       the refresh cursors. */
     SparseAccumulator acc;
     DtonTargets targets;
-    RowSlots at;   /* slots of A transpose's rows, persist across calls */
+    RowSlots at;   /* slots of A transpose's rows */
     bool at_valid; /* 'at' matches the layout of A transpose */
     DtonLog log;
     /* For the tests. Nothing depends on them for correctness. */
@@ -132,8 +124,7 @@ typedef struct DtonWorkspace
 } DtonWorkspace;
 
 /* Points the borrowed per-column arrays at the presolver's shared scratch and
-   initializes them (col_subst and col_to_target to -1, cstamp to 0). Once per
-   call of the eliminator, before any kernel runs. */
+   initializes them. Once per call of the eliminator, before any kernel runs. */
 void dton_ws_attach(DtonWorkspace *ws, struct Work *work);
 
 /* Which entry (0 or 1) of a doubleton equality row to substitute. */
