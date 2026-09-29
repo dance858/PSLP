@@ -100,9 +100,10 @@ typedef struct DtonLog
     double *val2;
     int len;
     int alloc;
-    bool overflow; /* an append failed: the round falls back to a rebuild */
-    int *start;    /* [DtonSubsts.cap + 1] segment starts of the sorted log per
-                      target */
+    int max_len;     /* bound on len: the pre-round nnz of A */
+    bool incomplete; /* an append failed: the round falls back to a rebuild */
+    int *start;      /* [DtonSubsts.cap + 1] segment starts of the sorted log per
+                        target */
 } DtonLog;
 
 /* Scratch for the doubleton eliminator (work->dton). Only 'at' persists across

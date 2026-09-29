@@ -31,6 +31,7 @@
 #include "Workspace.h"
 #include "radix_sort.h"
 #include <limits.h>
+#include <string.h>
 
 /* accumulator flag bits: the row originally had this column / the
    substitution contributed to it */
@@ -38,25 +39,23 @@
 #define DTON_ACC_MODIFIED ((uint8_t) 2)
 
 /* Appends a tuple to the sweep's change log (an upsert, or a delete when
-   'val' is zero), doubling the arrays as needed. On allocation failure the
-   round is flagged so the refresh falls back to a full rebuild. */
+   'val' is zero), doubling the arrays up to max_len as needed. On allocation
+   failure the round is flagged so the refresh falls back to a full rebuild. */
 static inline void dton_log_push(DtonWorkspace *ws, int col, int row, double val)
 {
     if (ws->log.len == ws->log.alloc)
     {
-        size_t cap = (size_t) ws->log.alloc * 2;
-        bool ok = ws->log.alloc <= INT_MAX / 2;
-        if (ok)
-        {
-            ok = ps_grow(&ws->log.col, cap, sizeof(int)) && ok;
-            ok = ps_grow(&ws->log.row, cap, sizeof(int)) && ok;
-            ok = ps_grow(&ws->log.val, cap, sizeof(double)) && ok;
-            ok = ps_grow(&ws->log.row2, cap, sizeof(int)) && ok;
-            ok = ps_grow(&ws->log.val2, cap, sizeof(double)) && ok;
-        }
+        assert(ws->log.alloc < ws->log.max_len);
+        size_t cap = MIN((size_t) ws->log.alloc * 2, (size_t) ws->log.max_len);
+        bool ok = true;
+        ok = ps_grow(&ws->log.col, cap, sizeof(int)) && ok;
+        ok = ps_grow(&ws->log.row, cap, sizeof(int)) && ok;
+        ok = ps_grow(&ws->log.val, cap, sizeof(double)) && ok;
+        ok = ps_grow(&ws->log.row2, cap, sizeof(int)) && ok;
+        ok = ps_grow(&ws->log.val2, cap, sizeof(double)) && ok;
         if (!ok)
         {
-            ws->log.overflow = true;
+            ws->log.incomplete = true;
             return;
         }
         ws->log.alloc = (int) cap;
@@ -128,14 +127,11 @@ static void dton_sweep_row_finish(Problem *prob, int q, int old_len, int new_len
     switch (new_len)
     {
         case 0:
-            assert(!iVec_contains(constraints->state->empty_rows, q));
             iVec_append(constraints->state->empty_rows, q);
-            assert(!HAS_TAG(row_tags[q], R_TAG_INACTIVE));
             break;
         case 1:
             if (old_len != 1)
             {
-                assert(!iVec_contains(constraints->state->ston_rows, q));
                 iVec_append(constraints->state->ston_rows, q);
             }
             break;
@@ -194,8 +190,7 @@ static void dton_sweep_row(Problem *prob, DtonWorkspace *ws, int q, int *deferre
     {
         int oc = acc->touched[ii];
         double val = acc->value[oc];
-        bool keep =
-            (acc->flags[oc] == DTON_ACC_EXISTED) ? true : ABS(val) > ZERO_TOL;
+        bool keep = acc->flags[oc] == DTON_ACC_EXISTED || ABS(val) > ZERO_TOL;
         bool is_target = ws->targets.col_to_target[oc] >= 0;
         if (keep)
         {
@@ -224,7 +219,7 @@ static void dton_sweep_row(Problem *prob, DtonWorkspace *ws, int q, int *deferre
         Activity_init(act, A->x + start, A->i + start, new_len, constraints->bounds,
                       col_tags);
         act->status = old_status;
-        if (act->status == NOT_ADDED && (act->n_inf_min == 0 || act->n_inf_max == 0))
+        if (old_status == NOT_ADDED && (act->n_inf_min == 0 || act->n_inf_max == 0))
         {
             act->status = ADDED;
             iVec_append(constraints->state->updated_activities, q);
@@ -247,11 +242,14 @@ void dton_apply(Problem *prob, DtonWorkspace *ws, int *deferred, int *n_deferred
     int *col_sizes = constraints->state->col_sizes;
     Objective *obj = prob->obj;
 
-    // the composed targets: the only active columns whose content changes
-    // this round. Their pre-round sizes feed the size transitions of phase 5.
+    // collect the composed targets, the only active columns whose content
+    // changes this round, with their pre-round sizes for the size transitions
+    // of phase 5. Deactivate the owner rows first: substitution turns them into
+    // 0 = 0, and the sweep must skip them
     ws->targets.n = 0;
     ws->log.len = 0;
-    ws->log.overflow = false;
+    ws->log.max_len = (int) A->nnz;
+    ws->log.incomplete = false;
     for (int idx = 0; idx < ws->substs.n; ++idx)
     {
         int T = ws->substs.recs[idx].target;
@@ -262,12 +260,7 @@ void dton_apply(Problem *prob, DtonWorkspace *ws, int *deferred, int *n_deferred
             ws->targets.old_size[ws->targets.n] = col_sizes[T];
             ws->targets.n++;
         }
-    }
 
-    // deactivate the owner rows first: substitution turns them into 0 = 0,
-    // and the sweep must skip them
-    for (int idx = 0; idx < ws->substs.n; ++idx)
-    {
         int i = ws->substs.recs[idx].owner;
         assert(row_sizes[i] == 2);
         assert(!HAS_TAG(row_tags[i], R_TAG_INACTIVE));
@@ -374,10 +367,7 @@ static bool dton_at_refresh(Problem *prob, DtonWorkspace *ws)
 
     // stable counting sort of the log by target
     int *cursor = ws->acc.touched;
-    for (int ii = 0; ii <= ws->targets.n; ++ii)
-    {
-        ws->log.start[ii] = 0;
-    }
+    memset(ws->log.start, 0, (size_t) (ws->targets.n + 1) * sizeof(int));
     for (int ii = 0; ii < ws->log.len; ++ii)
     {
         ws->log.start[ws->targets.col_to_target[ws->log.col[ii]] + 1]++;
@@ -441,20 +431,14 @@ void dton_refresh_AT(Problem *prob, DtonWorkspace *ws)
     }
     bool waste =
         ws->at_valid && (size_t) (ws->at.tail_next - ws->at.tail_base) > 2 * A->nnz;
-    bool rebuild = ws->log.overflow ||
+    bool rebuild = ws->log.incomplete ||
                    (double) dirty > ws->rebuild_dirty_frac * (double) A->nnz ||
-                   waste;
-
-    if (!rebuild && !dton_at_refresh(prob, ws))
-    {
-        rebuild = true;
-    }
+                   waste || !dton_at_refresh(prob, ws);
     if (rebuild)
     {
         dton_rebuild_AT(prob, ws);
     }
     ws->last_round_rebuilt = rebuild;
-    AT = constraints->AT;
     assert(AT->nnz == A->nnz);
 
     for (int ii = 0; ii < ws->targets.n; ++ii)
@@ -471,12 +455,10 @@ void dton_refresh_AT(Problem *prob, DtonWorkspace *ws)
         assert(old_size > 0);
         if (new_size == 0)
         {
-            assert(!iVec_contains(constraints->state->empty_cols, T));
             iVec_append(constraints->state->empty_cols, T);
         }
         else if (new_size == 1 && old_size != 1)
         {
-            assert(!iVec_contains(constraints->state->ston_cols, T));
             iVec_append(constraints->state->ston_cols, T);
         }
 
@@ -487,8 +469,4 @@ void dton_refresh_AT(Problem *prob, DtonWorkspace *ws)
         count_locks_one_column(&col_view, constraints->state->col_locks + T,
                                constraints->row_tags);
     }
-    ws->targets.n = 0;
-
-    ws->log.len = 0;
-    ws->log.overflow = false;
 }
