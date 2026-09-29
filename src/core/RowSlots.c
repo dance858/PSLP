@@ -38,28 +38,28 @@ static inline bool dropped(const uint8_t *tags, uint8_t drop_bits, int c)
     return tags != NULL && (tags[c] & drop_bits) != 0;
 }
 
-bool matrix_update_row(Matrix *M, RowSlots *slots, int r, const int *cols,
+bool matrix_update_row(Matrix *M, RowSlots *slots, int row, const int *cols,
                        const double *vals, int n, const uint8_t *tags,
                        uint8_t drop_bits)
 {
-    int start = M->p[r].start;
-    int o = start;
-    int oe = M->p[r].end;
-    int u = 0;
+    int start = M->p[row].start;
+    int old = start;
+    int old_end = M->p[row].end;
+    int k = 0;
 
     // merge the old entries and the updates into the free tail
-    int d0 = slots->tail_next;
-    int d = d0;
-    while (o < oe || u < n)
+    int merged_start = slots->tail_next;
+    int merged_end = merged_start;
+    while (old < old_end || k < n)
     {
-        int c_old = (o < oe) ? M->i[o] : INT_MAX;
-        int c_upd = (u < n) ? cols[u] : INT_MAX;
+        int c_old = (old < old_end) ? M->i[old] : INT_MAX;
+        int c_upd = (k < n) ? cols[k] : INT_MAX;
         int c;
         double v;
         if (c_old < c_upd)
         {
             c = c_old;
-            v = M->x[o++];
+            v = M->x[old++];
             if (dropped(tags, drop_bits, c))
             {
                 continue;
@@ -68,41 +68,41 @@ bool matrix_update_row(Matrix *M, RowSlots *slots, int r, const int *cols,
         else
         {
             c = c_upd;
-            v = vals[u++];
+            v = vals[k++];
             if (c_old == c_upd)
             {
-                o++; // overwritten
+                old++; // overwritten
             }
             if (v == 0.0)
             {
                 continue; // deleted
             }
         }
-        if ((size_t) d == M->n_alloc)
+        if ((size_t) merged_end == M->n_alloc)
         {
             return false; // tail full: only free space was written
         }
-        M->i[d] = c;
-        M->x[d] = v;
-        d++;
+        M->i[merged_end] = c;
+        M->x[merged_end] = v;
+        merged_end++;
     }
 
     // a result that fits the row's slot goes back into it; otherwise the
     // merged entries already are the row's new slot
-    int len = d - d0;
-    if (len <= slots->cap[r])
+    int len = merged_end - merged_start;
+    if (len <= slots->cap[row])
     {
-        memcpy(M->i + start, M->i + d0, (size_t) len * sizeof(int));
-        memcpy(M->x + start, M->x + d0, (size_t) len * sizeof(double));
-        d0 = start;
+        memcpy(M->i + start, M->i + merged_start, (size_t) len * sizeof(int));
+        memcpy(M->x + start, M->x + merged_start, (size_t) len * sizeof(double));
+        merged_start = start;
     }
     else
     {
-        slots->tail_next = d0 + len;
-        slots->cap[r] = len;
+        slots->tail_next = merged_start + len;
+        slots->cap[row] = len;
     }
-    M->p[r].start = d0;
-    M->p[r].end = d0 + len;
-    M->nnz = M->nnz + (size_t) len - (size_t) (oe - start);
+    M->p[row].start = merged_start;
+    M->p[row].end = merged_start + len;
+    M->nnz = M->nnz + (size_t) len - (size_t) (old_end - start);
     return true;
 }

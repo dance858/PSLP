@@ -42,7 +42,7 @@ typedef struct RowSlots
    index order with p[m].start marking their end (as built by transpose). */
 void row_slots_init(RowSlots *slots, const Matrix *M);
 
-/* Replaces row r of M by the merge of its entries and n updates (cols
+/* Replaces the given row of M by the merge of its entries and n updates (cols
    ascending). A zero value deletes the entry, any other value inserts or
    overwrites it. Deleting an absent entry does nothing. Entries whose column
    c has tags[c] & drop_bits are dropped (tags may be NULL). Writes in place
@@ -50,7 +50,7 @@ void row_slots_init(RowSlots *slots, const Matrix *M);
    tail, and updates M->nnz. The merge is built in the free tail, so it needs
    room there for the result even when the row stays in its slot. Returns
    false, leaving the row untouched, if the tail has no room. */
-bool matrix_update_row(Matrix *M, RowSlots *slots, int r, const int *cols,
+bool matrix_update_row(Matrix *M, RowSlots *slots, int row, const int *cols,
                        const double *vals, int n, const uint8_t *tags,
                        uint8_t drop_bits);
 
