@@ -17,6 +17,7 @@
  */
 
 #include "Workspace.h"
+#include "DtonsEq.h"
 #include "Memory_wrapper.h"
 #include "Numerics.h"
 #include <stdio.h>
@@ -28,6 +29,7 @@ Work *new_work(size_t n_rows, size_t n_cols)
     Work *work = (Work *) ps_malloc(1, sizeof(Work));
     RETURN_PTR_IF_NULL(work, NULL);
 
+    work->dton = NULL;
     work->iwork_n_cols = (int *) ps_calloc(n_cols, sizeof(int));
     work->iwork_n_rows = (int *) ps_calloc(n_rows, sizeof(int));
     work->iwork1_max_nrows_ncols =
@@ -64,6 +66,7 @@ void free_work(Work *work)
     PS_FREE(work->iwork1_max_nrows_ncols);
     PS_FREE(work->iwork2_max_nrows_ncols);
     iVec_free(work->int_vec);
+    dton_ws_free(work->dton);
     PS_FREE(work->mappings->cols);
     PS_FREE(work->mappings->rows);
     PS_FREE(work->mappings);

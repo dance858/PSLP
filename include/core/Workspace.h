@@ -28,6 +28,8 @@ typedef struct Mapping
     int *cols;
 } Mapping;
 
+struct DtonWorkspace;
+
 /* The int_vec in the following struct is used within
     1. parallel_rows to store bin_starts
 */
@@ -51,6 +53,9 @@ typedef struct Work
     int *radix_aux;
 
     Mapping *mappings;
+
+    // lazily allocated by the doubleton explorer
+    struct DtonWorkspace *dton;
 } Work;
 
 Work *new_work(size_t n_rows, size_t n_col);

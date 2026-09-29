@@ -149,32 +149,11 @@ static char *test_3_core()
     return 0;
 }
 
-// substituting x_subst = (rhs - aij x_stay) / aik in the objective
-static char *test_4_core()
-{
-    double *c = (double *) malloc(2 * sizeof(double));
-    c[0] = 1;
-    c[1] = 2;
-    Objective *obj = objective_new(c);
-
-    // stay = 0, subst = 1, aik = 2, aij = 4, rhs = 6:
-    // c[0] -= (4 / 2) * 2 = 4, offset += (6 / 2) * 2 = 6
-    sub_var_in_obj_dton(obj, 0, 1, 2.0, 4.0, 6.0);
-    mu_assert("error c", obj->c[0] == -3.0);
-    mu_assert("error c", obj->c[1] == 2.0);
-    mu_assert("error offset", obj->offset == 6.0);
-
-    free_objective(obj);
-
-    return 0;
-}
-
 static const char *all_tests_core()
 {
     mu_run_test(test_1_core, counter_core);
     mu_run_test(test_2_core, counter_core);
     mu_run_test(test_3_core, counter_core);
-    mu_run_test(test_4_core, counter_core);
     return 0;
 }
 

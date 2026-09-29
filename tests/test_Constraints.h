@@ -28,7 +28,7 @@ static char *test_1_constraints()
     int nnz = 9;
     int work_n_cols[4];
     Matrix *A = matrix_new(vals, cols, row_starts, n_rows, n_cols, nnz);
-    Matrix *AT = transpose(A, work_n_cols);
+    Matrix *AT = transpose(A, work_n_cols, 0);
     double lhs[3] = {4, 2, -INF};
     double rhs[3] = {4, 2, 1};
     Bound bounds[4];
@@ -113,7 +113,7 @@ static char *test_2_constraints()
     int nnz = 40;
     int work_n_cols[10];
     Matrix *A = matrix_new(vals, cols, row_starts, n_rows, n_cols, nnz);
-    Matrix *AT = transpose(A, work_n_cols);
+    Matrix *AT = transpose(A, work_n_cols, 0);
     double lhs[10] = {0.0};
     double rhs[10] = {0.0};
     Bound bounds[10];
@@ -195,7 +195,7 @@ static char *test_3_constraints()
     int nnz = 9;
     int work_n_cols[4];
     Matrix *A = matrix_new(vals, cols, row_starts, n_rows, n_cols, nnz);
-    Matrix *AT = transpose(A, work_n_cols);
+    Matrix *AT = transpose(A, work_n_cols, 0);
     double lhs[3] = {4, 2, -INF};
     double rhs[3] = {4, 2, 1};
     Bound bounds[4];
@@ -272,7 +272,7 @@ static char *test_4_constraints()
     int nnz = 40;
     int work_n_cols[10];
     Matrix *A = matrix_new(vals, cols, row_starts, n_rows, n_cols, nnz);
-    Matrix *AT = transpose(A, work_n_cols);
+    Matrix *AT = transpose(A, work_n_cols, 0);
     double lhs[10] = {0.0};
     double rhs[10] = {0.0};
     Bound bounds[10];

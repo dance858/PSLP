@@ -55,6 +55,7 @@ enum ReductionTypes
     EQ_TO_INEQ = 1 << 8,
     BOUND_CHANGE_NO_ROW = 1 << 9,
     BOUND_CHANGE_THE_ROW = 1 << 10,
+    SUB_COL_DTON = 1 << 15,
 
     // only required for mapping a solution to the reduced problem
     PARALLEL_ROW = 1 << 11,
@@ -274,6 +275,37 @@ static inline SubColRecord decode_sub_col(const int *indices, const double *vals
     r.vals = vals + 1;
     r.row = indices[1 + r.len];
     r.ck = vals[1 + r.len];
+    return r;
+}
+
+/* Saves the substitution x_k = shift + mult * x_s made by the doubleton
+   eliminator. The owner row's multiplier comes from the DELETED_ROW and
+   ADDED_ROWS records, so this record carries only the primal map; the
+   postsolve sets z_k = 0.
+   info->vals stores    [mult, shift].
+   info->indices stores [k, s].
+*/
+void save_retrieval_sub_col_dton(PostsolveInfo *info, int k, int s, double mult,
+                                 double shift);
+
+typedef struct SubColDtonRecord
+{
+    int k;
+    int s;
+    double mult;
+    double shift;
+} SubColDtonRecord;
+
+static inline SubColDtonRecord
+decode_sub_col_dton(const int *indices, const double *vals, int record_len)
+{
+    SubColDtonRecord r;
+    assert(record_len == 2);
+    (void) record_len; // only used by the assert
+    r.k = indices[0];
+    r.s = indices[1];
+    r.mult = vals[0];
+    r.shift = vals[1];
     return r;
 }
 

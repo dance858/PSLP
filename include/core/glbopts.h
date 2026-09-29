@@ -25,15 +25,6 @@
 #define IS_NEG_INF(x) (isinf(x) && (x) < 0)
 #define IS_ABS_INF(x) (IS_POS_INF(x) || IS_NEG_INF(x))
 
-#ifdef TESTING
-#define EXTRA_ROW_SPACE 2
-#define EXTRA_MEMORY_RATIO 1
-#else
-#define EXTRA_ROW_SPACE 4
-// this value on EXTRA_MEMORY_RATIO matters for neos-5093327-huahum
-#define EXTRA_MEMORY_RATIO 2
-#endif
-
 #define RETURN_IF_INFEASIBLE(x)                                                     \
     if ((x) == INFEASIBLE) return INFEASIBLE
 #define RETURN_IF_UNBNDORINFEAS(x)                                                  \
@@ -43,6 +34,5 @@
 
 #define SIZE_INACTIVE_ROW -1
 #define SIZE_INACTIVE_COL -1
-#define MAX_RATIO_PIVOT 1e3
 
 #endif

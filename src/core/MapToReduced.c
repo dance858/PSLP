@@ -159,7 +159,7 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
             // PARALLEL_ROW record that follows
         }
         else if (type == FIXED_COL || type == FIXED_COL_INF || type == SUB_COL ||
-                 type == DELETED_ROW)
+                 type == SUB_COL_DTON || type == DELETED_ROW)
         {
             // only affects a removed row or column
         }

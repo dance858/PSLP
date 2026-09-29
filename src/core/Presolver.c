@@ -19,8 +19,8 @@
 #include "Activity.h"
 #include "Constraints.h"
 #include "CoreTransformations.h"
-#include "DTonsEq.h"
 #include "Debugger.h"
+#include "DtonsEq.h"
 #include "Locks.h"
 #include "Matrix.h"
 #include "Memory_wrapper.h"
@@ -87,7 +87,6 @@ Settings *default_settings(void)
     stgs->dual_fix = true;
     stgs->finite_bound_tightening = true;
     stgs->relax_bounds = false;
-    stgs->max_shift = 10;
     stgs->max_time = 60.0;
     stgs->verbose = true;
     return stgs;
@@ -265,7 +264,7 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     //  Build bounds, row tags, A and AT. We first build A, then in parallel
     //  we build AT (main thread) and some other things (second thread).
     // ---------------------------------------------------------------------------
-    A = matrix_new_no_extra_space(Ax, Ai, Ap, n_rows, n_cols, nnz);
+    A = matrix_new(Ax, Ai, Ap, n_rows, n_cols, nnz);
     if (!A) goto cleanup;
 
     ps_thread_t thread_id;
@@ -276,7 +275,8 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     ps_thread_create(&thread_id, NULL, init_thread_func, &parallel_data);
 
     // Main thread: Transpose A and count rows
-    AT = transpose(A, work->iwork_n_cols);
+    AT = transpose(A, work->iwork_n_cols,
+                   stgs->dton_eq ? dton_extra_memory(A->nnz) : 0);
     if (!AT)
     {
         ps_thread_join(&thread_id, NULL);
@@ -486,7 +486,7 @@ static inline PresolveStatus run_fast_explorers(Problem *prob, const Settings *s
     if (stgs->dton_eq)
     {
         clock_gettime(CLOCK_MONOTONIC, &timer.start);
-        status |= remove_dton_eq_rows(prob, stgs->max_shift);
+        status |= remove_dton_eq_rows(prob);
         clock_gettime(CLOCK_MONOTONIC, &timer.end);
         stats->time_dton_rows += GET_ELAPSED_SECONDS(timer);
         RETURN_IF_INFEASIBLE(status);
@@ -750,10 +750,12 @@ PresolveStatus run_presolver(Presolver *presolver)
     DEBUG(run_debugger_stats_consistency_check(stats));
     populate_presolved_problem(presolver);
 
-    // The transpose is only needed during presolve. Postsolve uses the recorded
-    // reductions and row/column mappings.
+    // The transpose and the doubleton workspace are only needed during
+    // presolve. Postsolve uses the recorded reductions and row/column mappings.
     free_matrix(prob->constraints->AT);
     prob->constraints->AT = NULL;
+    dton_ws_free(prob->constraints->state->work->dton);
+    prob->constraints->state->work->dton = NULL;
 
     clock_gettime(CLOCK_MONOTONIC, &outer_timer.end);
     stats->time_presolve = GET_ELAPSED_SECONDS(outer_timer);
