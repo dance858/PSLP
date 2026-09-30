@@ -29,72 +29,74 @@
 #include "State.h"
 #include "Tags.h"
 #include "Workspace.h"
-#include "radix_sort.h"
-#include <limits.h>
-#include <string.h>
 
 /* Accumulator flag bits: the row originally had this column, or a
    substitution contributed to it. */
 #define DTON_ACC_EXISTED ((uint8_t) 1)
 #define DTON_ACC_MODIFIED ((uint8_t) 2)
 
-/* Appends a tuple to the sweep's change log (an upsert, or a delete when
-   'val' is zero), doubling the arrays up to max_len as needed. On allocation
-   failure the round is flagged so the update falls back to a full rebuild. */
-static inline void dton_log_push(DtonLog *change_log, int target_index, int row,
+/* Appends a tuple to a target's segment of the change log (an upsert, or a
+   delete when 'val' is zero). Does nothing in a round that rebuilds. */
+static inline void dton_log_push(DtonWorkspace *dton_work, int target_index, int row,
                                  double val)
 {
-    if (change_log->len == change_log->cap)
+    if (!dton_work->merge_round)
     {
-        assert(change_log->cap < change_log->max_len);
-        size_t cap = MIN((size_t) change_log->cap * 2, (size_t) change_log->max_len);
-        bool ok = true;
-        ok &= ps_grow(&change_log->target_index, cap, sizeof(int));
-        ok &= ps_grow(&change_log->row, cap, sizeof(int));
-        ok &= ps_grow(&change_log->val, cap, sizeof(double));
-        ok &= ps_grow(&change_log->sorted_row, cap, sizeof(int));
-        ok &= ps_grow(&change_log->sorted_val, cap, sizeof(double));
-        if (!ok)
-        {
-            change_log->incomplete = true;
-            return;
-        }
-        change_log->cap = (int) cap;
+        return;
     }
-    change_log->target_index[change_log->len] = target_index;
-    change_log->row[change_log->len] = row;
-    change_log->val[change_log->len] = val;
-    change_log->len++;
+    DtonTarget *target = dton_work->targets.list + target_index;
+    int pos = target->log_end++;
+    assert(pos < (target_index + 1 < dton_work->targets.n ? target[1].log_start
+                                                          : dton_work->log.cap));
+    dton_work->log.row[pos] = row;
+    dton_work->log.val[pos] = val;
 }
 
-/* Reserves the row list for the round (one slot per entry of the eliminated
-   columns in the pre-round AT). False if the allocation fails. */
-bool dton_reserve_rows(Problem *prob, DtonWorkspace *dton_work)
+/* Decides whether the round merges its changes into AT or rebuilds it, and
+   lays out the change log of a merge round. On entry each target's log_end
+   holds the room its segment needs. */
+static void dton_log_start(DtonWorkspace *dton_work, size_t nnz)
 {
-    const Matrix *AT = prob->constraints->AT;
-    int subst_cols_nnz = 0;
+    DtonTargets *targets = &dton_work->targets;
+    DtonLog *change_log = &dton_work->log;
 
-    for (int ii = 0; ii < dton_work->substs.n; ++ii)
+    /* Dirty content of the round. */
+    double dirty = 0.0;
+    for (int ii = 0; ii < targets->n; ++ii)
     {
-        int k = dton_work->substs.recs[ii].k;
-        subst_cols_nnz += AT->p[k].end - AT->p[k].start;
+        dirty += targets->list[ii].log_end;
     }
-    if (subst_cols_nnz <= dton_work->rows.cap)
+    bool tail_bloated =
+        dton_work->at_valid &&
+        (size_t) (dton_work->at.tail_next - dton_work->at.tail_base) > 2 * nnz;
+    dton_work->merge_round =
+        !tail_bloated && dirty <= dton_work->rebuild_dirty_frac * (double) nnz;
+    if (!dton_work->merge_round)
     {
-        return true;
+        return;
     }
 
-    bool ok = true;
-    ok &= ps_grow(&dton_work->rows.list, (size_t) subst_cols_nnz, sizeof(int));
-    ok &= ps_grow(&dton_work->rows.perm, (size_t) subst_cols_nnz, sizeof(int));
-    ok &=
-        ps_grow(&dton_work->rows.sort_scratch, (size_t) subst_cols_nnz, sizeof(int));
-    if (!ok)
+    /* A failed allocation turns the round into a rebuild. */
+    if (dirty > change_log->cap)
     {
-        return false;
+        if (!ps_grow(&change_log->row, (size_t) dirty, sizeof(int)) ||
+            !ps_grow(&change_log->val, (size_t) dirty, sizeof(double)))
+        {
+            dton_work->merge_round = false;
+            return;
+        }
+        change_log->cap = (int) dirty;
     }
-    dton_work->rows.cap = subst_cols_nnz;
-    return true;
+
+    int log_start = 0;
+    for (int ii = 0; ii < targets->n; ++ii)
+    {
+        DtonTarget *target = targets->list + ii;
+        int room = target->log_end;
+        target->log_start = log_start;
+        target->log_end = log_start;
+        log_start += room;
+    }
 }
 
 /* Finishes a swept row whose entries now occupy [start, start + new_len): shifts
@@ -204,13 +206,13 @@ static void dton_sweep_row(Problem *prob, DtonWorkspace *dton_work, int row,
             ++write_pos;
             if (is_target)
             {
-                dton_log_push(&dton_work->log, target_index, row, val);
+                dton_log_push(dton_work, target_index, row, val);
             }
         }
         else if (acc->flags[col] & DTON_ACC_EXISTED)
         {
             assert(is_target);
-            dton_log_push(&dton_work->log, target_index, row, 0.0); /* Delete. */
+            dton_log_push(dton_work, target_index, row, 0.0); /* Delete. */
         }
     }
     int new_len = write_pos - start;
@@ -250,25 +252,22 @@ void dton_apply(Problem *prob, DtonWorkspace *dton_work, int *deferred,
     Objective *obj = prob->obj;
     const DtonSubsts *substs = &dton_work->substs;
     DtonTargets *targets = &dton_work->targets;
-    DtonRows *rows = &dton_work->rows;
-
-    /* Start an empty change log. */
-    dton_work->log.len = 0;
-    dton_work->log.max_len = (int) A->nnz;
-    dton_work->log.incomplete = false;
+    uint64_t *swept_rows = dton_work->swept_rows;
 
     /* Collect the composed targets, the only active columns whose content
-       changes this round, with their pre-round sizes. */
+       changes this round, with their pre-round sizes. A target's log segment
+       needs room for one tuple per entry of its old column. */
     targets->n = 0;
     for (int idx = 0; idx < substs->n; ++idx)
     {
-        int target = substs->recs[idx].target;
-        if (targets->col_to_target[target] < 0)
+        int col = substs->recs[idx].target;
+        if (targets->col_to_target[col] < 0)
         {
-            targets->col_to_target[target] = targets->n;
-            targets->list[targets->n] = target;
-            targets->old_size[targets->n] = col_sizes[target];
-            targets->n++;
+            targets->col_to_target[col] = targets->n;
+            DtonTarget *target = targets->list + targets->n++;
+            target->col = col;
+            target->old_size = col_sizes[col];
+            target->log_end = col_sizes[col];
         }
     }
 
@@ -285,37 +284,39 @@ void dton_apply(Problem *prob, DtonWorkspace *dton_work, int *deferred,
         A->nnz -= 2;
     }
 
-    /* The affected rows: every active row of an eliminated column, from the
-       pre-round AT, sorted ascending so the change log is row-ascending per
-       target. */
-    int n_rows = 0;
+    /* Mark the rows to sweep: every active row of an eliminated column, from
+       the pre-round AT. Each marked entry adds one tuple of room to the log
+       segment of the column's target. */
     for (int idx = 0; idx < substs->n; ++idx)
     {
-        int k = substs->recs[idx].k;
-        for (int jj = AT->p[k].start; jj < AT->p[k].end; ++jj)
+        const DtonSubst *rec = substs->recs + idx;
+        DtonTarget *target = targets->list + targets->col_to_target[rec->target];
+        for (int jj = AT->p[rec->k].start; jj < AT->p[rec->k].end; ++jj)
         {
             int row = AT->i[jj];
             if (!HAS_TAG(row_tags[row], R_TAG_INACTIVE))
             {
-                assert(n_rows < rows->cap);
-                rows->list[n_rows] = row;
-                rows->perm[n_rows] = n_rows;
-                n_rows++;
+                swept_rows[row / 64] |= (uint64_t) 1 << (row % 64);
+                target->log_end++;
             }
         }
     }
-    radix_sort_by_key(rows->perm, (size_t) n_rows, rows->list, rows->sort_scratch);
 
-    /* Sweep each affected row once. A row with several eliminated entries is
-       listed once per entry. */
-    int prev_row = -1;
-    for (int ii = 0; ii < n_rows; ++ii)
+    dton_log_start(dton_work, A->nnz);
+
+    /* Sweep the marked rows in ascending order, so every log segment is
+       row-ascending, and clear the marks. */
+    int n_words = (dton_work->m + 63) / 64;
+    for (int ii = 0; ii < n_words; ++ii)
     {
-        int row = rows->list[rows->perm[ii]];
-        if (row != prev_row)
+        uint64_t word = swept_rows[ii];
+        swept_rows[ii] = 0;
+        for (int row = 64 * ii; word != 0; ++row, word >>= 1)
         {
-            dton_sweep_row(prob, dton_work, row, deferred, n_deferred);
-            prev_row = row;
+            if (word & 1)
+            {
+                dton_sweep_row(prob, dton_work, row, deferred, n_deferred);
+            }
         }
     }
 
@@ -353,32 +354,8 @@ void dton_rebuild_AT(Problem *prob, DtonWorkspace *dton_work)
     int *col_sizes = constraints->state->col_sizes;
     for (int ii = 0; ii < dton_work->targets.n; ++ii)
     {
-        int target = dton_work->targets.list[ii];
-        col_sizes[target] = AT->p[target].end - AT->p[target].start;
-    }
-}
-
-/* Sorts the change log by target into sorted_row/sorted_val, keeping rows ascending
-   within a target. Target t's entries end up in [start[t], start[t + 1]).
-   'cursor' is scratch of n_targets ints. */
-static inline void dton_log_sort_by_target(DtonLog *change_log, int n_targets,
-                                           int *cursor)
-{
-    memset(change_log->start, 0, (size_t) (n_targets + 1) * sizeof(int));
-    for (int ii = 0; ii < change_log->len; ++ii)
-    {
-        change_log->start[change_log->target_index[ii] + 1]++;
-    }
-    for (int ii = 0; ii < n_targets; ++ii)
-    {
-        change_log->start[ii + 1] += change_log->start[ii];
-        cursor[ii] = change_log->start[ii];
-    }
-    for (int ii = 0; ii < change_log->len; ++ii)
-    {
-        int pos = cursor[change_log->target_index[ii]]++;
-        change_log->sorted_row[pos] = change_log->row[ii];
-        change_log->sorted_val[pos] = change_log->val[ii];
+        int col = dton_work->targets.list[ii].col;
+        col_sizes[col] = AT->p[col].end - AT->p[col].start;
     }
 }
 
@@ -392,17 +369,13 @@ static bool dton_merge_into_AT(Problem *prob, DtonWorkspace *dton_work)
     const Matrix *A = constraints->A;
     const RowTag *row_tags = constraints->row_tags;
     int *col_sizes = constraints->state->col_sizes;
-    DtonLog *change_log = &dton_work->log;
-    const int *targets = dton_work->targets.list;
-    int n_targets = dton_work->targets.n;
+    const DtonLog *change_log = &dton_work->log;
 
     if (!dton_work->at_valid)
     {
         row_slots_init(&dton_work->at, AT);
         dton_work->at_valid = true;
     }
-
-    dton_log_sort_by_target(change_log, n_targets, dton_work->acc.touched);
 
     /* Empty the eliminated columns. */
     for (int idx = 0; idx < dton_work->substs.n; ++idx)
@@ -413,86 +386,69 @@ static bool dton_merge_into_AT(Problem *prob, DtonWorkspace *dton_work)
 
     /* Each target merges its log segment (rows ascending) into its old column.
        The owner rows of the round are inactive and dropped. */
-    for (int ii = 0; ii < n_targets; ++ii)
+    for (int ii = 0; ii < dton_work->targets.n; ++ii)
     {
-        int target = targets[ii];
-        int log_start = change_log->start[ii];
-        int log_end = change_log->start[ii + 1];
-        if (!matrix_update_row(AT, &dton_work->at, target,
-                               change_log->sorted_row + log_start,
-                               change_log->sorted_val + log_start,
-                               log_end - log_start, row_tags, R_TAG_INACTIVE))
+        const DtonTarget *target = dton_work->targets.list + ii;
+        if (!matrix_update_row(
+                AT, &dton_work->at, target->col, change_log->row + target->log_start,
+                change_log->val + target->log_start,
+                target->log_end - target->log_start, row_tags, R_TAG_INACTIVE))
         {
             return false; /* Tail full: the caller rebuilds. */
         }
-        col_sizes[target] = AT->p[target].end - AT->p[target].start;
+        col_sizes[target->col] = AT->p[target->col].end - AT->p[target->col].start;
     }
 
     AT->nnz = A->nnz;
     return true;
 }
 
-/* Phase 5: brings A transpose up to date. The eliminated columns are emptied
-   and each target is merged with its log segment, in place or moved to the
-   tail. Falls back to a full rebuild when merging does not pay off or
-   cannot finish. Then updates the targets' size worklists and locks. */
+/* Phase 5: brings A transpose up to date. In a merge round the eliminated
+   columns are emptied and each target is merged with its log segment, in
+   place or moved to the tail. Otherwise, or when the merge cannot finish, A
+   transpose is rebuilt. Then updates the targets' size worklists and locks. */
 void dton_update_AT(Problem *prob, DtonWorkspace *dton_work)
 {
     Constraints *constraints = prob->constraints;
-    const Matrix *A = constraints->A;
     const Matrix *AT = constraints->AT;
     int *col_sizes = constraints->state->col_sizes;
 
-    /* Dirty content of the round, known before anything touches AT. */
-    double dirty = dton_work->log.len;
-    for (int ii = 0; ii < dton_work->targets.n; ++ii)
+    if (dton_work->merge_round)
     {
-        int target = dton_work->targets.list[ii];
-        dirty += AT->p[target].end - AT->p[target].start;
+        dton_work->merge_round = dton_merge_into_AT(prob, dton_work);
     }
-    bool tail_bloated =
-        dton_work->at_valid &&
-        (size_t) (dton_work->at.tail_next - dton_work->at.tail_base) > 2 * A->nnz;
-    bool rebuild = dton_work->log.incomplete ||
-                   dirty > dton_work->rebuild_dirty_frac * (double) A->nnz ||
-                   tail_bloated;
-    if (!rebuild)
-    {
-        rebuild = !dton_merge_into_AT(prob, dton_work);
-    }
-    if (rebuild)
+    if (!dton_work->merge_round)
     {
         dton_rebuild_AT(prob, dton_work);
     }
-    dton_work->last_round_rebuilt = rebuild;
-    assert(AT->nnz == A->nnz);
+    assert(AT->nnz == constraints->A->nnz);
 
     for (int ii = 0; ii < dton_work->targets.n; ++ii)
     {
-        int target = dton_work->targets.list[ii];
-        dton_work->targets.col_to_target[target] = -1;
-        assert(!HAS_TAG(constraints->col_tags[target], C_TAG_INACTIVE));
-        assert(col_sizes[target] == AT->p[target].end - AT->p[target].start);
+        int col = dton_work->targets.list[ii].col;
+        dton_work->targets.col_to_target[col] = -1;
+        assert(!HAS_TAG(constraints->col_tags[col], C_TAG_INACTIVE));
+        assert(col_sizes[col] == AT->p[col].end - AT->p[col].start);
 
         /* Push the size transitions. */
-        int new_size = col_sizes[target];
-        int old_size = dton_work->targets.old_size[ii];
+        int new_size = col_sizes[col];
+        int old_size = dton_work->targets.list[ii].old_size;
 
         assert(old_size > 0);
         if (new_size == 0)
         {
-            iVec_append(constraints->state->empty_cols, target);
+            iVec_append(constraints->state->empty_cols, col);
         }
         else if (new_size == 1 && old_size != 1)
         {
-            iVec_append(constraints->state->ston_cols, target);
+            iVec_append(constraints->state->ston_cols, col);
         }
 
         /* Recount the target's locks. */
-        RowView col_view = new_rowview(
-            AT->x + AT->p[target].start, AT->i + AT->p[target].start,
-            col_sizes + target, AT->p + target, NULL, NULL, NULL, target);
-        count_locks_one_column(&col_view, constraints->state->col_locks + target,
+        RowView col_view =
+            new_rowview(AT->x + AT->p[col].start, AT->i + AT->p[col].start,
+                        col_sizes + col, AT->p + col, NULL, NULL, NULL, col);
+        count_locks_one_column(&col_view, constraints->state->col_locks + col,
                                constraints->row_tags);
     }
 }

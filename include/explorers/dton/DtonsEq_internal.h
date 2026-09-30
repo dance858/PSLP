@@ -57,53 +57,41 @@ typedef struct DtonSubsts
     int *succ; /* [cap] compute_chain_depths input: record of the stay column */
     int *drop_priority; /* [cap] compute_chain_depths input: owner row */
     int *stamp;         /* [cap] compute_chain_depths scratch */
-    int cap;            /* also sizes DtonTargets.list/old_size and DtonLog.start */
+    int cap;            /* also sizes DtonTargets.list */
     int n;
     int *col_subst; /* [n] record index of a claimed column, -1 otherwise. Reset
                        through recs. */
 } DtonSubsts;
 
-/* Phase 4: the rows of the eliminated columns, read from the pre-round AT
-   (one entry per column entry, so with duplicates) and sorted. */
-typedef struct DtonRows
+/* Phases 4-5: a composed target of the round, with its pre-round size for the
+   size transitions (empty/singleton column worklists). Its part of the change
+   log is [log_start, log_end). */
+typedef struct DtonTarget
 {
-    int *list;
-    int *perm;         /* sort permutation of list */
-    int *sort_scratch; /* scratch of the sort */
-    int cap;
-} DtonRows;
+    int col;
+    int old_size;
+    int log_start;
+    int log_end;
+} DtonTarget;
 
-/* Phases 4-5: the unique composed targets with their pre-round sizes, for
-   the size transitions (empty/singleton column worklists) and the lock
-   recount. */
 typedef struct DtonTargets
 {
-    int *list;     /* [DtonSubsts.cap] */
-    int *old_size; /* [DtonSubsts.cap] parallel to list */
+    DtonTarget *list; /* [DtonSubsts.cap] the unique targets */
     int n;
     int *col_to_target; /* [n] index into list, -1 otherwise. Reset through
                            list. */
 } DtonTargets;
 
-/* Phases 4-5: change log of the sweep, one (target, row, value) tuple for
-   every target entry a swept row ends up with, and value 0 for a present
-   target entry that was dropped (A holds no exact zeros, so 0 marks a
-   delete). Rows ascending. The merge sorts it by target into sorted_row and
-   sorted_val (stable, so rows stay ascending) and applies it onto the old
-   column. */
+/* Phases 4-5: change log of the sweep, one (row, value) tuple for every
+   target entry a swept row ends up with, and value 0 for a present target
+   entry that was dropped (A holds no exact zeros, so 0 marks a delete). Every
+   target has its own segment with rows ascending, which the merge applies
+   onto the old column. */
 typedef struct DtonLog
 {
-    int *target_index; /* index into DtonTargets.list */
     int *row;
     double *val;
-    int *sorted_row;
-    double *sorted_val;
-    int len;
     int cap;
-    int max_len;     /* bound on len: the pre-round nnz of A */
-    bool incomplete; /* an append failed: the round falls back to a rebuild */
-    int *start;      /* [DtonSubsts.cap + 1] segment starts of the sorted log per
-                        target */
 } DtonLog;
 
 /* Scratch for the doubleton eliminator (work->dton). Only 'at' persists across
@@ -114,15 +102,17 @@ typedef struct DtonWorkspace
     int m; /* rows of A at allocation */
     int n; /* cols of A at allocation */
     DtonSubsts substs;
-    DtonRows rows;
-    SparseAccumulator acc;
     DtonTargets targets;
-    RowSlots at;   /* slots of A transpose's rows */
-    bool at_valid; /* 'at' matches the layout of A transpose */
+    uint64_t *swept_rows; /* [ceil(m / 64)] bitmap of the rows the round sweeps.
+                             Zero between rounds. */
+    SparseAccumulator acc;
     DtonLog log;
-    /* For the tests. Nothing depends on them for correctness. */
+    RowSlots at;      /* slots of A transpose's rows */
+    bool at_valid;    /* 'at' matches the layout of A transpose */
+    bool merge_round; /* the round logs its changes and merges them into A
+                         transpose. Otherwise A transpose is rebuilt. */
+    /* For the tests. Nothing depends on it for correctness. */
     double rebuild_dirty_frac; /* rebuild when dirty content > frac * nnz (0.25) */
-    bool last_round_rebuilt;   /* the last round took the rebuild path */
 } DtonWorkspace;
 
 /* Points the borrowed per-column arrays at the presolver's shared scratch and
@@ -146,9 +136,6 @@ PresolveStatus dton_transfer_bounds(struct Problem *prob, DtonWorkspace *dton_wo
 
 /* Phase 3b: emits the postsolve records of the round. */
 void dton_record(struct Problem *prob, DtonWorkspace *dton_work);
-
-/* Reserves the row list of the round. False if the allocation fails. */
-bool dton_reserve_rows(struct Problem *prob, DtonWorkspace *dton_work);
 
 /* Phase 4: applies the round to A, the row sides, worklists and objective. */
 void dton_apply(struct Problem *prob, DtonWorkspace *dton_work, int *deferred,

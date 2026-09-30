@@ -30,29 +30,21 @@ DtonWorkspace *dton_ws_new(size_t n_rows, size_t n_cols)
     RETURN_PTR_IF_NULL(dton_work, NULL);
     dton_work->m = (int) n_rows;
     dton_work->n = (int) n_cols;
+    dton_work->rebuild_dirty_frac = 0.25;
 
+    dton_work->swept_rows =
+        (uint64_t *) ps_calloc((n_rows + 63) / 64, sizeof(uint64_t));
     dton_work->acc.value = (double *) ps_malloc(n_cols, sizeof(double));
     dton_work->acc.flags = (uint8_t *) ps_malloc(n_cols, sizeof(uint8_t));
     dton_work->at.cap = (int *) ps_malloc(n_cols, sizeof(int));
 
-    DtonLog *change_log = &dton_work->log;
-    size_t log_cap = 1024;
-    change_log->cap = (int) log_cap;
-    change_log->target_index = (int *) ps_malloc(log_cap, sizeof(int));
-    change_log->row = (int *) ps_malloc(log_cap, sizeof(int));
-    change_log->val = (double *) ps_malloc(log_cap, sizeof(double));
-    change_log->sorted_row = (int *) ps_malloc(log_cap, sizeof(int));
-    change_log->sorted_val = (double *) ps_malloc(log_cap, sizeof(double));
-
-    if (!dton_work->acc.value || !dton_work->acc.flags || !dton_work->at.cap ||
-        !change_log->target_index || !change_log->row || !change_log->val ||
-        !change_log->sorted_row || !change_log->sorted_val)
+    if (!dton_work->swept_rows || !dton_work->acc.value || !dton_work->acc.flags ||
+        !dton_work->at.cap)
     {
         dton_ws_free(dton_work);
         return NULL;
     }
 
-    dton_work->rebuild_dirty_frac = 0.25;
     return dton_work;
 }
 
@@ -60,25 +52,18 @@ void dton_ws_free(DtonWorkspace *dton_work)
 {
     RETURN_IF_NULL(dton_work);
     PS_FREE(dton_work->substs.recs);
+    PS_FREE(dton_work->substs.depth);
     PS_FREE(dton_work->substs.order);
     PS_FREE(dton_work->substs.succ);
     PS_FREE(dton_work->substs.drop_priority);
-    PS_FREE(dton_work->substs.depth);
     PS_FREE(dton_work->substs.stamp);
     PS_FREE(dton_work->targets.list);
-    PS_FREE(dton_work->targets.old_size);
-    PS_FREE(dton_work->log.start);
+    PS_FREE(dton_work->swept_rows);
     PS_FREE(dton_work->acc.value);
     PS_FREE(dton_work->acc.flags);
-    PS_FREE(dton_work->rows.list);
-    PS_FREE(dton_work->rows.perm);
-    PS_FREE(dton_work->rows.sort_scratch);
     PS_FREE(dton_work->at.cap);
-    PS_FREE(dton_work->log.target_index);
     PS_FREE(dton_work->log.row);
     PS_FREE(dton_work->log.val);
-    PS_FREE(dton_work->log.sorted_row);
-    PS_FREE(dton_work->log.sorted_val);
     PS_FREE(dton_work);
 }
 
@@ -122,12 +107,11 @@ PresolveStatus remove_dton_eq_rows(Problem *prob)
 
         DEBUG(verify_no_duplicates_sort(dton_rows));
 
-        /* A failed reservation (records or rows) gives the round up before
-           anything is mutated. */
+        /* A failed reservation gives the round up before anything is
+           mutated. */
         bool progress = dton_claim(prob, dton_work, deferred, &n_deferred);
         dton_compose(dton_work, deferred, &n_deferred);
-        progress = progress && dton_work->substs.n > 0 &&
-                   dton_reserve_rows(prob, dton_work);
+        progress = progress && dton_work->substs.n > 0;
 
         if (progress)
         {

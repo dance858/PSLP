@@ -28,7 +28,6 @@
 #include "Problem.h"
 #include "State.h"
 #include "Tags.h"
-#include <limits.h>
 
 /* Decides which of the two entries of a doubleton equality row to
    substitute. Returns the index (0 or 1). */
@@ -55,7 +54,6 @@ static inline bool dton_reserve_records(DtonWorkspace *dton_work, size_t need)
     {
         return true;
     }
-    assert(need <= (size_t) INT_MAX);
     bool ok = true;
     ok &= ps_grow(&dton_work->substs.recs, need, sizeof(DtonSubst));
     ok &= ps_grow(&dton_work->substs.order, need, sizeof(int));
@@ -63,9 +61,7 @@ static inline bool dton_reserve_records(DtonWorkspace *dton_work, size_t need)
     ok &= ps_grow(&dton_work->substs.drop_priority, need, sizeof(int));
     ok &= ps_grow(&dton_work->substs.depth, need, sizeof(int));
     ok &= ps_grow(&dton_work->substs.stamp, need, sizeof(int));
-    ok &= ps_grow(&dton_work->targets.list, need, sizeof(int));
-    ok &= ps_grow(&dton_work->targets.old_size, need, sizeof(int));
-    ok &= ps_grow(&dton_work->log.start, need + 1, sizeof(int));
+    ok &= ps_grow(&dton_work->targets.list, need, sizeof(DtonTarget));
     if (!ok)
     {
         return false;
@@ -93,8 +89,8 @@ bool dton_claim(Problem *prob, DtonWorkspace *dton_work, int *deferred,
 
     int i, ii, col0, col1, subst, stay, k;
 
-    /* Every worklist row claims at most one record, and the targets and log
-       segments are bounded by the records. */
+    /* Every worklist row claims at most one record, and the targets are
+       bounded by the records. */
     if (!dton_reserve_records(dton_work, (size_t) dton_rows->len))
     {
         return false;

@@ -39,8 +39,8 @@ static int dton_depth(const DtonWorkspace *dton_work, int k)
     return dton_work->substs.depth[dton_work->substs.col_subst[k]];
 }
 
-/* Workspace lifecycle: allocated lazily by the first elimination, sized by
-   the problem, freed with the presolver (run under ASAN in CI). */
+/* Workspace lifecycle: allocated with the presolver, sized by the problem, freed
+ * with the presolver (run under ASAN in CI). */
 static char *test_dton_workspace()
 {
     // x0 + x1 = 1 (doubleton equality), x0 + x1 + x2 <= 4
@@ -1102,7 +1102,7 @@ static char *test_dton_merge_relocate()
 
     remove_dton_eq_rows(ps->prob);
 
-    mu_assert("merge path taken", !dton_work->last_round_rebuilt);
+    mu_assert("merge path taken", dton_work->merge_round);
     mu_assert("x1 span empty", AT->p[1].end == AT->p[1].start);
     mu_assert("x0 moved to the tail",
               AT->p[0].start >= dton_work->at.tail_base &&
@@ -1158,7 +1158,7 @@ static char *test_dton_merge_shrink()
 
     remove_dton_eq_rows(ps->prob);
 
-    mu_assert("merge path taken", !dton_work->last_round_rebuilt);
+    mu_assert("merge path taken", dton_work->merge_round);
     mu_assert("x0 stayed in place", AT->p[0].start == old_start);
     int rows[] = {2};
     double vals[] = {1};
@@ -1209,7 +1209,7 @@ static char *test_dton_postsolve_chain_rebuild_path()
 }
 
 /* More claims in one round than the initial record capacity: 300 independent
-   doubleton rows x_{2i} + 2 x_{2i+1} = 1 grow the claim, target and log arrays. */
+   doubleton rows x_{2i} + 2 x_{2i+1} = 1 grow the record and target arrays. */
 static char *test_dton_record_growth()
 {
     enum
@@ -1242,6 +1242,7 @@ static char *test_dton_record_growth()
     mu_assert("presolver allocation failed", ps != NULL);
     Constraints *constraints = ps->prob->constraints;
     DtonWorkspace *dton_work = constraints->state->work->dton;
+
     mu_assert("initial capacity below the round", dton_work->substs.cap < N);
 
     remove_dton_eq_rows(ps->prob);
@@ -1379,7 +1380,7 @@ static char *test_dton_cancellation_log()
     mu_assert("presolver allocation failed", ps != NULL);
     remove_dton_eq_rows(ps->prob);
     const Constraints *cs = ps->prob->constraints;
-    mu_assert("merge path taken", !cs->state->work->dton->last_round_rebuilt);
+    mu_assert("merge path taken", cs->state->work->dton->merge_round);
     mu_assert("x120 dropped from r0", dton_coeff(cs, 0, 120) == 0.0);
     // 199 - 3 eliminated (x110, x130, x150) + x5 inserted - x120 dropped
     mu_assert("r0 length", cs->state->row_sizes[0] == 196);
