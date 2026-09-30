@@ -369,6 +369,16 @@ void postsolver_run_primal_infeas_ray(const PostsolveInfo *info, Solution *sol,
             SubColRecord r = decode_sub_col(indices + start, vals + start, len);
             retrieve_sub_col_primal_ray(sol, r.k, r.cols, r.vals, r.len, r.row);
         }
+        else if (type == SUB_COL_DTON)
+        {
+            // the objective plays no role in a Farkas certificate and the owner
+            // row's multiplier comes from its DELETED_ROW / ADDED_ROWS records,
+            // so the eliminated (free) column has a zero component
+            SubColDtonRecord r =
+                decode_sub_col_dton(indices + start, vals + start, len);
+            assert(sol->z[r.k] == COL_NOT_RETRIEVED);
+            sol->z[r.k] = 0.0;
+        }
         else if (type == FIXED_COL_INF)
         {
             FixedColInfRecord r =
@@ -521,6 +531,15 @@ void postsolver_run_dual_infeas_ray(const PostsolveInfo *info, Solution *sol,
         {
             SubColRecord r = decode_sub_col(indices + start, vals + start, len);
             retrieve_sub_col_dual_ray(sol, r.k, r.cols, r.vals, r.len);
+        }
+        else if (type == SUB_COL_DTON)
+        {
+            // a ray is homogeneous: the shift drops out
+            SubColDtonRecord r =
+                decode_sub_col_dton(indices + start, vals + start, len);
+            assert(sol->x[r.k] == COL_NOT_RETRIEVED &&
+                   sol->x[r.s] != COL_NOT_RETRIEVED);
+            sol->x[r.k] = r.mult * sol->x[r.s];
         }
         else if (type == FIXED_COL_INF)
         {

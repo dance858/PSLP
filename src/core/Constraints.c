@@ -333,7 +333,11 @@ void constraints_clean(Constraints *constraints, Mapping *map)
 
     /* we don't need these for anything so no need to clean it */
 #if defined(TESTING) || !defined(NDEBUG)
-    remove_extra_space(constraints->AT, col_sizes, map->rows, new_n_rows);
+    // AT is only kept for the debugger; rebuild it from the compacted A (its
+    // rows need not be in index order, so it cannot be compacted in place)
+    free_matrix(constraints->AT);
+    constraints->AT =
+        transpose(constraints->A, constraints->state->work->iwork_n_cols, 0);
     rowTagPtr_shrink(constraints->row_tags, map->rows, constraints->m);
     colTagPtr_shrink(constraints->col_tags, map->cols, constraints->n);
 #endif

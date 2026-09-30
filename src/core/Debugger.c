@@ -406,7 +406,7 @@ static void verify_CSR_matrix(const Matrix *A, bool compressed)
 bool verify_A_and_AT_consistency(const Matrix *A, const Matrix *AT)
 {
     int *work_n_cols = (int *) ps_malloc(A->n, sizeof(int));
-    Matrix *real_AT = transpose(A, work_n_cols);
+    Matrix *real_AT = transpose(A, work_n_cols, 0);
 
     // check that nnz and dimensions are consistent
     PSLP_ASSERT(real_AT->m == AT->m);
@@ -464,9 +464,13 @@ void verify_A_and_AT(const Constraints *constraints, bool compressed)
     const Matrix *A = constraints->A;
     const Matrix *AT = constraints->AT;
 
-    // verify that both A and AT are valid CSR matrices
+    // during presolve the rows of AT need not be in index order, so its layout
+    // is only checked after the clean; its content is checked below either way
     verify_CSR_matrix(A, compressed);
-    verify_CSR_matrix(AT, compressed);
+    if (compressed)
+    {
+        verify_CSR_matrix(AT, compressed);
+    }
 
     // verify that A and AT are consistent
     PSLP_ASSERT(verify_A_and_AT_consistency(A, AT));

@@ -15,6 +15,7 @@ int counter_matrix = 0;
 /* Summary of tests:
 Test 0: matrix_new: allocation and free of a matrix.
 Test 1: transpose: transpose a matrix.
+Test 2: transpose_into: transpose into an over-allocated matrix, twice.
 Test 2-14:  shiftRow
 Then some adhoc tests.
 */
@@ -30,7 +31,7 @@ static char *test_0_matrix()
     int work_n_cols[5];
 
     Matrix *A = matrix_new(vals, cols, row_starts, 6, 5, 11);
-    Matrix *AT = transpose(A, work_n_cols);
+    Matrix *AT = transpose(A, work_n_cols, 0);
 
     mu_assert("error", A);
     mu_assert("error", AT);
@@ -51,9 +52,9 @@ static char *test_1_matrix()
     int work_n_cols[5];
 
     Matrix *A = matrix_new(vals, cols, row_starts, 6, 5, 11);
-    Matrix *AT = transpose(A, work_n_cols);
+    Matrix *AT = transpose(A, work_n_cols, 0);
 
-    // remove extra space to simplify test
+    // compact to drop nothing: checks the transpose layout
     int row_sizes_AT[6] = {2, 3, 3, 1, 2};
     int col_sizes_AT[6] = {3, 3, 1, 2, 1, 1};
     int col_idxs_map_AT[6] = {0};
@@ -76,751 +77,54 @@ static char *test_1_matrix()
     return 0;
 }
 
-/*
-A = [1 2  3  0      (2 extra)
-     4 0  5  6      (2 extra)
-     7 0  8  0      (2 extra)
-     9 0 10  0]     (2 extra)
-
-    Failure because we want the first row to have 3 extra spaces but
-    max_shift = 2. Then we must shift 4, 5, 6 right with one step.
-    But this should be rejected.
-*/
+// transpose_into reuses an over-allocated AT and leaves its tail alone
 static char *test_2_matrix()
 {
-    double vals[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    int cols[] = {0, 1, 2, 0, 2, 3, 0, 2, 0, 2};
-    int row_starts[] = {0, 3, 6, 8, 10};
-    int nnz = 10;
-    int n_rows = 4;
-    Matrix *A = matrix_new(vals, cols, row_starts, n_rows, 4, nnz);
-    bool success = shift_row(A, 0, 3, 2);
-    mu_assert("error, shift_row did not reject shift", !success);
-    free_matrix(A);
+    double vals[] = {1, -1, 2, 1, 1, 1, 1, 3, 1, 1, 1};
+    int cols[] = {0, 1, 2, 1, 2, 4, 4, 0, 1, 2, 3};
+    int row_starts[] = {0, 3, 6, 7, 9, 10, 11};
+    int work_n_cols[5];
 
-    return 0;
-}
+    Matrix *A = matrix_new(vals, cols, row_starts, 6, 5, 11);
+    Matrix *AT = matrix_alloc(5, 6, 11 + 7); // room for a tail of 7
+    for (size_t p = 0; p < AT->n_alloc; ++p)
+    {
+        AT->i[p] = -7;
+        AT->x[p] = -7.0;
+    }
+    transpose_into(A, AT, work_n_cols);
 
-/*
-A = [1 2  3  0      (2 extra)
-     4 0  5  6      (2 extra)
-     7 0  8  0      (2 extra)
-     9 0 10  0]     (2 extra)
+    double AT_vals_correct[] = {1, 3, -1, 1, 1, 2, 1, 1, 1, 1, 1};
+    int AT_cols_correct[] = {0, 3, 0, 1, 3, 0, 1, 4, 5, 1, 2};
+    int AT_row_starts_correct[] = {0, 2, 5, 8, 9, 11};
+    mu_assert("vals", ARRAYS_EQUAL_DOUBLE(AT_vals_correct, AT->x, 11));
+    mu_assert("cols", ARRAYS_EQUAL_INT(AT_cols_correct, AT->i, 11));
+    mu_assert("row starts", check_row_starts(AT, AT_row_starts_correct));
+    mu_assert("nnz", AT->nnz == 11);
+    mu_assert("sentinel", AT->p[5].start == 11 && AT->p[5].end == 11);
+    mu_assert("n_alloc kept", AT->n_alloc == 18);
+    for (size_t p = 11; p < 18; ++p)
+    {
+        mu_assert("tail untouched", AT->i[p] == -7 && AT->x[p] == -7.0);
+    }
 
-     Previous test, but with shift allowed
-*/
-static char *test_3_matrix()
-{
-    double vals[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    int cols[] = {0, 1, 2, 0, 2, 3, 0, 2, 0, 2};
-    int row_starts[] = {0, 3, 6, 8, 10};
-    int nnz = 10;
-    int n_rows = 4;
-    Matrix *A = matrix_new(vals, cols, row_starts, n_rows, 4, nnz);
-    bool success = shift_row(A, 0, 3, 3);
-    mu_assert("error, shift_row did reject shift", success);
+    // row 0 of A loses its last entry (column 2); transpose again in place
+    A->p[0].end -= 1;
+    A->nnz -= 1;
+    transpose_into(A, AT, work_n_cols);
 
-    // correct answer
-    double vals_correct[] = {1, 2, 3, 0, 0, 4, 4, 5, 6, 0, 7, 8, 0, 0, 9, 10, 0, 0};
-
-    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
-    free_matrix(A);
-
-    return 0;
-}
-
-/*
-A = [1 2  3  0      (2 extra)
-     4 0  5  6      (2 extra)
-     7 0  8  0      (2 extra)
-     9 0 10  0]     (2 extra)
-
-     Success with maxShift = 5.
-*/
-static char *test_4_matrix()
-{
-    double vals[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    int cols[] = {0, 1, 2, 0, 2, 3, 0, 2, 0, 2};
-    int row_starts[] = {0, 3, 6, 8, 10};
-    int nnz = 10;
-    int n_rows = 4;
-    Matrix *A = matrix_new(vals, cols, row_starts, n_rows, 4, nnz);
-    bool success = shift_row(A, 0, 5, 5);
-    mu_assert("error, shift_row did reject shift", success);
-
-    // correct answer
-    double vals_correct[] = {1, 2, 3, 0, 0, 4, 5, 6, 4, 5, 6, 7, 8, 0, 9, 10, 0, 0};
-
-    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
-
-    int row_starts_correct[] = {0, 8, 11, 14, 18};
-    int row_ends_correct[] = {3, 11, 13, 16, 18};
-
-    mu_assert("rows", check_row_starts(A, row_starts_correct));
-    mu_assert("rows", check_row_ends(A, row_ends_correct));
+    double AT_vals_2[] = {1, 3, -1, 1, 1, 1, 1, 1, 1, 1};
+    int AT_cols_2[] = {0, 3, 0, 1, 3, 1, 4, 5, 1, 2};
+    int AT_row_starts_2[] = {0, 2, 5, 7, 8, 10};
+    mu_assert("vals 2", ARRAYS_EQUAL_DOUBLE(AT_vals_2, AT->x, 10));
+    mu_assert("cols 2", ARRAYS_EQUAL_INT(AT_cols_2, AT->i, 10));
+    mu_assert("row starts 2", check_row_starts(AT, AT_row_starts_2));
+    mu_assert("nnz 2", AT->nnz == 10);
+    mu_assert("sentinel 2", AT->p[5].start == 10 && AT->p[5].end == 10);
+    mu_assert("n_alloc kept 2", AT->n_alloc == 18);
 
     free_matrix(A);
-
-    return 0;
-}
-
-/*
-A = [1 2  3  0      (2 extra)
-     4 0  5  6      (2 extra)
-     7 0  8  0      (2 extra)
-     9 0 10  0]     (2 extra)
-
-     Failure when maxShift = 4
-*/
-static char *test_5_matrix()
-{
-    double vals[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    int cols[] = {0, 1, 2, 0, 2, 3, 0, 2, 0, 2};
-    int row_starts[] = {0, 3, 6, 8, 10};
-    int nnz = 10;
-    int n_rows = 4;
-    Matrix *A = matrix_new(vals, cols, row_starts, n_rows, 4, nnz);
-    bool success = shift_row(A, 0, 5, 4);
-    mu_assert("error, shift_row did not reject shift", !success);
-    free_matrix(A);
-
-    return 0;
-}
-
-/*
-A = [1 2  3  0      (2 extra)
-     4 0  5  6      (2 extra)
-     7 0  8  0      (2 extra)
-     9 0 10  0]     (2 extra)
-
-     Success when we want the last row to have 5 extra spaces.
-*/
-static char *test_6_matrix()
-{
-    double vals[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    int cols[] = {0, 1, 2, 0, 2, 3, 0, 2, 0, 2};
-    int row_starts[] = {0, 3, 6, 8, 10};
-    int nnz = 10;
-    int n_rows = 4;
-    Matrix *A = matrix_new(vals, cols, row_starts, n_rows, 4, nnz);
-    bool success = shift_row(A, 3, 5, 10);
-    mu_assert("error, shift_row did reject shift", success);
-
-    // correct answer
-    double vals_correct[] = {1, 2, 3, 0, 0, 4, 5, 6, 0, 7, 8, 9, 10, 0, 9, 10, 0, 0};
-    int cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0, 2, 0, 2, 0, 0, 2, 0, 0};
-
-    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
-    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, 18));
-
-    int row_starts_correct[] = {0, 5, 9, 11, 18};
-    int row_ends_correct[] = {3, 8, 11, 13, 18};
-
-    mu_assert("rows", check_row_starts(A, row_starts_correct));
-    mu_assert("rows", check_row_ends(A, row_ends_correct));
-
-    free_matrix(A);
-
-    return 0;
-}
-
-/*
-A = [1  2   3  0      (2 extra)
-     4  0   5  6      (2 extra)
-     7  0   8  0      (2 extra)
-     9  0   0  0      (2 extra)
-     10 0   0  0]     (2 extra)
-
-     Row 2 five extra spaces.
-*/
-static char *test_7_matrix()
-{
-    double vals[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    int cols[] = {0, 1, 2, 0, 2, 3, 0, 2, 0, 0};
-    int row_starts[] = {0, 3, 6, 8, 9, 10};
-    int nnz = 10;
-    int n_rows = 5;
-    Matrix *A = matrix_new(vals, cols, row_starts, n_rows, 4, nnz);
-    bool success = shift_row(A, 2, 5, 10);
-    mu_assert("error, shift_row did reject shift", success);
-
-    // correct answer
-    double vals_correct[] = {1, 2, 3, 0, 0, 4, 5, 6, 0,  0,
-                             7, 8, 0, 0, 9, 0, 0, 9, 10, 0};
-    int cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0,
-                          0, 2, 0, 0, 0, 0, 0, 0, 0, 0};
-
-    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
-    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, 18));
-
-    int row_starts_correct[] = {0, 5, 10, 17, 18, 20};
-    int row_ends_correct[] = {3, 8, 12, 18, 19, 20};
-
-    mu_assert("rows", check_row_starts(A, row_starts_correct));
-    mu_assert("rows", check_row_ends(A, row_ends_correct));
-
-    free_matrix(A);
-
-    return 0;
-}
-
-/*
-A = [1  2   3  0      (2 extra)
-     4  0   5  6      (2 extra)
-     7  0   8  0      (2 extra)
-     9  0   0  0      (2 extra)
-     10 0   0  0]     (2 extra)
-
-     Row 2 seven extra spaces.
-*/
-static char *test_8_matrix()
-{
-    double vals[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    int cols[] = {0, 1, 2, 0, 2, 3, 0, 2, 0, 0};
-    int row_starts[] = {0, 3, 6, 8, 9, 10};
-    int nnz = 10;
-    int n_rows = 5;
-    Matrix *A = matrix_new(vals, cols, row_starts, n_rows, 4, nnz);
-    bool success = shift_row(A, 2, 7, 10);
-    mu_assert("error, shift_row did reject shift", success);
-
-    // correct answer
-    double vals_correct[] = {1, 2, 3, 0, 0, 4, 5, 6,  0, 7,
-                             8, 8, 0, 0, 9, 0, 0, 10, 9, 10};
-    int cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0,
-                          2, 2, 0, 0, 0, 0, 0, 0, 0, 0};
-
-    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
-    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, 18));
-
-    int row_starts_correct[] = {0, 5, 9, 18, 19, 20};
-    int row_ends_correct[] = {3, 8, 11, 19, 20, 20};
-
-    mu_assert("rows", check_row_starts(A, row_starts_correct));
-    mu_assert("rows", check_row_ends(A, row_ends_correct));
-
-    free_matrix(A);
-
-    return 0;
-}
-
-/*
-A = [1  2   3  0      (2 extra)
-     4  0   5  6      (2 extra)
-     7  0   8  0      (2 extra)
-     9  0   0  0      (2 extra)
-     10 0   0  0]     (2 extra)
-
-     Row 2 seven extra spaces when row 3 is made empty.
-*/
-static char *test_9_matrix()
-{
-    double vals[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    int cols[] = {0, 1, 2, 0, 2, 3, 0, 2, 0, 0};
-    int row_starts[] = {0, 3, 6, 8, 9, 10};
-    int nnz = 10;
-    int n_rows = 5;
-    Matrix *A = matrix_new(vals, cols, row_starts, n_rows, 4, nnz);
-    A->p[3].end = A->p[3].start;
-
-    bool success = shift_row(A, 2, 7, 10);
-    mu_assert("error, shift_row did reject shift", success);
-
-    // correct answer
-    double vals_correct[] = {1, 2, 3, 0, 0, 4, 5, 6,  0, 0,
-                             7, 8, 0, 0, 9, 0, 0, 10, 0,
-
-                             10};
-    int cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
-
-                          0};
-
-    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
-    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, 18));
-
-    int row_starts_correct[] = {0, 5, 10, 19, 19, 20};
-    int row_ends_correct[] = {3, 8, 12, 19, 20, 20};
-
-    mu_assert("rows", check_row_starts(A, row_starts_correct));
-    mu_assert("rows", check_row_ends(A, row_ends_correct));
-
-    free_matrix(A);
-
-    return 0;
-}
-
-/*
- A = [1    2    3     0     (2 extra)
-      4    0    5     6     (2 extra)
-      7    0    8     0     (2 extra)
-      9    0    0     0     (2 extra)
-      10  11    0     0     (2 extra)
-      12  13    14    0     (2 extra)
-      0   15    0    16]    (2 extra)
-
-      Several empty rows in right direction
-*/
-static char *test_10_matrix()
-{
-    double vals[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
-    int cols[] = {0, 1, 2, 0, 2, 3, 0, 2, 0, 0, 1, 0, 1, 2, 1, 3};
-    int row_starts[] = {0, 3, 6, 8, 9, 11, 14, 16};
-    int nnz = 16;
-    int n_rows = 7;
-    Matrix *A = matrix_new(vals, cols, row_starts, n_rows, 4, nnz);
-    A->p[3].end = A->p[3].start;
-    A->p[4].end = A->p[4].start;
-    A->p[5].end = A->p[5].start;
-
-    bool success = shift_row(A, 2, 11, 10);
-    mu_assert("error, shift_row did reject shift", success);
-
-    // correct answer
-    double vals_correct[] = {1, 2, 3,  0,  0, 4, 5,  6,  0,  0, 7, 8,  0,  0, 9,
-                             0, 0, 10, 11, 0, 0, 12, 13, 14, 0, 0, 15, 16, 0, 0};
-    int cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0, 0, 2, 0, 0, 0,
-                          0, 0, 0, 1, 0, 0, 0, 1, 2, 0, 0, 1, 3, 0, 0};
-
-    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
-    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, 18));
-
-    int row_starts_correct[] = {0, 5, 10, 23, 23, 23, 26, 30};
-    int row_ends_correct[] = {3, 8, 12, 23, 23, 23, 28, 30};
-
-    mu_assert("rows", check_row_starts(A, row_starts_correct));
-    mu_assert("rows", check_row_ends(A, row_ends_correct));
-
-    free_matrix(A);
-
-    return 0;
-}
-
-/*
- A = [1    2    3     0     (2 extra)
-      4    0    5     6     (2 extra)
-      7    0    8     0     (2 extra)
-      9    0    10    0     (2 extra)
-      11  12    0     0     (2 extra)
-      0   13    14    0]    (2 extra)
-
-      Several empty rows in both directions
-*/
-static char *test_11_matrix()
-{
-    double vals[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14};
-    int cols[] = {0, 1, 2, 0, 2, 3, 0, 2, 0, 2, 0, 1, 1, 2};
-    int row_starts[] = {0, 3, 6, 8, 10, 12, 14};
-    int nnz = 14;
-    int n_rows = 6;
-    Matrix *A = matrix_new(vals, cols, row_starts, n_rows, 4, nnz);
-    A->p[1].end = A->p[1].start;
-    A->p[2].end = A->p[2].start;
-    A->p[4].end = A->p[4].start;
-    A->p[5].end = A->p[5].start;
-
-    bool success = shift_row(A, 3, 14, 10);
-    mu_assert("error, shift_row did reject shift", success);
-
-    // correct answer
-    double vals_correct[] = {1, 2, 3,  0, 0, 4,  5,  6, 0, 0,  9,  10, 0,
-                             0, 9, 10, 0, 0, 11, 12, 0, 0, 13, 14, 0,  0};
-    int cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0, 0, 2, 0,
-                          0, 0, 2, 0, 0, 0, 1, 0, 0, 1, 2, 0, 0};
-
-    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
-    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, 18));
-
-    int row_starts_correct[] = {0, 5, 10, 10, 26, 26, 26};
-    int row_ends_correct[] = {3, 5, 10, 12, 26, 26, 26};
-
-    mu_assert("rows", check_row_starts(A, row_starts_correct));
-    mu_assert("rows", check_row_ends(A, row_ends_correct));
-
-    free_matrix(A);
-
-    return 0;
-}
-
-/*
-A  = [1  2   3   0      empty
-      4  0   0   0      (2 extra)
-      7  0   8   0      (2 extra)
-      9  0   5   6      (2 extra)
-      10 0  11   0]     (2 extra)
-
-     Row 2 six extra spaces when first row is made empty.
-*/
-static char *test_12_matrix()
-{
-    double vals[] = {1, 2, 3, 4, 7, 8, 9, 5, 6, 10, 11};
-    int cols[] = {0, 1, 2, 0, 0, 2, 0, 2, 3, 0, 2};
-    int row_starts[] = {0, 3, 4, 6, 9, 11};
-    int nnz = 11;
-    int n_rows = 5;
-    Matrix *A = matrix_new(vals, cols, row_starts, n_rows, 4, nnz);
-    A->p[0].end = A->p[0].start;
-
-    bool success = shift_row(A, 2, 6, 10);
-    mu_assert("error, shift_row did reject shift", success);
-
-    // correct answer
-    double vals_correct[] = {1, 2, 3, 4, 7, 8, 0,  0,  7, 8, 0,
-                             0, 9, 5, 6, 0, 0, 10, 11, 0, 0};
-    int cols_correct[] = {0, 1, 2, 0, 0, 2, 0, 0, 0, 2, 0,
-                          0, 0, 2, 3, 0, 0, 0, 2, 0, 0};
-
-    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
-    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, 18));
-
-    int row_starts_correct[] = {0, 3, 4, 12, 17, 21};
-    int row_ends_correct[] = {0, 4, 6, 15, 19, 21};
-
-    mu_assert("rows", check_row_starts(A, row_starts_correct));
-    mu_assert("rows", check_row_ends(A, row_ends_correct));
-
-    free_matrix(A);
-
-    return 0;
-}
-
-/*
-A = [1  2   3  0      (2 extra)
-     4  0   5  6      (2 extra)
-     7  0   8  0      (2 extra)
-     9  0   0  0      (2 extra)
-     10 0   0  0]     (2 extra)
-
-     Row 2 six extra spaces when last is made empty.
-*/
-static char *test_13_matrix()
-{
-    double vals[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    int cols[] = {0, 1, 2, 0, 2, 3, 0, 2, 0, 0};
-    int row_starts[] = {0, 3, 6, 8, 9, 10};
-    int nnz = 10;
-    int n_rows = 5;
-    Matrix *A = matrix_new(vals, cols, row_starts, n_rows, 4, nnz);
-    A->p[4].end = A->p[4].start;
-
-    bool success = shift_row(A, 2, 6, 10);
-    mu_assert("error, shift_row did reject shift", success);
-
-    // correct answer
-    double vals_correct[] = {1, 2, 3, 0, 0, 4, 5,  6, 0, 0, 7,
-                             8, 0, 0, 9, 0, 0, 10, 9, 0, 0};
-    int cols_correct[] = {0, 1, 2, 0, 0, 0, 2, 3, 0, 0, 0,
-                          2, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
-    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, 18));
-
-    int row_starts_correct[] = {0, 5, 10, 18, 19, 20};
-    int row_ends_correct[] = {3, 8, 12, 19, 19, 20};
-
-    mu_assert("rows", check_row_starts(A, row_starts_correct));
-    mu_assert("rows", check_row_ends(A, row_ends_correct));
-
-    free_matrix(A);
-
-    return 0;
-}
-
-/*
-A = [1    2    3    0     0      (0 extra)
-     1    2    3    0     0      (0 extra)
-     6                           (2 extra)
-     9        10                 (2 extra) empty
-         11   12   12            (2 extra)
-     13            14            (2 extra) empty
-     15                  16      (2 extra)
-                         17      (2 extra) empty
-     18 19    20                 (2 extra) empty
-     21       22             ]   (2 extra)
-
-
-       Row 2 21 extra spaces.
-*/
-static char *test_14_matrix()
-{
-    double vals[] = {1,  2,  3,  1,  2,  3,  6,  7,  8,  9,  10, 11,
-                     12, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22};
-    int cols[] = {0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 2, 1,
-                  2, 3, 0, 3, 0, 4, 4, 0, 1, 2, 0, 2};
-    int row_starts[] = {0, 3, 6, 7, 9, 11, 14, 16, 18, 19, 22, 24};
-    int nnz = 24;
-    int n_rows = 11;
-    Matrix *A = matrix_new(vals, cols, row_starts, n_rows, 4, nnz);
-    A->p[0].end = 5;
-    A->p[1].end = 10;
-    A->p[4].end = A->p[4].start;
-    A->p[6].end = A->p[6].start;
-    A->p[8].end = A->p[8].start;
-    A->p[9].end = A->p[9].start;
-
-    bool success = shift_row(A, 2, 21, 20);
-    mu_assert("error, shift_row did reject shift", success);
-
-    // correct answer
-    double vals_correct[] = {1,  2,  3,  0,  0,  1, 2,  3,  0, 0,  6,  0,
-                             0,  7,  8,  0,  0,  9, 10, 0,  0, 11, 12, 12,
-                             0,  0,  13, 14, 0,  0, 15, 16, 7, 8,
-
-                             11, 12, 12,
-
-                             15, 16,
-
-                             20, 0,  0,  21, 22, 0, 0};
-
-    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, 18));
-
-    int row_starts_correct[] = {0, 5, 10, 32, 34, 34, 37, 37, 39, 39, 42, 46};
-    int row_ends_correct[] = {5, 10, 11, 34, 34, 37, 37, 39, 39, 39, 44, 46};
-
-    mu_assert("rows", check_row_starts(A, row_starts_correct));
-    mu_assert("rows", check_row_ends(A, row_ends_correct));
-
-    free_matrix(A);
-    // printf("%d", EXTRA_ROW_SPACE);
-
-    return 0;
-}
-
-//
-// A = [9 8 0 0
-//      3 0 5 0
-//      1 0 0 0
-//      0 0 1 1]
-static char *test_15_matrix()
-{
-    double vals[] = {9, 8, 3, 5, 1, 1, 1};
-    int cols[] = {0, 1, 0, 2, 0, 2, 3};
-    int row_starts[] = {0, 2, 4, 5, 7};
-    int nnz = 7;
-    int n_rows = 4;
-    Matrix *A = matrix_new(vals, cols, row_starts, n_rows, 4, nnz);
-    int not_used = 0;
-
-    double old_val;
-    old_val = insert_or_update_coeff(A, 1, 0, 2,
-                                     &not_used); // first in a row, in-place
-    mu_assert("error old_val", old_val == 3);
-    old_val = insert_or_update_coeff(A, 3, 1, 4,
-                                     &not_used); // first in a row, new space
-    mu_assert("error old_val", old_val == 0);
-    old_val =
-        insert_or_update_coeff(A, 1, 2, 9, &not_used); // end of a row, in-place
-    mu_assert("error old_val", old_val == 5);
-    old_val = insert_or_update_coeff(A, 0, 2, 1,
-                                     &not_used); // end of a row, new space
-    mu_assert("error old_val", old_val == 0);
-    old_val =
-        insert_or_update_coeff(A, 2, 0, 7, &not_used); // end of a row, in-place
-    mu_assert("error old_val", old_val == 1);
-    old_val = insert_or_update_coeff(A, 2, 2, 3,
-                                     &not_used); // end of a row, new space
-    mu_assert("error old_val", old_val == 0);
-
-    int row_sizes[] = {3, 2, 2, 3};
-    int col_sizes[] = {4, 1, 4, 1};
-    int map[4];
-    int new_n_cols = update_column_map(col_sizes, map, 4);
-    remove_extra_space(A, row_sizes, map, new_n_cols);
-
-    // correct answer
-    double vals_correct[] = {9, 8, 1, 2, 9, 7, 3, 4, 1, 1};
-    int cols_correct[] = {0, 1, 2, 0, 2, 0, 2, 1, 2, 3};
-    mu_assert("error, vals not equal",
-              ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, A->nnz));
-
-    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, A->nnz));
-
-    int row_starts_correct[] = {0, 3, 5, 7, 10};
-    int row_ends_correct[] = {3, 5, 7, 10, 10};
-
-    mu_assert("rows", check_row_starts(A, row_starts_correct));
-    mu_assert("rows", check_row_ends(A, row_ends_correct));
-
-    free_matrix(A);
-    return 0;
-}
-
-//
-// A = [9 8 4 0
-//      3 0 5 0
-//      1 0 0 0
-//      0 0 1 1]
-static char *test_16_matrix()
-{
-    double vals[] = {9, 8, 4, 3, 5, 1, 1, 1};
-    int cols[] = {0, 1, 2, 0, 2, 0, 2, 3};
-    int row_starts[] = {0, 3, 5, 6, 8};
-    int nnz = 8;
-    int n_rows = 4;
-    Matrix *A = matrix_new(vals, cols, row_starts, n_rows, 4, nnz);
-
-    int not_used = 0;
-    double old_val;
-    old_val = insert_or_update_coeff(A, 1, 1, 7,
-                                     &not_used); // middle of a row, new space
-    mu_assert("error old_val", old_val == 0);
-    old_val = insert_or_update_coeff(A, 0, 1, 5,
-                                     &not_used); // middle of a row, existing
-    mu_assert("error old_val", old_val == 8);
-
-    int row_sizes[] = {3, 3, 1, 2};
-    int col_sizes[] = {4, 2, 3, 1};
-    int map[4];
-    int n_new_cols = update_column_map(col_sizes, map, 4);
-    remove_extra_space(A, row_sizes, map, n_new_cols);
-
-    // correct answer
-    double vals_correct[] = {9, 5, 4, 3, 7, 5, 1, 1, 1};
-    int cols_correct[] = {0, 1, 2, 0, 1, 2, 0, 2, 3};
-    mu_assert("error, vals not equal",
-              ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, A->nnz));
-
-    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, A->nnz));
-
-    int row_starts_correct[] = {0, 3, 6, 7, 9};
-    int row_ends_correct[] = {3, 6, 7, 9, 9};
-
-    mu_assert("rows", check_row_starts(A, row_starts_correct));
-    mu_assert("rows", check_row_ends(A, row_ends_correct));
-
-    free_matrix(A);
-    return 0;
-}
-
-/* insert a zero for a variable that exists
- A = [1, 0, 2, 3,
-      4, 5, 6, 0,
-      3, 0, 0, 1]
-*/
-static char *test_17_matrix()
-{
-    double vals[] = {1, 2, 3, 4, 5, 6, 3, 1};
-    int cols[] = {0, 2, 3, 0, 1, 2, 0, 3};
-    int row_starts[] = {0, 3, 6, 8};
-    int nnz = 8;
-    int n_rows = 3;
-    Matrix *A = matrix_new(vals, cols, row_starts, n_rows, 4, nnz);
-
-    int row_size = 3;
-    double old_val;
-    old_val = insert_or_update_coeff(A, 1, 2, 0,
-                                     &row_size); // middle of a row, new space
-
-    mu_assert("error row_size", row_size == 2);
-
-    int row_sizes[] = {3, 2, 2};
-    int col_sizes[] = {3, 1, 1, 2};
-    int map[4];
-    int n_new_cols = update_column_map(col_sizes, map, 4);
-    remove_extra_space(A, row_sizes, map, n_new_cols);
-
-    double vals_correct[] = {1, 2, 3, 4, 5, 3, 1};
-    int cols_correct[] = {0, 2, 3, 0, 1, 0, 3};
-    mu_assert("error, vals not equal",
-              ARRAYS_EQUAL_DOUBLE(vals_correct, A->x, A->nnz));
-
-    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols_correct, A->i, A->nnz));
-
-    int row_starts_correct[] = {0, 3, 5, 7};
-    int row_ends_correct[] = {3, 5, 7, 7};
-
-    mu_assert("rows", check_row_starts(A, row_starts_correct));
-    mu_assert("rows", check_row_ends(A, row_ends_correct));
-
-    free_matrix(A);
-    return 0;
-}
-
-/* insert a zero for a variable that doesn't exist
- A = [1, 0, 2, 3,
-      4, 5, 6, 0,
-      3, 0, 0, 1]
-
-    OBS: This test should cause an assertion inside insert_or_update_coeff,
-    because in the code we only expect to call 'insert_or_update_coeff'
-    with val = 0 when the variable already exists.
-*/
-static char *test_18_matrix()
-{
-    double vals[] = {1, 2, 3, 4, 5, 6, 3, 1};
-    int cols[] = {0, 2, 3, 0, 1, 2, 0, 3};
-    int row_starts[] = {0, 3, 6, 8};
-    int nnz = 8;
-    int n_rows = 3;
-    Matrix *A = matrix_new(vals, cols, row_starts, n_rows, 4, nnz);
-
-    int row_size = 2;
-    double old_val;
-    old_val = insert_or_update_coeff(A, 2, 1, 0,
-                                     &row_size); // middle of a row, new space
-
-    mu_assert("error row_size", row_size == 2);
-
-    int row_sizes[] = {3, 3, 2};
-    int col_sizes[] = {3, 1, 2, 2};
-    int map[4];
-    int n_new_cols = update_column_map(col_sizes, map, 4);
-    remove_extra_space(A, row_sizes, map, n_new_cols);
-
-    mu_assert("error, vals not equal", ARRAYS_EQUAL_DOUBLE(vals, A->x, A->nnz));
-
-    mu_assert("error, cols not equal", ARRAYS_EQUAL_INT(cols, A->i, A->nnz));
-
-    int row_ends_correct[] = {3, 6, 8, 8};
-
-    check_row_starts(A, row_starts);
-    mu_assert("rows", check_row_ends(A, row_ends_correct));
-
-    free_matrix(A);
-    return 0;
-}
-
-// choose_extra_space: the chosen slack must always make the total allocation
-// fit in an int, and must never exceed the default slack.
-static char *test_19_matrix()
-{
-    int extra;
-    double ratio;
-    size_t nnz, n_rows;
-
-    // small instance: defaults are used unchanged
-    nnz = 10;
-    n_rows = 3;
-    choose_extra_space(nnz, n_rows, &extra, &ratio);
-    mu_assert("small extra", extra == EXTRA_ROW_SPACE);
-    mu_assert("small ratio", ratio == EXTRA_MEMORY_RATIO);
-
-    // dimensions of AT for the instance in issue #47
-    nnz = 857252872;
-    n_rows = 303096179;
-    choose_extra_space(nnz, n_rows, &extra, &ratio);
-    mu_assert("issue fits",
-              calc_memory(nnz, n_rows, (size_t) extra, ratio) <= INT_MAX);
-    mu_assert("issue extra", extra <= EXTRA_ROW_SPACE);
-    mu_assert("issue ratio", ratio <= EXTRA_MEMORY_RATIO);
-
-    // forces a fallback regardless of the default constants
-    nnz = 2000000000;
-    n_rows = 100000000;
-    choose_extra_space(nnz, n_rows, &extra, &ratio);
-    mu_assert("large fits",
-              calc_memory(nnz, n_rows, (size_t) extra, ratio) <= INT_MAX);
-    mu_assert("large extra", extra <= EXTRA_ROW_SPACE);
-    mu_assert("large ratio", ratio <= EXTRA_MEMORY_RATIO);
-
-    // boundary: no slack possible at all
-    nnz = INT_MAX;
-    n_rows = 1;
-    choose_extra_space(nnz, n_rows, &extra, &ratio);
-    mu_assert("boundary extra", extra == 0);
-    mu_assert("boundary ratio", ratio == 1.0);
-    mu_assert("boundary fits",
-              calc_memory(nnz, n_rows, (size_t) extra, ratio) <= INT_MAX);
-
+    free_matrix(AT);
     return 0;
 }
 
@@ -862,23 +166,6 @@ static const char *all_tests_matrix()
     mu_run_test(test_0_matrix, counter_matrix);
     mu_run_test(test_1_matrix, counter_matrix);
     mu_run_test(test_2_matrix, counter_matrix);
-    mu_run_test(test_3_matrix, counter_matrix);
-    mu_run_test(test_4_matrix, counter_matrix);
-    mu_run_test(test_5_matrix, counter_matrix);
-    mu_run_test(test_6_matrix, counter_matrix);
-    mu_run_test(test_7_matrix, counter_matrix);
-    mu_run_test(test_8_matrix, counter_matrix);
-    mu_run_test(test_9_matrix, counter_matrix);
-    mu_run_test(test_10_matrix, counter_matrix);
-    mu_run_test(test_11_matrix, counter_matrix);
-    mu_run_test(test_12_matrix, counter_matrix);
-    mu_run_test(test_13_matrix, counter_matrix);
-    mu_run_test(test_14_matrix, counter_matrix);
-    mu_run_test(test_15_matrix, counter_matrix);
-    mu_run_test(test_16_matrix, counter_matrix);
-    mu_run_test(test_17_matrix, counter_matrix);
-    // mu_run_test(test_18_matrix, counter_matrix); // we don't run this
-    mu_run_test(test_19_matrix, counter_matrix);
     mu_run_test(test_20_matrix, counter_matrix);
     return 0;
 }

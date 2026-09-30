@@ -19,8 +19,10 @@
 #ifndef MEMORY_WRAPPER_H
 #define MEMORY_WRAPPER_H
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static inline void *ps_malloc(size_t n, size_t size)
 {
@@ -42,6 +44,22 @@ static inline void *ps_calloc(size_t n, size_t size)
 static inline void *ps_realloc(void *p, size_t n, size_t size)
 {
     return realloc(p, n * size);
+}
+
+/* Reallocates the array whose pointer lives at 'pp' (the address of the array
+   pointer) to n elements of size bytes. On failure the old block is kept and
+   false is returned. */
+static inline bool ps_grow(void *pp, size_t n, size_t size)
+{
+    void *old, *grown;
+    memcpy(&old, pp, sizeof(old));
+    grown = ps_realloc(old, n, size);
+    if (grown == NULL)
+    {
+        return false;
+    }
+    memcpy(pp, &grown, sizeof(grown));
+    return true;
 }
 
 #define RETURN_PTR_IF_NULL(ptr, ret_val)                                            \

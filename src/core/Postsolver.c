@@ -153,6 +153,16 @@ static void retrieve_sub_col(Solution *sol, int k, const int *cols,
     sol->x[k] /= aik;
 }
 
+static void retrieve_sub_col_dton(Solution *sol, const SubColDtonRecord *r)
+{
+    assert(sol->x[r->k] == COL_NOT_RETRIEVED);
+    assert(sol->z[r->k] == COL_NOT_RETRIEVED);
+    assert(sol->x[r->s] != COL_NOT_RETRIEVED);
+
+    sol->x[r->k] = r->shift + r->mult * sol->x[r->s];
+    sol->z[r->k] = 0.0;
+}
+
 static void retrieve_fix_col_inf(Solution *sol, const FixedColInfRecord *r)
 {
     int i, j, pos;
@@ -489,6 +499,12 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
             SubColRecord r = decode_sub_col(indices + start, vals + start, len);
             retrieve_sub_col(sol, r.k, r.cols, r.vals, r.len, r.rhs, r.row, r.ck);
         }
+        else if (type == SUB_COL_DTON)
+        {
+            SubColDtonRecord r =
+                decode_sub_col_dton(indices + start, vals + start, len);
+            retrieve_sub_col_dton(sol, &r);
+        }
         else if (type == FIXED_COL_INF)
         {
             FixedColInfRecord r =
@@ -687,6 +703,19 @@ void save_retrieval_sub_col(PostsolveInfo *info, int col, const int *cols,
     dVec_append(info->vals, rhs);
     dVec_append_array(info->vals, coeffs, len);
     dVec_append(info->vals, ck);
+    iVec_append(info->starts, (int) info->indices->len);
+    assert(info->starts->len == info->type->len + 1);
+    assert(info->indices->len == info->vals->len);
+}
+
+void save_retrieval_sub_col_dton(PostsolveInfo *info, int k, int s, double mult,
+                                 double shift)
+{
+    u16Vec_append(info->type, SUB_COL_DTON);
+    iVec_append(info->indices, k);
+    iVec_append(info->indices, s);
+    dVec_append(info->vals, mult);
+    dVec_append(info->vals, shift);
     iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->indices->len == info->vals->len);

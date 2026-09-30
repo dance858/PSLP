@@ -142,7 +142,7 @@ static char *test_4_parallel_rows()
     Matrix *A = random_matrix_new(n_rows, n_cols, density);
     int jump = 50;
 
-    // allocate a bunch of extra memory so we can replace rows as we wish
+    // room for the replaced rows to grow
     int new_alloc = 2 * A->n_alloc;
     A->x = (double *) ps_realloc(A->x, new_alloc, sizeof(double));
     A->i = (int *) ps_realloc(A->i, new_alloc, sizeof(int));
@@ -309,7 +309,7 @@ static char *test_5_parallel_rows()
     Matrix *A = random_matrix_new(n_rows, n_cols, density);
     int jump = 50;
 
-    // allocate a bunch of extra memory so we can replace rows as we wish
+    // room for the replaced rows to grow
     int new_alloc = 2 * A->n_alloc;
     A->x = (double *) ps_realloc(A->x, new_alloc, sizeof(double));
     A->i = (int *) ps_realloc(A->i, new_alloc, sizeof(int));

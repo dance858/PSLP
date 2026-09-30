@@ -57,6 +57,10 @@ static char *test_0_postsolve()
     run_presolver(presolver);
     mu_assert("transpose should be released after presolve",
               constraints->AT == NULL);
+    Work *work = prob->constraints->state->work;
+    mu_assert("presolve scratch should be released after presolve",
+              work->iwork_n_cols == NULL && work->int_vec == NULL &&
+                  work->radix_aux == NULL && work->mappings != NULL);
     Mapping *maps = prob->constraints->state->work->mappings;
     int *rows_map = maps->rows;
     int *cols_map = maps->cols;
@@ -949,8 +953,9 @@ static char *test_8_postsolve()
     int *rows_map = maps->rows;
     int *cols_map = maps->cols;
 
-    // construct optimal primal solution to reduced problem (computed offline)
-    double x[] = {0.83333333, 0.16666667, 0., 0.};
+    // optimal solution of the reduced problem (x2 = (x1 + 1)/2 eliminated;
+    // computed offline)
+    double x[] = {0.66666667, 0.16666667, 0., 0.};
     double y[] = {1., -0.33333333};
     double z[] = {0., 0., 1., 0.33333333};
     double obj = 0.0;

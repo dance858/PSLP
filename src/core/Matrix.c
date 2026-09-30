@@ -26,6 +26,7 @@
 #include "glbopts.h"
 #include "stdlib.h"
 #include "string.h"
+#include <assert.h>
 #include <limits.h>
 
 /* forward declaration */
@@ -34,30 +35,22 @@ static inline void remove_explicit_zeros(Matrix *A);
 Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, size_t n_rows,
                    size_t n_cols, size_t nnz)
 {
-    DEBUG(ASSERT_NO_ZEROS_D(Ax, nnz));
     Matrix *A = matrix_alloc(n_rows, n_cols, nnz);
     RETURN_PTR_IF_NULL(A, NULL);
-    size_t i, len;
-    int offset, row_size, row_alloc;
-    int extra_row_space;
-    double memory_ratio;
-    choose_extra_space(nnz, n_rows, &extra_row_space, &memory_ratio);
 
-    offset = 0;
-    for (i = 0; i < n_rows; ++i)
+    memcpy(A->x, Ax, nnz * sizeof(double));
+    memcpy(A->i, Ai, nnz * sizeof(int));
+
+    for (size_t i = 0; i < n_rows; ++i)
     {
-        A->p[i].start = Ap[i] + offset;
-        len = (size_t) (Ap[i + 1] - Ap[i]);
-        memcpy(A->x + A->p[i].start, Ax + Ap[i], len * sizeof(double));
-        memcpy(A->i + A->p[i].start, Ai + Ap[i], len * sizeof(int));
-        A->p[i].end = Ap[i + 1] + offset;
-        row_size = A->p[i].end - A->p[i].start;
-        row_alloc = calc_memory_row(row_size, extra_row_space, memory_ratio);
-        offset += row_alloc - row_size;
+        A->p[i].start = Ap[i];
+        A->p[i].end = Ap[i + 1];
     }
+    A->p[n_rows].start = Ap[n_rows];
+    A->p[n_rows].end = Ap[n_rows];
 
-    A->p[n_rows].start = Ap[n_rows] + offset;
-    A->p[n_rows].end = A->p[n_rows].start;
+    /* the presolver assumes that only nonzero entries are stored */
+    remove_explicit_zeros(A);
 
     return A;
 }
@@ -71,11 +64,7 @@ Matrix *matrix_alloc(size_t n_rows, size_t n_cols, size_t nnz)
     A->m = n_rows;
     A->n = n_cols;
     A->nnz = nnz;
-    int extra_row_space;
-    double memory_ratio;
-    choose_extra_space(nnz, n_rows, &extra_row_space, &memory_ratio);
-    A->n_alloc = calc_memory(nnz, n_rows, (size_t) extra_row_space, memory_ratio);
-    assert(A->n_alloc <= (size_t) INT_MAX);
+    A->n_alloc = MAX(nnz, 1);
 
 #ifdef TESTING
     A->i = (int *) ps_calloc(A->n_alloc, sizeof(int));
@@ -92,43 +81,6 @@ Matrix *matrix_alloc(size_t n_rows, size_t n_cols, size_t nnz)
         free_matrix(A);
         return NULL;
     }
-
-    return A;
-}
-
-Matrix *matrix_new_no_extra_space(const double *Ax, const int *Ai, const int *Ap,
-                                  size_t n_rows, size_t n_cols, size_t nnz)
-{
-    Matrix *A = (Matrix *) ps_malloc(1, sizeof(Matrix));
-    RETURN_PTR_IF_NULL(A, NULL);
-
-    A->m = n_rows;
-    A->n = n_cols;
-    A->nnz = nnz;
-    A->n_alloc = nnz;
-    A->i = (int *) ps_malloc(A->n_alloc, sizeof(int));
-    A->p = (RowRange *) ps_malloc(n_rows + 1, sizeof(RowRange));
-    A->x = (double *) ps_malloc(A->n_alloc, sizeof(double));
-
-    if (!A->i || !A->p || !A->x)
-    {
-        free_matrix(A);
-        return NULL;
-    }
-
-    memcpy(A->x, Ax, nnz * sizeof(double));
-    memcpy(A->i, Ai, nnz * sizeof(int));
-
-    for (int i = 0; i < n_rows; ++i)
-    {
-        A->p[i].start = Ap[i];
-        A->p[i].end = Ap[i + 1];
-    }
-    A->p[n_rows].start = Ap[n_rows];
-    A->p[n_rows].end = Ap[n_rows];
-
-    /* the presolver assumes that only nonzero entries are stored */
-    remove_explicit_zeros(A);
 
     return A;
 }
@@ -184,15 +136,25 @@ static inline void remove_explicit_zeros(Matrix *A)
     }
 }
 
-Matrix *transpose(const Matrix *A, int *work_n_cols)
+Matrix *transpose(const Matrix *A, int *work_n_cols, size_t tail)
 {
-    Matrix *AT = matrix_alloc(A->n, A->m, A->nnz);
+    if (A->nnz + tail > (size_t) INT_MAX)
+    {
+        return NULL;
+    }
+    Matrix *AT = matrix_alloc(A->n, A->m, A->nnz + tail);
     RETURN_PTR_IF_NULL(AT, NULL);
+    transpose_into(A, AT, work_n_cols);
+    return AT;
+}
+
+void transpose_into(const Matrix *A, Matrix *AT, int *work_n_cols)
+{
+    assert(AT->m == A->n && AT->n == A->m && AT->n_alloc >= A->nnz);
+    AT->nnz = A->nnz;
+
     int i, j, start;
     int *count = work_n_cols;
-    int extra_row_space;
-    double memory_ratio;
-    choose_extra_space(A->nnz, A->n, &extra_row_space, &memory_ratio);
     memset(count, 0, A->n * sizeof(int));
 
     // -------------------------------------------------------------------
@@ -206,20 +168,17 @@ Matrix *transpose(const Matrix *A, int *work_n_cols)
         }
     }
     // ------------------------------------------------------------------
-    //  compute row pointers, taking the extra space into account
+    //  compute row pointers
     // ------------------------------------------------------------------
     AT->p[0].start = 0;
     for (i = 0; i < A->n; ++i)
     {
         start = AT->p[i].start;
         AT->p[i].end = start + count[i];
-        AT->p[i + 1].start =
-            start + calc_memory_row(count[i], extra_row_space, memory_ratio);
+        AT->p[i + 1].start = AT->p[i].end;
         count[i] = start;
     }
-
-    AT->p[A->n].start = (int) AT->n_alloc;
-    AT->p[A->n].end = (int) AT->n_alloc;
+    AT->p[A->n].end = AT->p[A->n].start; // == nnz: the tail arena begins here
 
     // ------------------------------------------------------------------
     //  fill transposed matrix (this is a bottleneck)
@@ -233,62 +192,6 @@ Matrix *transpose(const Matrix *A, int *work_n_cols)
             count[A->i[j]]++;
         }
     }
-
-    return AT;
-}
-
-size_t calc_memory(size_t nnz, size_t n_rows, size_t extra_row_space,
-                   double memory_ratio)
-{
-    /* disable conversion compiler warning*/
-    PSLP_DIAG_PUSH();
-    PSLP_DIAG_IGNORE_CONVERSION();
-
-    /* intentional truncation */
-    size_t result = (size_t) (nnz * memory_ratio) + n_rows * extra_row_space;
-
-    /* enable conversion compiler warnings */
-    PSLP_DIAG_POP();
-    return result;
-}
-
-int calc_memory_row(int size, int extra_row_space, double memory_ratio)
-{
-    return (int) (size * memory_ratio) + extra_row_space;
-}
-
-typedef struct
-{
-    int extra_row_space;
-    double memory_ratio;
-} ExtraSpace;
-
-/* candidates in decreasing order of slack; the last one fits whenever
-   nnz <= INT_MAX */
-static const ExtraSpace candidates[] = {
-    {EXTRA_ROW_SPACE, EXTRA_MEMORY_RATIO},
-    {EXTRA_ROW_SPACE, 1.0},
-    {1, 1.0},
-    {0, 1.0},
-};
-
-void choose_extra_space(size_t nnz, size_t n_rows, int *extra_row_space,
-                        double *memory_ratio)
-{
-    const size_t n_candidates = sizeof(candidates) / sizeof(candidates[0]);
-    size_t k;
-
-    for (k = 0; k < n_candidates - 1; ++k)
-    {
-        if (calc_memory(nnz, n_rows, (size_t) candidates[k].extra_row_space,
-                        candidates[k].memory_ratio) <= (size_t) INT_MAX)
-        {
-            break;
-        }
-    }
-
-    *extra_row_space = candidates[k].extra_row_space;
-    *memory_ratio = candidates[k].memory_ratio;
 }
 
 void free_matrix(Matrix *A)
@@ -341,6 +244,7 @@ void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_idxs_map
     A->x = (double *) ps_realloc(A->x, (size_t) MAX(curr, 1), sizeof(double));
     A->i = (int *) ps_realloc(A->i, (size_t) MAX(curr, 1), sizeof(int));
     A->p = (RowRange *) ps_realloc(A->p, (size_t) (A->m + 1), sizeof(RowRange));
+    A->n_alloc = (size_t) MAX(curr, 1);
 
     // -------------------------------------------------------------------------
     //                        update column indices
@@ -355,158 +259,6 @@ void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_idxs_map
     }
 }
 
-bool shift_row(Matrix *A, int row, int extra_space, int max_shift)
-{
-    int left, right, missing_space, remaining_shifts, left_shifts;
-    int right_shifts, space_left, space_right, n_move_right, n_move_left;
-    int next_start, next_end;
-    bool shift_left;
-    RowRange *row_r = A->p;
-    left = row;
-    right = row + 1;
-    remaining_shifts = max_shift;
-    left_shifts = 0;
-    right_shifts = 0;
-    missing_space = extra_space - (row_r[right].start - row_r[row].end);
-
-    if (missing_space <= 0)
-    {
-        return true;
-    }
-
-    // ------------------------------------------------------------------------
-    // compute the new start index for row 'row' and a lower bound on the start
-    // index for the the first active row following row 'row'.
-    // ------------------------------------------------------------------------
-    while (missing_space > 0)
-    {
-        if (left == 0 && right == A->m)
-        {
-            return false;
-        }
-
-        // space_left is the number of steps we can shift 'left' row to the
-        // left without overwriting row 'left - 1'.
-        // space_right is the number of steps we can shift 'right' row to
-        // the right without overwriting row 'right + 1'.
-        assert(left >= 0 && right <= A->m);
-        space_left = (left == 0) ? 0 : row_r[left].start - row_r[left - 1].end;
-        space_right =
-            (right == A->m) ? 0 : row_r[right + 1].start - row_r[right].end;
-        assert(space_left >= 0 && space_right >= 0);
-
-        // number of elements that must be moved left resp. right if we shift
-        // in a certain direction
-        n_move_right = row_r[right].end - row_r[right].start;
-        n_move_left = row_r[left].end - row_r[left].start;
-
-        // decide which direction to shift
-        if (left == 0)
-        {
-            if (right != A->m && n_move_right <= remaining_shifts)
-            {
-                shift_left = false;
-            }
-            else
-            {
-                return false;
-            }
-        }
-        else if (right == A->m)
-        {
-            if (left != 0 && n_move_left <= remaining_shifts)
-            {
-                shift_left = true;
-            }
-            else
-            {
-                return false;
-            }
-        }
-        else if (n_move_left == 0)
-        {
-            shift_left = true;
-        }
-        else if (n_move_right == 0)
-        {
-            shift_left = false;
-        }
-        else if (n_move_left <= remaining_shifts &&
-                 (space_left / (double) (n_move_left) >=
-                  space_right / (double) (n_move_right)))
-        {
-            shift_left = true;
-        }
-        else if (n_move_right <= remaining_shifts)
-        {
-            shift_left = false;
-        }
-        else
-        {
-            return false;
-        }
-
-        assert(!(shift_left && left == 0) && !(!shift_left && right == A->m));
-
-        if (shift_left)
-        {
-            left_shifts = MIN(missing_space, space_left);
-            missing_space -= left_shifts;
-            remaining_shifts -= n_move_left;
-            left -= 1;
-        }
-        else
-        {
-            right_shifts = MIN(missing_space, space_right);
-            missing_space -= right_shifts;
-            remaining_shifts -= n_move_right;
-            right += 1;
-        }
-    }
-    assert(remaining_shifts >= 0);
-
-    // ------------------------------------------------------------------------
-    //                 execute total left shift
-    // ------------------------------------------------------------------------
-    next_start = row_r[left + 1].start - left_shifts;
-    for (; left < row; left++)
-    {
-        int len = row_r[left + 1].end - row_r[left + 1].start;
-        if (len > 0)
-        {
-            memmove(A->x + next_start, A->x + row_r[left + 1].start,
-                    ((size_t) len) * sizeof(double));
-            memmove(A->i + next_start, A->i + row_r[left + 1].start,
-                    ((size_t) len) * sizeof(int));
-        }
-        row_r[left + 1].start = next_start;
-        row_r[left + 1].end = next_start + len;
-        next_start += len;
-    }
-
-    // ------------------------------------------------------------------------
-    //                 execute total right shift
-    // ------------------------------------------------------------------------
-    next_end = row_r[right - 1].end + right_shifts;
-    for (; right > row + 1; right--)
-    {
-        int len = row_r[right - 1].end - row_r[right - 1].start;
-        if (len > 0)
-        {
-            memmove(A->x + next_end - len, A->x + row_r[right - 1].start,
-                    ((size_t) len) * sizeof(double));
-            memmove(A->i + next_end - len, A->i + row_r[right - 1].start,
-                    ((size_t) len) * sizeof(int));
-        }
-        row_r[right - 1].start = next_end - len;
-        row_r[right - 1].end = next_end;
-        next_end = row_r[right - 1].start;
-    }
-
-    assert(row_r[row + 1].start - row_r[row].end == extra_space);
-    return true;
-}
-
 void print_row_starts(const RowRange *row_ranges, size_t len)
 {
     for (size_t i = 0; i < len; ++i)
@@ -514,75 +266,6 @@ void print_row_starts(const RowRange *row_ranges, size_t len)
         printf("%d ", row_ranges[i].start);
     }
     printf("\n");
-}
-
-double insert_or_update_coeff(Matrix *A, int row, int col, double val, int *row_size)
-{
-    double old_val = 0.0;
-    int start = A->p[row].start;
-    int end = A->p[row].end;
-
-    // -----------------------------------------------------------------
-    //             find where it should be inserted
-    // -----------------------------------------------------------------
-    int rel_ins = sorted_lower_bound(A->i + start, end - start, col);
-    int insertion = start + rel_ins;
-
-    // -----------------------------------------------------------------
-    // Insert the new value if it is nonzero. If it exists or should be
-    // inserted in the end, we don't need to shift values.
-    // -----------------------------------------------------------------
-    if (ABS(val) > ZERO_TOL)
-    {
-        if (insertion == end)
-        {
-            A->x[insertion] = val;
-            A->i[insertion] = col;
-            A->p[row].end += 1;
-            A->nnz += 1;
-            *row_size += 1;
-        }
-        else if (A->i[insertion] == col)
-        {
-            old_val = A->x[insertion];
-            A->x[insertion] = val;
-        }
-        else
-        {
-            size_t len = (size_t) (end - insertion);
-            memmove(A->x + insertion + 1, A->x + insertion, len * sizeof(double));
-            memmove(A->i + insertion + 1, A->i + insertion, len * sizeof(int));
-
-            // insert new value
-            A->x[insertion] = val;
-            A->i[insertion] = col;
-            A->p[row].end += 1;
-            A->nnz += 1;
-            *row_size += 1;
-        }
-    }
-    // if the new value is zero, we just have to shift
-    else
-    {
-        // we only expect that the new value is zero if the coefficient
-        // already exists
-        assert(A->i[insertion] == col);
-
-        // we only have to shift values if the zero is not in the end
-        if (insertion != end - 1)
-        {
-            size_t len = (size_t) (end - insertion - 1);
-            memmove(A->x + insertion, A->x + insertion + 1, len * sizeof(double));
-            memmove(A->i + insertion, A->i + insertion + 1, len * sizeof(int));
-        }
-
-        A->p[row].end -= 1;
-        A->nnz -= 1;
-        *row_size -= 1;
-    }
-
-    assert(A->p[row].end <= A->p[row + 1].start);
-    return old_val;
 }
 
 void remove_coeff(RowView *row, int col)
@@ -680,28 +363,34 @@ Matrix *random_matrix_new(size_t n_rows, size_t n_cols, double density)
     return A;
 }
 
+/* Test helper: replaces row 'row' by ratio * new_vals on cols_new, shifting the
+   rows after it (n_alloc must have room; the arrays are never reallocated, so
+   pointers into earlier rows stay valid). */
 void replace_row_A(Matrix *A, int row, double ratio, double *new_vals, int *cols_new,
                    int new_len)
 {
-    int i, len, start, n_new_elements;
-    len = A->p[row].end - A->p[row].start;
-    n_new_elements = new_len - len;
+    int old_start = A->p[row].start;
+    int old_end = A->p[row].end;
+    int total = A->p[A->m].start;
+    int delta = new_len - (old_end - old_start);
+    assert((size_t) (total + delta) <= A->n_alloc);
 
-    // potentially shift row to get extra space
-    if (n_new_elements > 0)
+    memmove(A->x + old_end + delta, A->x + old_end,
+            (size_t) (total - old_end) * sizeof(double));
+    memmove(A->i + old_end + delta, A->i + old_end,
+            (size_t) (total - old_end) * sizeof(int));
+    for (int i = 0; i < new_len; ++i)
     {
-        assert(shift_row(A, row, n_new_elements, 2000));
+        A->x[old_start + i] = ratio * new_vals[i];
+        A->i[old_start + i] = cols_new[i];
     }
-
-    // replace the row
-    start = A->p[row].start;
-    for (i = 0; i < new_len; ++i)
+    A->nnz = (size_t) (total + delta);
+    A->p[row].end = old_start + new_len;
+    for (size_t r = (size_t) row + 1; r <= A->m; ++r)
     {
-        A->x[start + i] = ratio * new_vals[i];
-        A->i[start + i] = cols_new[i];
+        A->p[r].start += delta;
+        A->p[r].end += delta;
     }
-    A->p[row].end = A->p[row].start + new_len;
-    assert(A->p[row].end <= A->p[row + 1].start);
 }
 
 #endif

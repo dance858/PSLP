@@ -21,12 +21,15 @@
 
 #include "Bounds.h"
 #include "iVec.h"
+#include <stdbool.h>
 
 typedef struct Mapping
 {
     int *rows;
     int *cols;
 } Mapping;
+
+struct DtonWorkspace;
 
 /* The int_vec in the following struct is used within
     1. parallel_rows to store bin_starts
@@ -51,9 +54,15 @@ typedef struct Work
     int *radix_aux;
 
     Mapping *mappings;
+
+    // allocated when the doubleton explorer is on
+    struct DtonWorkspace *dton;
 } Work;
 
-Work *new_work(size_t n_rows, size_t n_col);
+Work *new_work(size_t n_rows, size_t n_cols, bool dton_eq);
 void free_work(Work *work);
+
+/* Frees the arrays that only presolve uses. The mappings stay. */
+void free_work_scratch(Work *work);
 
 #endif // CORE_WORKSPACE_H

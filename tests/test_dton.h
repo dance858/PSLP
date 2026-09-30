@@ -1,1664 +1,1411 @@
 #ifndef TEST_DTON_H
 #define TEST_DTON_H
 
-#include "DTonsEq.h"
 #include "Debugger.h"
+#include "DtonsEq_internal.h"
 #include "PSLP_API.h"
 
+#include "Activity.h"
+#include "Binary_search.h"
 #include "Constraints.h"
+#include "Matrix.h"
+#include "PSLP_sol.h"
+#include "Postsolver.h"
 #include "Problem.h"
+#include "State.h"
 #include "Workspace.h"
 #include "debug_macros.h"
+#include "kkt.h"
 #include "minunit.h"
+#include "u16Vec.h"
+#include <assert.h>
+#include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 static int counter_dton = 0;
 
-/*  test update_row_A_dton
-    Substitution: x1 = 1 - 2x2
-    x1  +     + x3 + x4 = 1  -> -2x2 + x3 + x4 = 0   (fill-in)
-    x1  + x2  + x3 + x4 = 1  -> -x2  + x3 + x4 = 0   (inplace)
-    2x1 + 4x2 + x3 + x4 = 1  ->        x3 + x4 = 1   (unexpected cancellation)
-*/
-static char *test_00_dton()
+/* The claim record of column k (must be claimed in the current round). */
+static const DtonSubst *dton_rec(const DtonWorkspace *dton_work, int k)
 {
-    double Ax[] = {1, 1, 1, 1, 1, 1, 1, 2, 4, 1, 1};
-    int Ai[] = {0, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3};
-    int Ap[] = {0, 3, 7, 11};
-    int nnz = 11;
-    int n_rows = 3;
-    int n_cols = 4;
-
-    Matrix *A = matrix_new(Ax, Ai, Ap, n_rows, n_cols, nnz);
-
-    int stay = 1;
-    int subst = 0;
-    double ratio = 2;
-    int row_sizes[] = {3, 4, 4};
-    PostsolveInfo *postsolve_info = postsolve_info_new(n_rows, n_cols);
-    update_row_A_dton(A, 0, 0, stay, subst, 2, 1, row_sizes + 0, postsolve_info);
-    update_row_A_dton(A, 0, 1, stay, subst, 2, 1, row_sizes + 1, postsolve_info);
-    update_row_A_dton(A, 0, 2, stay, subst, 2, 1, row_sizes + 2, postsolve_info);
-
-    // check that new row sizes are correct
-    int row_sizes_correct[] = {3, 3, 2};
-    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes_correct, row_sizes, 3));
-
-    int col_sizes[] = {SIZE_INACTIVE_COL, 2, 3, 3};
-    int map[4] = {0};
-    int new_n_cols = update_column_map(col_sizes, map, 4);
-    remove_extra_space(A, row_sizes, map, new_n_cols);
-
-    // check that new A is correct
-    double Ax_correct[] = {-2, 1, 1, -1, 1, 1, 1, 1};
-    int Ai_correct[] = {0, 1, 2, 0, 1, 2, 1, 2};
-    int Ap_correct[] = {0, 3, 6, 8};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
-    mu_assert("wrong nnz", A->nnz == 8);
-
-    postsolve_info_free(postsolve_info);
-    free_matrix(A);
-    return 0;
+    assert(dton_work->substs.col_subst[k] >= 0);
+    return dton_work->substs.recs + dton_work->substs.col_subst[k];
 }
 
-/*  test update_row_A_dton
-    Substitution: x3 = 1 - 2x4
-    x1 + 2x2 + x3  +      + x5 + x6 = 1  ->  x1 + 2x2 - 2x4 + x5 + x6 =  0
-   (fill-in) x1 +  x2 + x3  + x4   + x5 + x6 = 1  ->  x1 +  x2 -  x4 + x5 + x6 =
-   0   (inplace) x1 +  x2 + 2x3 + 4x4  + x5 + x6 = 1  ->  x1 +  x2 +     + x5 +
-   x6 = -1   (unexpected cancellation)
-*/
-static char *test_01_dton()
+/* The chain depth of column k's record after composition. */
+static int dton_depth(const DtonWorkspace *dton_work, int k)
 {
-    double Ax[] = {1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 4, 1, 1};
-    int Ai[] = {0, 1, 2, 4, 5, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5};
-    int Ap[] = {0, 5, 11, 17};
-    int nnz = 17;
-    int n_rows = 3;
-    int n_cols = 6;
-
-    Matrix *A = matrix_new(Ax, Ai, Ap, n_rows, n_cols, nnz);
-
-    int stay = 3;
-    int subst = 2;
-    double ratio = 2;
-    int row_sizes[] = {5, 6, 6};
-    PostsolveInfo *postsolve_info = postsolve_info_new(n_rows, n_cols);
-    update_row_A_dton(A, 0, 0, stay, subst, 2, 1, row_sizes + 0, postsolve_info);
-    update_row_A_dton(A, 0, 1, stay, subst, 2, 1, row_sizes + 1, postsolve_info);
-    update_row_A_dton(A, 0, 2, stay, subst, 2, 1, row_sizes + 2, postsolve_info);
-
-    // check that new row sizes are correct
-    int row_sizes_correct[] = {5, 5, 4};
-    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes_correct, row_sizes, 3));
-
-    int col_sizes[] = {3, 3, SIZE_INACTIVE_COL, 2, 3, 3};
-    int map[6] = {0};
-    int n_new_cols = update_column_map(col_sizes, map, 6);
-    remove_extra_space(A, row_sizes, map, n_new_cols);
-
-    // check that new A is correct
-    double Ax_correct[] = {1, 2, -2, 1, 1, 1, 1, -1, 1, 1, 1, 1, 1, 1};
-    int Ai_correct[] = {0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 3, 4};
-    int Ap_correct[] = {0, 5, 10, 14};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 14));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 14));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
-    mu_assert("wrong nnz", A->nnz == 14);
-
-    postsolve_info_free(postsolve_info);
-    free_matrix(A);
-    return 0;
+    assert(dton_work->substs.col_subst[k] >= 0);
+    return dton_work->substs.depth[dton_work->substs.col_subst[k]];
 }
 
-/*  test update_row_A_dton
-    Substitution: x5 = 1 - 2x6
-    x1 + 2x2 + x3  + x4   + x5 +    = 1  ->  x1 + 2x2 + x3 + x4 +   - 2x6 =  0
-   (fill-in) x1 +  x2 + x3  + x4   + x5 + x6 = 1  ->  x1 +  x2 + x3 + x4 +   -
-   x6 =  0   (inplace) x1 +  x2 + 2x3 + 4x4  + x5 + x6 = 1  ->  x1 +  x2 + x3 +
-   x4           = -1   (unexpected cancellation)
-*/
-static char *test_02_dton()
+/* Workspace lifecycle: allocated with the presolver, sized by the problem, freed
+ * with the presolver (run under ASAN in CI). */
+static char *test_dton_workspace()
 {
-    double Ax[] = {1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 4};
-    int Ai[] = {0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5};
-    int Ap[] = {0, 5, 11, 17};
-    int nnz = 17;
-    int n_rows = 3;
-    int n_cols = 6;
+    // x0 + x1 = 1 (doubleton equality), x0 + x1 + x2 <= 4
+    double Ax[] = {1, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 1, 2};
+    int Ap[] = {0, 2, 5};
+    int nnz = 5;
+    int n_rows = 2;
+    int n_cols = 3;
 
-    Matrix *A = matrix_new(Ax, Ai, Ap, n_rows, n_cols, nnz);
-
-    int stay = 5;
-    int subst = 4;
-    double ratio = 2;
-    int row_sizes[] = {5, 6, 6};
-    PostsolveInfo *postsolve_info = postsolve_info_new(n_rows, n_cols);
-    update_row_A_dton(A, 0, 0, stay, subst, 2, 1, row_sizes + 0, postsolve_info);
-    update_row_A_dton(A, 0, 1, stay, subst, 2, 1, row_sizes + 1, postsolve_info);
-    update_row_A_dton(A, 0, 2, stay, subst, 2, 1, row_sizes + 2, postsolve_info);
-
-    // check that new row sizes are correct
-    int row_sizes_correct[] = {5, 5, 4};
-    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes_correct, row_sizes, 3));
-
-    int col_sizes[] = {3, 3, 3, 3, SIZE_INACTIVE_COL, 2};
-    int map[6] = {0};
-    int n_new_cols = update_column_map(col_sizes, map, 6);
-    remove_extra_space(A, row_sizes, map, n_new_cols);
-
-    // check that new A is correct
-    double Ax_correct[] = {1, 2, 1, 1, -2, 1, 1, 1, 1, -1, 1, 1, 1, 1};
-    int Ai_correct[] = {0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3};
-    int Ap_correct[] = {0, 5, 10, 14};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 14));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 14));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
-    mu_assert("wrong nnz", A->nnz == 14);
-
-    postsolve_info_free(postsolve_info);
-    free_matrix(A);
-    return 0;
-}
-
-/*  test update_row_A_dton
-    Substitution: x2 = 0.5 - 0.5x1
-    x1  +     + x3 + x4 = 1  ->     x1  + x3 + x4 = 1        (unchanged)
-    x1  + x2  + x3 + x4 = 1  ->  0.5x1  + x3 + x4 = 0.5      (inplace)
-    2x1 + 4x2 + x3 + x4 = 1  ->           x3 + x4 = 1        (unexpected
-   cancellation)
-*/
-static char *test_03_dton()
-{
-    double Ax[] = {1, 1, 1, 1, 1, 1, 1, 2, 4, 1, 1};
-    int Ai[] = {0, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3};
-    int Ap[] = {0, 3, 7, 11};
-    int nnz = 11;
-    int n_rows = 3;
-    int n_cols = 4;
-
-    Matrix *A = matrix_new(Ax, Ai, Ap, n_rows, n_cols, nnz);
-
-    int stay = 0;
-    int subst = 1;
-    double ratio = 0.5;
-    int row_sizes[] = {3, 4, 4};
-    PostsolveInfo *postsolve_info = postsolve_info_new(n_rows, n_cols);
-    update_row_A_dton(A, 0, 1, stay, subst, 1, 2, row_sizes + 1, postsolve_info);
-    update_row_A_dton(A, 0, 2, stay, subst, 1, 2, row_sizes + 2, postsolve_info);
-
-    // check that new row sizes are correct
-    int row_sizes_correct[] = {3, 3, 2};
-    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes_correct, row_sizes, 3));
-
-    int col_sizes[] = {2, SIZE_INACTIVE_COL, 3, 3};
-    int map[4] = {0};
-    int n_new_cols = update_column_map(col_sizes, map, 4);
-    remove_extra_space(A, row_sizes, map, n_new_cols);
-
-    // check that new A is correct
-    double Ax_correct[] = {1, 1, 1, 0.5, 1, 1, 1, 1};
-    int Ai_correct[] = {0, 1, 2, 0, 1, 2, 1, 2};
-    int Ap_correct[] = {0, 3, 6, 8};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
-    mu_assert("wrong nnz", A->nnz == 8);
-
-    postsolve_info_free(postsolve_info);
-    free_matrix(A);
-    return 0;
-}
-
-/*  test update_row_A_dton
-    Substitution: x4 = 0.5 - 0.5x3
-    x1 + 2x2 + x3  +      + x5 + x6 = 1  ->  x1 + 2x2 +    x3  +      + x5 + x6
-   = 1     (unchanged) x1 +  x2 + x3  + x4   + x5 + x6 = 1  ->  x1 +  x2 + 0.5x3
-   +      + x5 + x6 = 0.5   (inplace) x1 +  x2 + 2x3 + 4x4  + x5 + x6 = 1  -> x1
-   +  x2 +               + x5 + x6 = -1     unexpected cancellation)
-*/
-static char *test_04_dton()
-{
-    double Ax[] = {1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 4, 1, 1};
-    int Ai[] = {0, 1, 2, 4, 5, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5};
-    int Ap[] = {0, 5, 11, 17};
-    int nnz = 17;
-    int n_rows = 3;
-    int n_cols = 6;
-
-    Matrix *A = matrix_new(Ax, Ai, Ap, n_rows, n_cols, nnz);
-
-    int stay = 2;
-    int subst = 3;
-    double ratio = 0.5;
-    int row_sizes[] = {5, 6, 6};
-    PostsolveInfo *postsolve_info = postsolve_info_new(n_rows, n_cols);
-    update_row_A_dton(A, 0, 1, stay, subst, 1, 2, row_sizes + 1, postsolve_info);
-    update_row_A_dton(A, 0, 2, stay, subst, 1, 2, row_sizes + 2, postsolve_info);
-
-    // check that new row sizes are correct
-    int row_sizes_correct[] = {5, 5, 4};
-    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes_correct, row_sizes, 3));
-
-    int col_sizes[] = {3, 3, 2, SIZE_INACTIVE_COL, 3, 3};
-    int map[6] = {0};
-    int n_new_cols = update_column_map(col_sizes, map, 6);
-    remove_extra_space(A, row_sizes, map, n_new_cols);
-
-    // check that new A is correct
-    double Ax_correct[] = {1, 2, 1, 1, 1, 1, 1, 0.5, 1, 1, 1, 1, 1, 1};
-    int Ai_correct[] = {0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 3, 4};
-    int Ap_correct[] = {0, 5, 10, 14};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 14));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 14));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
-    mu_assert("wrong nnz", A->nnz == 14);
-
-    postsolve_info_free(postsolve_info);
-    free_matrix(A);
-    return 0;
-}
-
-/*  test update_row_A_dton
-    Substitution: x6 = 0.5 - 0.5x5
-    x1 + 2x2 + x3  + x4   + x5 +    = 1  ->  x1 + 2x2 + x3  + x4   +  x5 +  = 1
-   (unchanged-in) x1 +  x2 + x3  + x4   + x5 + x6 = 1  ->  x1 +  x2 + x3 +  x4 +
-   0.5 x5   = 0.5   (inplace) x1 +  x2 + 2x3 + 4x4  + x5 + x6 = 1  ->  x1 +  x2
-   + x3 +  x4            = -1    (unexpected cancellation)
-*/
-static char *test_05_dton()
-{
-    double Ax[] = {1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 4};
-    int Ai[] = {0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5};
-    int Ap[] = {0, 5, 11, 17};
-    int nnz = 17;
-    int n_rows = 3;
-    int n_cols = 6;
-
-    Matrix *A = matrix_new(Ax, Ai, Ap, n_rows, n_cols, nnz);
-
-    int stay = 4;
-    int subst = 5;
-    double ratio = 0.5;
-    int row_sizes[] = {5, 6, 6};
-    PostsolveInfo *postsolve_info = postsolve_info_new(n_rows, n_cols);
-    update_row_A_dton(A, 0, 1, stay, subst, 1, 2, row_sizes + 1, postsolve_info);
-    update_row_A_dton(A, 0, 2, stay, subst, 1, 2, row_sizes + 2, postsolve_info);
-
-    // check that new row sizes are correct
-    int row_sizes_correct[] = {5, 5, 4};
-    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes_correct, row_sizes, 3));
-
-    int col_sizes[] = {3, 3, 3, 3, 2, SIZE_INACTIVE_COL};
-    int map[6] = {0};
-    int n_new_cols = update_column_map(col_sizes, map, 6);
-    remove_extra_space(A, row_sizes, map, n_new_cols);
-
-    // check that new A is correct
-    double Ax_correct[] = {1, 2, 1, 1, 1, 1, 1, 1, 1, 0.5, 1, 1, 1, 1};
-    int Ai_correct[] = {0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3};
-    int Ap_correct[] = {0, 5, 10, 14};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 14));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 14));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
-    mu_assert("wrong nnz", A->nnz == 14);
-
-    postsolve_info_free(postsolve_info);
-    free_matrix(A);
-    return 0;
-}
-
-/*  test update_row_A_dton, WITH NO EXTRA SPACE
-    Substitution: x1 = 1 - 2x2
-    x1  +     + x3 + x4 = 1  -> -2x2 + x3 + x4 = 0   (fill-in)
-    x1  + x2  + x3 + x4 = 1  -> -x2  + x3 + x4 = 0   (inplace)
-    2x1 + 4x2 + x3 + x4 = 1  ->        x3 + x4 = 1   (unexpected cancellation)
-*/
-static char *test_06_dton()
-{
-    double Ax[] = {1, 1, 1, 1, 1, 1, 1, 2, 4, 1, 1};
-    int Ai[] = {0, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3};
-    int Ap[] = {0, 3, 7, 11};
-    int nnz = 11;
-    int n_rows = 3;
-    int n_cols = 4;
-
-    Matrix *A = matrix_new(Ax, Ai, Ap, n_rows, n_cols, nnz);
-    int row_sizes[] = {3, 4, 4};
-    int col_sizes[] = {3, 2, 3, 3};
-    int map[4] = {0};
-
-    // int n_new_cols = update_column_map(col_sizes, map, 4);
-    // remove_extra_space(A, row_sizes, col_sizes, true, map, n_new_cols);
-
-    int stay = 1;
-    int subst = 0;
-    double ratio = 2;
-    PostsolveInfo *postsolve_info = postsolve_info_new(n_rows, n_cols);
-    update_row_A_dton(A, 0, 0, stay, subst, 2, 1, row_sizes + 0, postsolve_info);
-    update_row_A_dton(A, 0, 1, stay, subst, 2, 1, row_sizes + 1, postsolve_info);
-    update_row_A_dton(A, 0, 2, stay, subst, 2, 1, row_sizes + 2, postsolve_info);
-
-    // check that new row sizes are correct
-    int row_sizes_correct[] = {3, 3, 2};
-    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes_correct, row_sizes, 3));
-
-    int col_sizes_new[] = {SIZE_INACTIVE_COL, 2, 3, 3};
-    int n_new_cols = update_column_map(col_sizes_new, map, 4);
-    remove_extra_space(A, row_sizes, map, n_new_cols);
-
-    // check that new A is correct
-    double Ax_correct[] = {-2, 1, 1, -1, 1, 1, 1, 1};
-    int Ai_correct[] = {0, 1, 2, 0, 1, 2, 1, 2};
-    int Ap_correct[] = {0, 3, 6, 8};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
-    mu_assert("wrong nnz", A->nnz == 8);
-
-    postsolve_info_free(postsolve_info);
-    free_matrix(A);
-    return 0;
-}
-
-/* dton row eliminated, bounds on the other variable are tightened.
-min. [2 -1 -1 3 2]x
-s.t. [2  1  -1  3  2]     [2]
-     [1 -2   0  0  0] x = [-1]
-     [1  4   0  3  1]     [4]
-     0.4 <= x1 <= 0.6
-     x2, x3, x4, x5 >= 0
-*/
-static char *test_1_dton()
-{
-    double Ax[] = {2, 1, -1, 3, 2, 1, -2, 1, 4, 3, 1};
-    int Ai[] = {0, 1, 2, 3, 4, 0, 1, 0, 1, 3, 4};
-    int Ap[] = {0, 5, 7, 11};
-    int nnz = 11;
-    int n_rows = 3;
-    int n_cols = 5;
-
-    double lhs[] = {2, -1, 4};
-    double rhs[] = {2, -1, 4};
-    double lbs[] = {0.4, 0, 0, 0, 0};
-    double ubs[] = {0.6, INF, INF, INF, INF};
-    double c[] = {2, -1, -1, 3, 2};
+    double lhs[] = {1, -INF};
+    double rhs[] = {1, 4};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {10, 10, 10};
+    double c[] = {1, 1, 1};
 
     Settings *stgs = default_settings();
     set_settings_false(stgs);
     stgs->dton_eq = true;
     Presolver *presolver =
         new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
 
-    Problem *prob = presolver->prob;
-    Constraints *constraints = prob->constraints;
-    Matrix *A = constraints->A;
-    remove_dton_eq_rows(prob, 10);
-    problem_clean(prob);
+    Work *work = presolver->prob->constraints->state->work;
+    mu_assert("dton workspace must be allocated", work->dton != NULL);
+    mu_assert("workspace n_rows mismatch", work->dton->n_rows == n_rows);
+    mu_assert("workspace n_cols mismatch", work->dton->n_cols == n_cols);
 
-    mu_assert("error row size", check_row_sizes(A, constraints->state->row_sizes));
-    mu_assert("error col size",
-              check_col_sizes(constraints->AT, constraints->state->col_sizes));
-
-    // check that new A is correct
-    double Ax_correct[] = {5, -1, 3, 2, 6, 3, 1};
-    int Ai_correct[] = {0, 1, 2, 3, 0, 2, 3};
-    int Ap_correct[] = {0, 4, 7};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 7));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 7));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
-
-    // check new AT
-    DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
-
-    // check that new coltags are correct
-    ColTag col_tags_correct[] = {C_TAG_NONE, C_TAG_UB_INF, C_TAG_UB_INF,
-                                 C_TAG_UB_INF};
-    mu_assert("error col_tags",
-              ARRAYS_EQUAL_COLTAG(col_tags_correct, constraints->col_tags, 4));
-
-    // check that new variable bounds are correct
-    double lbs_correct[] = {0.7, 0, 0, 0};
-    double ubs_correct[] = {0.8, INF, INF, INF};
-    mu_assert("error bounds",
-              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 4));
-
-    // check that the objective function is correct
-    double obj_correct[] = {3, -1, 3, 2};
-    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
-    mu_assert("error obj", prob->obj->offset == -2.0);
-
-    // check that lhs and rhs are correct
-    double lhs_correct[] = {4, 5};
-    double rhs_correct[] = {4, 5};
-    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 2));
-    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 2));
-
-    PS_FREE(stgs);
-    DEBUG(run_debugger(constraints, false));
+    run_presolver(presolver);
+    mu_assert("dton workspace must be freed after presolve", work->dton == NULL);
     free_presolver(presolver);
+
+    stgs->dton_eq = false;
+    presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+    work = presolver->prob->constraints->state->work;
+    mu_assert("dton workspace must not be allocated", work->dton == NULL);
+
+    free_presolver(presolver);
+    PS_FREE(stgs);
+    dton_workspace_free(NULL); // must tolerate NULL
+    return 0;
+}
+
+static char *test_dton_choose_subst()
+{
+    // the larger coefficient is substituted, whatever the column sizes
+    double v12[] = {1.0, 2.0};
+    mu_assert("larger c1", dton_choose_subst(v12, 3, 3) == 1);
+    mu_assert("larger c1 beats singleton c0", dton_choose_subst(v12, 1, 5) == 1);
+    mu_assert("larger c1 beats sparser c0", dton_choose_subst(v12, 2, 3) == 1);
+    double v21[] = {2.0, 1.0};
+    mu_assert("larger c0", dton_choose_subst(v21, 3, 3) == 0);
+    double vhuge[] = {1e9, 1.0};
+    mu_assert("huge pivot substituted", dton_choose_subst(vhuge, 3, 3) == 0);
+    double vtiny[] = {1e-9, 1.0};
+    mu_assert("tiny pivot avoided", dton_choose_subst(vtiny, 3, 3) == 1);
+
+    // equal magnitude: singleton column first, then the sparser column
+    double v11[] = {1.0, -1.0};
+    mu_assert("singleton c0", dton_choose_subst(v11, 1, 5) == 0);
+    mu_assert("singleton c1", dton_choose_subst(v11, 5, 1) == 1);
+    mu_assert("sparser c0", dton_choose_subst(v11, 2, 3) == 0);
+    mu_assert("sparser c1", dton_choose_subst(v11, 3, 2) == 1);
 
     return 0;
 }
 
-/*  dton row eliminated, unexpected cancellation.
-    min. [2 -1 -1 3 2]x
-    s.t. [2  1  -1  3  2]     [2]
-         [1 -2   0  0  0] x = [-1]
-         [1 -2   1  3  1]     [4]
-         0.4 <= x1 <= 0.6
-         x2, x3, x4, x5 >= 0
-*/
-static char *test_2_dton()
+/* Two doubleton rows choosing the same substituted column: the first
+   claims it, the second is deferred (no orientation flip). */
+static char *test_dton_claim_conflict()
 {
-    double Ax[] = {2, 1, -1, 3, 2, 1, -2, 1, -2, 1, 3, 1};
-    int Ai[] = {0, 1, 2, 3, 4, 0, 1, 0, 1, 2, 3, 4};
-    int Ap[] = {0, 5, 7, 12};
-    int nnz = 12;
-    int n_rows = 3;
-    int n_cols = 5;
-
-    double lhs[] = {2, -1, 4};
-    double rhs[] = {2, -1, 4};
-    double lbs[] = {0.4, 0, 0, 0, 0};
-    double ubs[] = {0.6, INF, INF, INF, INF};
-    double c[] = {2, -1, -1, 3, 2};
+    // r0: 3 x0 + x1 = 1, r1: 5 x0 + x2 = 2, r2: x1 + x2 <= 10 (pad)
+    double Ax[] = {3, 1, 5, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 2, 1, 2};
+    int Ap[] = {0, 2, 4, 6};
+    double lhs[] = {1, 2, -INF};
+    double rhs[] = {1, 2, 10};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {10, 10, 10};
+    double c[] = {1, 1, 1};
 
     Settings *stgs = default_settings();
     set_settings_false(stgs);
-    stgs->dton_eq = true;
-
     Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+        new_presolver(Ax, Ai, Ap, 3, 3, 6, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
 
-    PS_FREE(stgs);
+    DtonWorkspace *dton_work = dton_workspace_new(3, 3);
+    dton_workspace_init(dton_work, presolver->prob->constraints->state->work);
+    int deferred[8];
+    int n_deferred = 0;
+    mu_assert("claim",
+              dton_claim(presolver->prob, dton_work, deferred, &n_deferred));
+
+    mu_assert("one column claimed", dton_work->substs.n_recs == 1);
+    mu_assert("x0 claimed", dton_work->substs.recs[0].k == 0);
+    mu_assert("x0 owned by r0", dton_rec(dton_work, 0)->owner == 0);
+    mu_assert("record owner", dton_work->substs.recs[0].owner == 0);
+    mu_assert("x0 stays into x1", dton_rec(dton_work, 0)->j == 1);
+    mu_assert("record stay col", dton_work->substs.recs[0].j == 1);
+    mu_assert("dir_mult", dton_rec(dton_work, 0)->dir_mult == -1.0 / 3.0);
+    mu_assert("dir_shift", dton_rec(dton_work, 0)->dir_shift == 1.0 / 3.0);
+    mu_assert("loser deferred", n_deferred == 1 && deferred[0] == 1);
+
+    dton_compose(dton_work, deferred, &n_deferred);
+    mu_assert("still one eliminated", dton_work->substs.n_recs == 1);
+    mu_assert("composed target", dton_rec(dton_work, 0)->target == 1);
+    mu_assert("composed mult", dton_rec(dton_work, 0)->mult == -1.0 / 3.0);
+    mu_assert("composed shift", dton_rec(dton_work, 0)->shift == 1.0 / 3.0);
+    mu_assert("depth 0", dton_depth(dton_work, 0) == 0);
+    mu_assert("compose defers nothing here", n_deferred == 1);
+
+    dton_workspace_free(dton_work);
     free_presolver(presolver);
-
-    /*
-    Problem *prob = presolver->prob;
-    Constraints *constraints = prob->constraints;
-    Matrix *A = constraints->A;
-    remove_dton_eq_rows(prob, 10);
-    problem_clean(prob);
-
-    mu_assert("error", check_row_sizes(constraints->A,
-                                       constraints->state->row_sizes));
-    mu_assert("error", check_col_sizes(constraints->AT,
-                                       constraints->state->col_sizes));
-
-    // check that new A is correct
-    double Ax_correct[] = {5, -1, 3, 2, 1, 3, 1};
-    int Ai_correct[] = {0, 1, 2, 3, 1, 2, 3};
-    int Ap_correct[] = {0, 4, 7};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 7));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 7));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
-
-    // check new AT
-    DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
-
-    // check that new variable bounds are correct
-    double lbs_correct[] = {0.7, 0, 0, 0};
-    double ubs_correct[] = {0.8, INF, INF, INF};
-    mu_assert("error bounds",
-              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 4));
-
-    // check that the objective function is correct
-    double obj_correct[] = {3, -1, 3, 2};
-    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
-    mu_assert("error obj", prob->obj->offset == -2.0);
-
-    // check that lhs and rhs are correct
-    double lhs_correct[] = {4, 5};
-    double rhs_correct[] = {4, 5};
-    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 2));
-    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 2));
-
-    */
-    // PS_FREE(stgs);
-    // DEBUG(run_debugger(constraints, false));
-    // free_presolver(presolver);
+    PS_FREE(stgs);
     return 0;
 }
 
-/*  dton row eliminated, unexpected cancellation resulting in zero column
-    min. [2  -1 -1 3 2]x
-    s.t. [2 -4  -1  3  2]     [2]
-         [1 -2   0  0  0] x = [-1]
-         [1 -2   1  3  1]     [4]
-         1 <= x1 <= 2
-         x3, x4, x5 >= 0
-         x2 >= 1.1
-*/
-static char *test_3_dton()
+/* Chain x0 -> x1 -> x2: r0 eliminates x0 into x1 (singleton rule), r1
+   eliminates x1 into x2 (larger coefficient); composition maps both onto
+   the final survivor x2 with hand-computed maps and depths. */
+static char *test_dton_chain_depth2()
 {
-    double Ax[] = {2, -4, -1, 3, 2, 1, -2, 1, -2, 1, 3, 1};
-    int Ai[] = {0, 1, 2, 3, 4, 0, 1, 0, 1, 2, 3, 4};
-    int Ap[] = {0, 5, 7, 12};
-    int nnz = 12;
-    int n_rows = 3;
-    int n_cols = 5;
-
-    double lhs[] = {2, -1, 4};
-    double rhs[] = {2, -1, 4};
-    double lbs[] = {1, 1.1, 0, 0, 0};
-    double ubs[] = {2, INF, INF, INF, INF};
-    double c[] = {2, -1, -1, 3, 2};
-
-    Settings *stgs = default_settings();
-    set_settings_false(stgs);
-    stgs->dton_eq = true;
-    Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
-
-    Problem *prob = presolver->prob;
-    Constraints *constraints = prob->constraints;
-    Matrix *A = constraints->A;
-    remove_dton_eq_rows(prob, 10);
-    problem_clean(prob);
-
-    mu_assert("error row_sizes",
-              check_row_sizes(constraints->A, constraints->state->row_sizes));
-    mu_assert("error col_sizes",
-              check_col_sizes(constraints->AT, constraints->state->col_sizes));
-
-    // check that new A is correct
-    double Ax_correct[] = {-1, 3, 2, 1, 3, 1};
-    int Ai_correct[] = {1, 2, 3, 1, 2, 3};
-    int Ap_correct[] = {0, 3, 6};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
-
-    // check new AT
-    DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
-
-    // check that new variable bounds are correct
-    double lbs_correct[] = {1.1, 0, 0, 0};
-    double ubs_correct[] = {1.5, INF, INF, INF};
-    mu_assert("error bounds",
-              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 4));
-
-    // check that the objective function is correct
-    double obj_correct[] = {3, -1, 3, 2};
-    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
-    mu_assert("error offset", prob->obj->offset == -2);
-
-    // check that lhs and rhs are correct
-    double lhs_correct[] = {4, 5};
-    double rhs_correct[] = {4, 5};
-    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 2));
-    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 2));
-
-    PS_FREE(stgs);
-    DEBUG(run_debugger(constraints, false));
-    free_presolver(presolver);
-    return 0;
-}
-
-/* Two identical doubleton rows, feasible problem,
-    min. [2  -1 -1 3 2]x
-    s.t. [2 -5  -1  3  2]     [2]
-         [1 -2   0  0  0] x = [-1]
-         [1 -2   1  3  1]     [4]
-         [1 -2   0  0  0]     [-1]
-         1 <= x1 <= 2
-         x3, x4, x5 >= 0
-         x2 >= 1.1
-*/
-static char *test_004_dton()
-{
-    double Ax[] = {2, -5, -1, 3, 2, 1, -2, 1, -2, 1, 3, 1, 1, -2};
-    int Ai[] = {0, 1, 2, 3, 4, 0, 1, 0, 1, 2, 3, 4, 0, 1};
-    int Ap[] = {0, 5, 7, 12, 14};
-    int nnz = 14;
-    int n_rows = 4;
-    int n_cols = 5;
-
-    double lhs[] = {2, -1, 4, -1};
-    double rhs[] = {2, -1, 4, -1};
-    double lbs[] = {1, 1.1, 0, 0, 0};
-    double ubs[] = {2, INF, INF, INF, INF};
-    double c[] = {2, -1, -1, 3, 2};
-
-    Settings *stgs = default_settings();
-    set_settings_false(stgs);
-    stgs->dton_eq = true;
-    Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
-
-    Problem *prob = presolver->prob;
-    Constraints *constraints = prob->constraints;
-    Matrix *A = constraints->A;
-    remove_dton_eq_rows(prob, 10);
-    problem_clean(prob);
-
-    mu_assert("error",
-              check_row_sizes(constraints->A, constraints->state->row_sizes));
-    mu_assert("error",
-              check_col_sizes(constraints->AT, constraints->state->col_sizes));
-
-    // check that new A is correct
-    double Ax_correct[] = {-1, -1, 3, 2, 1, 3, 1};
-    int Ai_correct[] = {0, 1, 2, 3, 1, 2, 3};
-    int Ap_correct[] = {0, 4, 7, 7};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 7));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 7));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
-
-    // check new AT
-    DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
-
-    // check that new variable bounds are correct
-    double lbs_correct[] = {1.1, 0, 0, 0};
-    double ubs_correct[] = {1.5, INF, INF, INF};
-    mu_assert("error bounds",
-              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 4));
-
-    // check that the objective function is correct
-    double obj_correct[] = {3, -1, 3, 2};
-    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
-    mu_assert("error offset", prob->obj->offset == -2);
-
-    // check that lhs and rhs are correct
-    double lhs_correct[] = {4, 5, 0};
-    double rhs_correct[] = {4, 5, 0};
-    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 3));
-    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 3));
-
-    PS_FREE(stgs);
-    DEBUG(run_debugger(constraints, false));
-    free_presolver(presolver);
-    return 0;
-}
-
-/* Two identical doubleton rows, feasible problem, empty column, empty row
-    min. [2  -1 -1 3 2]x
-    s.t. [2 -4  -1  3  2]     [2]
-         [1 -2   0  0  0] x = [-1]
-         [1 -2   1  3  1]     [4]
-         [1 -2   0  0  0]     [-1]
-         1 <= x1 <= 2
-         x3, x4, x5 >= 0
-         x2 >= 1.1
-*/
-static char *test_4_dton()
-{
-    double Ax[] = {2, -4, -1, 3, 2, 1, -2, 1, -2, 1, 3, 1, 1, -2};
-    int Ai[] = {0, 1, 2, 3, 4, 0, 1, 0, 1, 2, 3, 4, 0, 1};
-    int Ap[] = {0, 5, 7, 12, 14};
-    int nnz = 14;
-    int n_rows = 4;
-    int n_cols = 5;
-
-    double lhs[] = {2, -1, 4, -1};
-    double rhs[] = {2, -1, 4, -1};
-    double lbs[] = {1, 1.1, 0, 0, 0};
-    double ubs[] = {2, INF, INF, INF, INF};
-    double c[] = {2, -1, -1, 3, 2};
-
-    Settings *stgs = default_settings();
-    set_settings_false(stgs);
-    stgs->dton_eq = true;
-    Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
-
-    Problem *prob = presolver->prob;
-    Constraints *constraints = prob->constraints;
-    Matrix *A = constraints->A;
-    remove_dton_eq_rows(prob, 10);
-    problem_clean(prob);
-
-    mu_assert("error",
-              check_row_sizes(constraints->A, constraints->state->row_sizes));
-    mu_assert("error",
-              check_col_sizes(constraints->AT, constraints->state->col_sizes));
-
-    // check that new A is correct
-    double Ax_correct[] = {-1, 3, 2, 1, 3, 1};
-    int Ai_correct[] = {1, 2, 3, 1, 2, 3};
-    int Ap_correct[] = {0, 3, 6, 6};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
-
-    // check new AT
-    DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
-
-    // check that new variable bounds are correct
-    double lbs_correct[] = {1.1, 0, 0, 0};
-    double ubs_correct[] = {1.5, INF, INF, INF};
-    mu_assert("error bounds",
-              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 4));
-
-    // check that the objective function is correct
-    double obj_correct[] = {3, -1, 3, 2};
-    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
-    mu_assert("error obj", prob->obj->offset == -2);
-
-    // check that lhs and rhs are correct
-    double lhs_correct[] = {4, 5, 0, 0};
-    double rhs_correct[] = {4, 5, 0, 0};
-    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 4));
-    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 4));
-
-    PS_FREE(stgs);
-    DEBUG(run_debugger(constraints, false));
-    free_presolver(presolver);
-    return 0;
-}
-
-/*  Two doubleton rows, presolver wants to substitute the same variable
-         from both
-    min. [2  -1 -1 3]x
-    s.t. [1  0   2   0]     [2]
-         [1  0   0   2] x = [2]
-         [1  0   2  -4]     <= 4
-         [0 -2   3   5]     <= 5
-         [0  1  -6   7]     <= 7
-         x >= 0
-*/
-
-static char *test_6_dton()
-{
-    double Ax[] = {1, 2, 1, 2, 1, 2, -4, -2, 3, 5, 1, -6, 7};
-    int Ai[] = {0, 2, 0, 3, 0, 2, 3, 1, 2, 3, 1, 2, 3};
-    int Ap[] = {0, 2, 4, 7, 10, 13};
-    int nnz = 13;
-    int n_rows = 5;
-    int n_cols = 4;
-
-    double lhs[] = {2, 2, -INF, -INF, -INF};
-    double rhs[] = {2, 2, 4, 5, 7};
+    // r0: x0 + x1 = 1, r1: 2 x1 + x2 = 4, r2: x2 + x3 <= 10 (pad)
+    double Ax[] = {1, 1, 2, 1, 1, 1};
+    int Ai[] = {0, 1, 1, 2, 2, 3};
+    int Ap[] = {0, 2, 4, 6};
+    double lhs[] = {1, 4, -INF};
+    double rhs[] = {1, 4, 10};
     double lbs[] = {0, 0, 0, 0};
-    double ubs[] = {INF, INF, INF, INF, INF};
-    double c[] = {2, -1, -1, 3, 2};
+    double ubs[] = {10, 10, 10, 10};
+    double c[] = {1, 1, 1, 1};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 3, 4, 6, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+
+    DtonWorkspace *dton_work = dton_workspace_new(3, 4);
+    dton_workspace_init(dton_work, presolver->prob->constraints->state->work);
+    int deferred[8];
+    int n_deferred = 0;
+    mu_assert("claim",
+              dton_claim(presolver->prob, dton_work, deferred, &n_deferred));
+
+    mu_assert("two columns claimed", dton_work->substs.n_recs == 2);
+    mu_assert("no deferrals", n_deferred == 0);
+    mu_assert("x0 -> x1", dton_rec(dton_work, 0)->j == 1);
+    mu_assert("x1 -> x2", dton_rec(dton_work, 1)->j == 2);
+
+    dton_compose(dton_work, deferred, &n_deferred);
+
+    // x1 = -0.5 x2 + 2, depth 0
+    mu_assert("x1 target", dton_rec(dton_work, 1)->target == 2);
+    mu_assert("x1 mult", dton_rec(dton_work, 1)->mult == -0.5);
+    mu_assert("x1 shift", dton_rec(dton_work, 1)->shift == 2.0);
+    mu_assert("x1 depth", dton_depth(dton_work, 1) == 0);
+
+    // x0 = -x1 + 1 = 0.5 x2 - 1, depth 1
+    mu_assert("x0 target", dton_rec(dton_work, 0)->target == 2);
+    mu_assert("x0 mult", dton_rec(dton_work, 0)->mult == 0.5);
+    mu_assert("x0 shift", dton_rec(dton_work, 0)->shift == -1.0);
+    mu_assert("x0 depth", dton_depth(dton_work, 0) == 1);
+
+    mu_assert("both survive composition", dton_work->substs.n_recs == 2);
+    mu_assert("compose defers nothing", n_deferred == 0);
+
+    dton_workspace_free(dton_work);
+    free_presolver(presolver);
+    PS_FREE(stgs);
+    return 0;
+}
+
+/* A 2-cycle x0 -> x1 -> x0: the node with the larger owner row (x1,
+   owned by r1) is un-eliminated and its row deferred; the remaining link
+   composes onto the now-surviving x1. */
+static char *test_dton_cycle_break()
+{
+    // r0: 2 x0 + x1 = 0 (claims x0), r1: x0 + 2 x1 = 0 (claims x1)
+    double Ax[] = {2, 1, 1, 2};
+    int Ai[] = {0, 1, 0, 1};
+    int Ap[] = {0, 2, 4};
+    double lhs[] = {0, 0};
+    double rhs[] = {0, 0};
+    double lbs[] = {0, 0};
+    double ubs[] = {10, 10};
+    double c[] = {1, 1};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 2, 2, 4, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+
+    DtonWorkspace *dton_work = dton_workspace_new(2, 2);
+    dton_workspace_init(dton_work, presolver->prob->constraints->state->work);
+    int deferred[8];
+    int n_deferred = 0;
+    mu_assert("claim",
+              dton_claim(presolver->prob, dton_work, deferred, &n_deferred));
+
+    mu_assert("both columns claimed", dton_work->substs.n_recs == 2);
+    mu_assert("cycle x0 -> x1", dton_rec(dton_work, 0)->j == 1);
+    mu_assert("cycle x1 -> x0", dton_rec(dton_work, 1)->j == 0);
+    mu_assert("no claim deferrals", n_deferred == 0);
+
+    dton_compose(dton_work, deferred, &n_deferred);
+
+    mu_assert("one column survives the break", dton_work->substs.n_recs == 1);
+    mu_assert("x0 stays eliminated", dton_work->substs.recs[0].k == 0);
+    mu_assert("record depth filled", dton_work->substs.depth[0] == 0);
+    mu_assert("x1 un-eliminated", dton_work->substs.col_subst[1] < 0);
+    mu_assert("broken owner deferred", n_deferred == 1 && deferred[0] == 1);
+    mu_assert("x0 composes onto x1", dton_rec(dton_work, 0)->target == 1);
+    mu_assert("x0 mult", dton_rec(dton_work, 0)->mult == -0.5);
+    mu_assert("x0 shift", dton_rec(dton_work, 0)->shift == 0.0);
+    mu_assert("x0 depth", dton_depth(dton_work, 0) == 0);
+
+    dton_workspace_free(dton_work);
+    free_presolver(presolver);
+    PS_FREE(stgs);
+    return 0;
+}
+
+/* An ill-conditioned doubleton is eliminated through its large coefficient:
+   x0 = (1 - x1) / 1e9, never x1 = 1 - 1e9 x0. */
+static char *test_dton_pivot_large()
+{
+    // 1e9 x0 + x1 = 1
+    double Ax[] = {1e9, 1};
+    int Ai[] = {0, 1};
+    int Ap[] = {0, 2};
+    double lhs[] = {1};
+    double rhs[] = {1};
+    double lbs[] = {0, 0};
+    double ubs[] = {10, 10};
+    double c[] = {1, 1};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 1, 2, 2, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+
+    DtonWorkspace *dton_work = dton_workspace_new(1, 2);
+    dton_workspace_init(dton_work, presolver->prob->constraints->state->work);
+    int deferred[8];
+    int n_deferred = 0;
+    mu_assert("claim",
+              dton_claim(presolver->prob, dton_work, deferred, &n_deferred));
+
+    mu_assert("one claim", dton_work->substs.n_recs == 1 && n_deferred == 0);
+    mu_assert("x0 substituted",
+              dton_rec(dton_work, 0)->k == 0 && dton_rec(dton_work, 0)->j == 1);
+    mu_assert("multiplier -1e-9", dton_rec(dton_work, 0)->dir_mult == -1e-9);
+
+    dton_workspace_free(dton_work);
+    free_presolver(presolver);
+    PS_FREE(stgs);
+    return 0;
+}
+
+/* Simplest full round: one doubleton whose substituted column appears in
+   no other row. Bounds transfer onto the stay column, the owner row and
+   the substituted column deactivate, the objective folds, and the stay
+   column's size transition lands in ston_cols. */
+static char *test_dton_eliminate_isolated()
+{
+    // r0: 2 x0 + x1 = 2 with x0 in [0.4, 0.6]  =>  x1 in [0.8, 1.2]
+    // r1: x1 + x2 <= 10 (pad so x1 is not a singleton)
+    double Ax[] = {2, 1, 1, 1};
+    int Ai[] = {0, 1, 1, 2};
+    int Ap[] = {0, 2, 4};
+    double lhs[] = {2, -INF};
+    double rhs[] = {2, 10};
+    double lbs[] = {0.4, 0, 0};
+    double ubs[] = {0.6, 10, 10};
+    double c[] = {1, 1, 1};
 
     Settings *stgs = default_settings();
     set_settings_false(stgs);
     stgs->dton_eq = true;
     Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+        new_presolver(Ax, Ai, Ap, 2, 3, 4, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
-    Matrix *A = constraints->A;
-    remove_dton_eq_rows(prob, 10);
-    problem_clean(prob);
 
-    mu_assert("error row_sizes",
-              check_row_sizes(constraints->A, constraints->state->row_sizes));
-    mu_assert("error col_sizes",
-              check_col_sizes(constraints->AT, constraints->state->col_sizes));
+    PresolveStatus status = remove_dton_eq_rows(prob);
+    mu_assert("returns UNCHANGED", status == UNCHANGED);
 
-    // check that new A is correct
-    double Ax_correct[] = {-4, -2, 8, 1, 1};
-    int Ai_correct[] = {1, 0, 1, 0, 1};
-    int Ap_correct[] = {0, 1, 3, 5};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 5));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 5));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
+    // bounds moved onto the stay column, its own bounds untouched
+    mu_assert("stay lb tightened", constraints->bounds[1].lb == 0.8);
+    mu_assert("stay ub tightened", constraints->bounds[1].ub == 1.2);
+    mu_assert("subst bounds untouched",
+              constraints->bounds[0].lb == 0.4 && constraints->bounds[0].ub == 0.6);
 
-    // check new AT
-    DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
+    // owner row and substituted column are gone
+    mu_assert("owner row inactive",
+              HAS_TAG(constraints->row_tags[0], R_TAG_INACTIVE));
+    mu_assert("subst col inactive",
+              HAS_TAG(constraints->col_tags[0], C_TAG_INACTIVE));
+    mu_assert("nnz drops by the owner row", constraints->A->nnz == 2);
+    mu_assert("row size inactive",
+              constraints->state->row_sizes[0] == SIZE_INACTIVE_ROW);
+    mu_assert("col size inactive",
+              constraints->state->col_sizes[0] == SIZE_INACTIVE_COL);
 
-    // check that new variable bounds are correct
-    double lbs_correct[] = {0, 0};
-    double ubs_correct[] = {INF, 1};
-    mu_assert("error bounds",
-              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 2));
+    // objective: x0 = (2 - x1)/2 => c.x = 0.5 x1 + x2 + ... + 1
+    mu_assert("obj stay coeff", prob->obj->c[1] == 0.5);
+    mu_assert("obj subst zeroed", prob->obj->c[0] == 0.0);
+    mu_assert("obj offset", prob->obj->offset == 1.0);
 
-    // check that the objective function is correct
-    double obj_correct[] = {-1, -2};
-    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 2));
-    mu_assert("error offset", prob->obj->offset == 4);
+    // the stay column shrank 2 -> 1: singleton-column worklist
+    mu_assert("stay col size", constraints->state->col_sizes[1] == 1);
+    mu_assert("stay col pushed to ston_cols",
+              iVec_contains(constraints->state->ston_cols, 1));
 
-    // check that lhs and rhs are correct
-    double lhs_correct[] = {-INF, -INF, -INF};
-    double rhs_correct[] = {2, 5, 7};
-    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 2));
-    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 2));
+    mu_assert("worklist empty", constraints->state->dton_rows->len == 0);
 
-    PS_FREE(stgs);
     DEBUG(run_debugger(constraints, false));
+
     free_presolver(presolver);
+    PS_FREE(stgs);
     return 0;
 }
 
-/* Two doubleton rows, eliminating one of them causes the other dton row
-         to become a singleton row
-    min. [2  -1 -1 3 2]x
-    s.t. [2 -4  -1  3  2]     [2]
-         [1 -2   0  0  0] x = [-1]
-         [0 -2   1  3  1]     [4]
-         [1 -1   0  0  0]     [1]
-         0 <= x1 <= 5
-         x2, x3, x4, x5 >= 0
-*/
-static char *test_7_dton()
+/* Substitution into other rows: fill-in in one row, an in-place merge
+   that turns another row into a new doubleton candidate, side shifts
+   respecting infinite sides, and a second round that consumes the new
+   candidate. Hand-computed end state. */
+static char *test_dton_apply_substitution()
 {
-    double Ax[] = {2, -4, -1, 3, 2, 1, -2, -2, 1, 3, 1, 1, -1};
-    int Ai[] = {0, 1, 2, 3, 4, 0, 1, 1, 2, 3, 4, 0, 1};
-    int Ap[] = {0, 5, 7, 11, 13};
-    int nnz = 13;
-    int n_rows = 4;
-    int n_cols = 5;
-
-    double lhs[] = {2, -1, 4, 1};
-    double rhs[] = {2, -1, 4, 1};
+    // r0: 2 x0 + x1 = 4          (round 1 eliminates x0 = 2 - 0.5 x1)
+    // r1: 3 x0 + x2 + x3 <= 6    (fill-in of x1; rhs shifts by 6)
+    // r2: 2 x0 + 3 x1 + 4 x4 = 9 (merge: becomes 2 x1 + 4 x4 = 5, a new
+    //                             doubleton; round 2 eliminates x4)
+    // r3: x1 + x3 <= 10          (untouched)
+    double Ax[] = {2, 1, 3, 1, 1, 2, 3, 4, 1, 1};
+    int Ai[] = {0, 1, 0, 2, 3, 0, 1, 4, 1, 3};
+    int Ap[] = {0, 2, 5, 8, 10};
+    double lhs[] = {4, -INF, 9, -INF};
+    double rhs[] = {4, 6, 9, 10};
     double lbs[] = {0, 0, 0, 0, 0};
-    double ubs[] = {5, INF, INF, INF, INF};
-    double c[] = {2, -1, -1, 3, 2};
+    double ubs[] = {10, 10, 10, 10, 10};
+    double c[] = {1, 1, 1, 1, 1};
 
     Settings *stgs = default_settings();
     set_settings_false(stgs);
     stgs->dton_eq = true;
     Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+        new_presolver(Ax, Ai, Ap, 4, 5, 10, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
-    remove_dton_eq_rows(prob, 10);
-    problem_clean(prob);
 
-    mu_assert("error row_sizes",
-              check_row_sizes(constraints->A, constraints->state->row_sizes));
-    mu_assert("error col_sizes",
-              check_col_sizes(constraints->AT, constraints->state->col_sizes));
+    remove_dton_eq_rows(prob);
 
-    // check that new A is correct
-    double Ax_correct[] = {-1, 3, 2, -2, 1, 3, 1, 1};
-    int Ai_correct[] = {1, 2, 3, 0, 1, 2, 3, 0};
-    int Ap_correct[] = {0, 3, 7, 8};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 8));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 8));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
+    // rows r0 and r2 eliminated, columns x0 and x4 eliminated
+    mu_assert("r0 inactive", HAS_TAG(constraints->row_tags[0], R_TAG_INACTIVE));
+    mu_assert("r2 inactive", HAS_TAG(constraints->row_tags[2], R_TAG_INACTIVE));
+    mu_assert("x0 inactive", HAS_TAG(constraints->col_tags[0], C_TAG_INACTIVE));
+    mu_assert("x4 inactive", HAS_TAG(constraints->col_tags[4], C_TAG_INACTIVE));
+    mu_assert("final nnz", A->nnz == 5);
 
-    // check new AT
-    DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
+    // r1 = -1.5 x1 + x2 + x3 <= 0 (fill-in at the front, sorted)
+    mu_assert("r1 length", constraints->state->row_sizes[1] == 3);
+    mu_assert("r1 cols", A->i[A->p[1].start] == 1 && A->i[A->p[1].start + 1] == 2 &&
+                             A->i[A->p[1].start + 2] == 3);
+    mu_assert("r1 vals", A->x[A->p[1].start] == -1.5 &&
+                             A->x[A->p[1].start + 1] == 1.0 &&
+                             A->x[A->p[1].start + 2] == 1.0);
+    mu_assert("r1 rhs shifted", constraints->rhs[1] == 0.0);
+    mu_assert("r1 lhs stays -inf", constraints->lhs[1] == -INF);
 
-    // check that new variable bounds are correct
-    double lbs_correct[] = {0.5, 0, 0, 0};
-    double ubs_correct[] = {3, INF, INF, INF};
-    mu_assert("error bounds",
-              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 4));
+    // r3 untouched
+    mu_assert("r3 length", constraints->state->row_sizes[3] == 2);
+    mu_assert("r3 rhs", constraints->rhs[3] == 10.0);
 
-    // check that the objective function is correct
-    double obj_correct[] = {3, -1, 3, 2};
-    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(obj_correct, prob->obj->c, 4));
-    mu_assert("error offset", prob->obj->offset == -2);
+    // bounds chained across the two rounds: round 1 gives x1 <= 4, round
+    // 2 tightens x1 <= 2.5 from x4's bounds through 2 x1 + 4 x4 = 5
+    mu_assert("x1 lb", constraints->bounds[1].lb == 0.0);
+    mu_assert("x1 ub", constraints->bounds[1].ub == 2.5);
 
-    // check that lhs and rhs are correct
-    double lhs_correct[] = {4, 4, 2};
-    double rhs_correct[] = {4, 4, 2};
-    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 2));
-    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 2));
+    // objective: c[x1] = 1 - 0.5 - 0.5 = 0, offset = 2 + 1.25 = 3.25
+    mu_assert("obj x1", prob->obj->c[1] == 0.0);
+    mu_assert("obj x0 zeroed", prob->obj->c[0] == 0.0);
+    mu_assert("obj x4 zeroed", prob->obj->c[4] == 0.0);
+    mu_assert("obj offset", prob->obj->offset == 3.25);
 
-    PS_FREE(stgs);
+    // col sizes against the rebuilt AT
+    mu_assert("x1 size", constraints->state->col_sizes[1] == 2);
+    mu_assert("x2 size", constraints->state->col_sizes[2] == 1);
+    mu_assert("x3 size", constraints->state->col_sizes[3] == 2);
+
+    mu_assert("worklist empty", constraints->state->dton_rows->len == 0);
+
     DEBUG(run_debugger(constraints, false));
+
     free_presolver(presolver);
-    return 0;
-}
-
-/* doubleton row with two fill-in in a column accepted
-    min. [-2 -1 -1 -3]x
-    s.t. [1  0   2   1]   =   [2]
-         [0  1   0   1]   =   [3]
-         [2  1   0   0]   <=  [5]
-         [4  1   0   0]   <=  [6]
-         [2  0   2   0] x <=  [7]
-         [1  0   0   1]   <=  [9]
-         [2  0   0   1]   <=  [10]
-         [3  0   0   1]   <=  [13]
-         [4  0   0   1]   <=  [14]
-         x >= 0
-
-*/
-static char *test_8_dton()
-{
-    double Ax[] = {1, 2, 1, 1, 1, 2, 1, 4, 1, 2, 2, 1, 1, 2, 1, 3, 1, 4, 1};
-    int Ai[] = {0, 2, 3, 1, 3, 0, 1, 0, 1, 0, 2, 0, 3, 0, 3, 0, 3, 0, 3};
-    int Ap[] = {0, 3, 5, 7, 9, 11, 13, 15, 17, 19};
-    int nnz = 19;
-    int n_rows = 9;
-    int n_cols = 4;
-
-    double lhs[] = {2, 3, -INF, -INF, -INF, -INF, -INF, -INF, -INF};
-    double rhs[] = {2, 3, 5, 6, 7, 9, 10, 13, 14};
-    double lbs[4] = {0};
-    double ubs[4] = {INF, INF, INF, INF};
-    double c[] = {2, -1, -1, 3};
-
-    Settings *stgs = default_settings();
-    set_settings_false(stgs);
-    stgs->dton_eq = true;
-    Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
-
-    Problem *prob = presolver->prob;
-    Constraints *constraints = prob->constraints;
-    Matrix *A = constraints->A;
-    remove_dton_eq_rows(prob, 10);
-    problem_clean(prob);
-
-    mu_assert("error row_sizes",
-              check_row_sizes(constraints->A, constraints->state->row_sizes));
-    mu_assert("error col_sizes",
-              check_col_sizes(constraints->AT, constraints->state->col_sizes));
-
-    // check that new A is correct
-    double Ax_correct[] = {1, 2, 1, 2, -1, 4, -1, 2, 2, 1, 1, 2, 1, 3, 1, 4, 1};
-    int Ai_correct[] = {0, 1, 2, 0, 2, 0, 2, 0, 1, 0, 2, 0, 2, 0, 2, 0, 2};
-    int Ap_correct[] = {0, 3, 5, 7, 9, 11, 13, 15, 17};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 17));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 17));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
-
-    // check new AT
-    DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
-
-    // check that new variable bounds are correct
-    double lbs_correct[] = {0, 0, 0};
-    double ubs_correct[] = {INF, INF, 3};
-    mu_assert("error bounds",
-              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 3));
-
-    // check that lhs and rhs are correct
-    double lhs_correct[] = {2, -INF, -INF, -INF, -INF, -INF, -INF, -INF};
-    double rhs_correct[] = {2, 2, 3, 7, 9, 10, 13, 14};
-    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 8));
-    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 8));
-
     PS_FREE(stgs);
-    DEBUG(run_debugger(constraints, false));
-    free_presolver(presolver);
     return 0;
 }
 
-/* doubleton row with three fill-in in a column accepted
-    min. [-2 -1 -1 -3]x
-    s.t. [1  0   2   1]   =   [2]
-         [0  1   0   1]   =   [3]
-         [2  1   0   0]   <=  [5]
-         [4  1   0   0]   <=  [6]
-         [2  1   2   0] x <=  [7]
-         [1  0   0   1]   <=  [9]
-         [2  0   0   1]   <=  [10]
-         [3  0   0   1]   <=  [13]
-         [4  0   0   1]   <=  [14]
-         x >= 0
-*/
-static char *test_9_dton()
+/* Cancellation policy: a substituted contribution that cancels an
+   existing entry to (near) zero drops the entry, while a tiny coefficient
+   the substitution never touched is kept verbatim. */
+static char *test_dton_cancellation()
 {
-    double Ax[] = {1, 2, 1, 1, 1, 2, 1, 4, 1, 2, 1, 2, 1, 1, 2, 1, 3, 1, 4, 1};
-    int Ai[] = {0, 2, 3, 1, 3, 0, 1, 0, 1, 0, 1, 2, 0, 3, 0, 3, 0, 3, 0, 3};
-    int Ap[] = {0, 3, 5, 7, 9, 12, 14, 16, 18, 20};
-    int nnz = 20;
-    int n_rows = 9;
-    int n_cols = 4;
-
-    double lhs[] = {2, 3, -INF, -INF, -INF, -INF, -INF, -INF, -INF};
-    double rhs[] = {2, 3, 5, 6, 7, 9, 10, 13, 14};
-    double lbs[4] = {0};
-    double ubs[] = {INF, INF, INF, INF, INF};
-    double c[] = {-2, -1, -1, -3};
-
-    Settings *stgs = default_settings();
-    set_settings_false(stgs);
-    stgs->dton_eq = true;
-    Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
-
-    Problem *prob = presolver->prob;
-    Constraints *constraints = prob->constraints;
-    Matrix *A = constraints->A;
-    remove_dton_eq_rows(prob, 10);
-    problem_clean(prob);
-
-    mu_assert("error row_sizes",
-              check_row_sizes(constraints->A, constraints->state->row_sizes));
-    mu_assert("error col_sizes",
-              check_col_sizes(constraints->AT, constraints->state->col_sizes));
-
-    // check that new A is correct
-    double Ax_correct[] = {1, 2, 1, 2, -1, 4, -1, 2, 2, -1, 1, 1, 2, 1, 3, 1, 4, 1};
-    int Ai_correct[] = {0, 1, 2, 0, 2, 0, 2, 0, 1, 2, 0, 2, 0, 2, 0, 2, 0, 2};
-    int Ap_correct[] = {0, 3, 5, 7, 10, 12, 14, 16, 18};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 18));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 18));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
-
-    // check new AT
-    DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
-
-    // check that new variable bounds are correct
-    double lbs_correct[] = {0, 0, 0};
-    double ubs_correct[] = {INF, INF, 3};
-    mu_assert("error bounds",
-              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 3));
-
-    // check that lhs and rhs are correct
-    double lhs_correct[] = {2, -INF, -INF, -INF, -INF, -INF, -INF, -INF};
-    double rhs_correct[] = {2, 2, 3, 4, 9, 10, 13, 14};
-    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 8));
-    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 8));
-
-    PS_FREE(stgs);
-    DEBUG(run_debugger(constraints, false));
-    free_presolver(presolver);
-    return 0;
-}
-
-/* doubleton row with three fill-in in a column accepted
-    min. [-2 -1 -1 -3]x
-    s.t. [1  0   2   1]   =   [2]
-         [0  1   0   1]   =   [3]
-         [2  1   0   0]   <=  [5]
-         [4  1   0   0]   <=  [6]
-         [2  1   2   0] x <=  [7]
-         [1  0   0   1]   <=  [9]
-         [2  0   0   1]   <=  [10]
-         [3  0   0   1]   <=  [13]
-         [4  0   0   1]   <=  [14]
-         x1, x2, x4 >= 0
-         x3 free
-
-*/
-static char *test_10_dton()
-{
-    double Ax[] = {1, 2, 1, 1, 1, 2, 1, 4, 1, 2, 1, 2, 1, 1, 2, 1, 3, 1, 4, 1};
-    int Ai[] = {0, 2, 3, 1, 3, 0, 1, 0, 1, 0, 1, 2, 0, 3, 0, 3, 0, 3, 0, 3};
-    int Ap[] = {0, 3, 5, 7, 9, 12, 14, 16, 18, 20};
-    int nnz = 20;
-    int n_rows = 9;
-    int n_cols = 4;
-
-    double lhs[] = {2, 3, -INF, -INF, -INF, -INF, -INF, -INF, -INF};
-    double rhs[] = {2, 3, 5, 6, 7, 9, 10, 13, 14};
-    double lbs[] = {0, 0, -INF, 0};
-    double ubs[] = {INF, INF, INF, INF};
-    double c[] = {2, -1, -1, 3};
-
-    Settings *stgs = default_settings();
-    set_settings_false(stgs);
-    stgs->dton_eq = true;
-    Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
-
-    Problem *prob = presolver->prob;
-    Constraints *constraints = prob->constraints;
-    Matrix *A = constraints->A;
-    remove_dton_eq_rows(prob, 10);
-    problem_clean(prob);
-
-    mu_assert("error row_sizes",
-              check_row_sizes(constraints->A, constraints->state->row_sizes));
-    mu_assert("error col_sizes",
-              check_col_sizes(constraints->AT, constraints->state->col_sizes));
-
-    // check that new A is correct
-    double Ax_correct[] = {1, 2, 1, 2, -1, 4, -1, 2, 2, -1, 1, 1, 2, 1, 3, 1, 4, 1};
-    int Ai_correct[] = {0, 1, 2, 0, 2, 0, 2, 0, 1, 2, 0, 2, 0, 2, 0, 2, 0, 2};
-    int Ap_correct[] = {0, 3, 5, 7, 10, 12, 14, 16, 18};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 18));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 18));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
-
-    // check new AT
-    DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
-
-    // check that new variable bounds are correct
-    double lbs_correct[] = {0, -INF, 0};
-    double ubs_correct[] = {INF, INF, 3};
-    mu_assert("error bounds",
-              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 3));
-
-    // check that lhs and rhs are correct
-    double lhs_correct[] = {2, -INF, -INF, -INF, -INF, -INF, -INF, -INF};
-    double rhs_correct[] = {2, 2, 3, 4, 9, 10, 13, 14};
-    mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 8));
-    mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 8));
-
-    PS_FREE(stgs);
-    DEBUG(run_debugger(constraints, false));
-    free_presolver(presolver);
-    return 0;
-}
-
-/*
-    doubleton row with four fill-in rejected
-    min. [-2 -1 -1 -3]x
-    s.t. [1  0   2   1]   =   [2]
-         [0  1   0   2]   =   [3]
-         [2  1   0   0]   <=  [5]
-         [4  1   0   0]   <=  [6]
-         [2  1   0   0] x <=  [7]
-         [1  1   0   0]   <=  [9]
-         [2  0   0   1]   <=  [10]
-         [3  0   0   1]   <=  [13]
-         [4  0   0   1]   <=  [14]
-         x1, x2, x4 >= 0
-         x3 free
-*/
-static char *test_11_dton()
-{
-    double Ax[] = {1, 2, 1, 1, 2, 2, 1, 4, 1, 2, 1, 1, 1, 2, 1, 3, 1, 4, 1};
-    int Ai[] = {0, 2, 3, 1, 3, 0, 1, 0, 1, 0, 1, 0, 1, 0, 3, 0, 3, 0, 3};
-    int Ap[] = {0, 3, 5, 7, 9, 11, 13, 15, 17, 19};
-    int nnz = 19;
-    int n_rows = 9;
-    int n_cols = 4;
-
-    double lhs[] = {2, 3, -INF, -INF, -INF, -INF, -INF, -INF, -INF};
-    double rhs[] = {2, 3, 5, 6, 7, 9, 10, 13, 14};
-    double lbs[] = {0, 0, -INF, 0};
-    double ubs[] = {INF, INF, INF, INF};
-    double c[] = {2, -1, -1, 3};
-
-    Settings *stgs = default_settings();
-    set_settings_false(stgs);
-    stgs->dton_eq = true;
-    Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
-
-    Problem *prob = presolver->prob;
-    Constraints *constraints = prob->constraints;
-    Matrix *A = constraints->A;
-    PresolveStatus status = remove_dton_eq_rows(prob, 0);
-    // mu_assert("error status", status == UNCHANGED);
-    problem_clean(prob);
-
-    mu_assert("error row_sizes",
-              check_row_sizes(constraints->A, constraints->state->row_sizes));
-    mu_assert("error col_sizes",
-              check_col_sizes(constraints->AT, constraints->state->col_sizes));
-
-    // print_matrix(A);
-
-    // check that new A is correct
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, nnz));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai, A->i, nnz));
-    mu_assert("rows", check_row_starts(A, Ap));
-
-    PS_FREE(stgs);
-    DEBUG(run_debugger(constraints, false));
-    free_presolver(presolver);
-    return 0;
-}
-
-/*
-    doubleton row with four fill-in accepted (one extra space is released
-        by another reduction)
-    min. [-2 -1 -1 -3]x
-    s.t. [1  0   2   1]   =   [2]
-         [0  1   0   2]   =   [3]
-         [2  1   0   0]   <=  [5]
-         [4  1   0   0]   <=  [6]
-         [2  1   0   0] x <=  [7]
-         [1  1   0   0]   <=  [9]
-         [2  0   0   1]   <=  [10]
-         [3  0   0   1]   <=  [13]
-         [4  0   0   1]   <=  [14]
-         x1, x2, x4 >= 0
-         x3 free
-*/
-static char *test_12_dton()
-{
-    double Ax[] = {2, 1, -1, 3, 2, 1, -2, 1, -2, 1, 3, 1};
-    int Ai[] = {0, 1, 2, 3, 4, 0, 1, 0, 1, 2, 3, 4};
-    int Ap[] = {0, 5, 7, 12};
-    int nnz = 12;
-    int n_rows = 3;
-    int n_cols = 5;
-
-    double lhs[] = {2, -1, 4};
-    double rhs[] = {2, -1, 4};
-    double lbs[] = {0.4, 0, 0, 0, 0};
-    double ubs[] = {0.6, INF, INF, INF, INF};
-    double c[] = {2, -1, -1, 3, 2};
-
-    Settings *stgs = default_settings();
-    set_settings_false(stgs);
-    stgs->dton_eq = true;
-    Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
-
-    PS_FREE(stgs);
-    // DEBUG(run_debugger(constraints, false));
-    free_presolver(presolver);
-    mu_assert("error", 1 == 1);
-    return 0;
-}
-
-/*
-     corner case that caused a nasty bug on a NETLIB problem
-     (excessive fill-in in one column due to two doubleton rows
-     with one common variable). We set max shift to 0, but both
-     reductions should be allowed since we can eat up the space
-     in column 1 without actually shifting any elements (since
-     column 1 is inactive after the first dton reduction.)
-     min. [-2 -1 -1 -3, -1]x
-     s.t. [2,  -1,    0,   0,  0]     = 0
-          [2,   0,   -1,   0,  0]     = 0
-          [0,   1,    0,   1,  2]     <= 3
-          [0,   1,    0,   3,  4]     <= 4
-          [0,   0,    2,   5,  6] x   <= 5
-          [0,   0,    2,   7,  8]     <= 6
-          [0,   0,    1,   7,  8]     <= 7
-          [2,   0,    0,   7,  8]     <= 8
-          [3,   0,    0,   7,  8]     <= 9
-          [4,   0,    0,   7,  8]     <= 10
-          [5,   0,    0,   7,  8]     <= 11
-          [6,   0,    0,   7,  8]     <= 12
-          x1, x2, x3, x4 >= 0
-*/
-static char *test_13_dton()
-{
-    double Ax[] = {2, -1, 2, -1, 1, 1, 2, 1, 3, 4, 2, 5, 6, 2, 7, 8, 1,
-                   7, 8,  2, 7,  8, 3, 7, 8, 4, 7, 8, 5, 7, 8, 6, 7, 8};
-    int Ai[] = {0, 1, 0, 2, 1, 3, 4, 1, 3, 4, 2, 3, 4, 2, 3, 4, 2,
-                3, 4, 0, 3, 4, 0, 3, 4, 0, 3, 4, 0, 3, 4, 0, 3, 4};
-    int Ap[] = {0, 2, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31, 34};
-    int nnz = 34;
-    int n_rows = 12;
-    int n_cols = 5;
-
-    double lhs[] = {0,    0,    -INF, -INF, -INF, -INF,
-                    -INF, -INF, -INF, -INF, -INF, -INF};
-    double rhs[] = {0, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    // r0: x0 + 2 x1 = 0          (eliminates x1 = -0.5 x0)
+    // r1: 0.5 x0 + x1 + x2 <= 5  (x0 entry cancels: 0.5 - 0.5 = 0 -> dropped)
+    // r2: x1 + 1e-12 x3 + x4 <= 7 (tiny untouched x3 entry must survive)
+    double Ax[] = {1, 2, 0.5, 1, 1, 1, 1e-12, 1};
+    int Ai[] = {0, 1, 0, 1, 2, 1, 3, 4};
+    int Ap[] = {0, 2, 5, 8};
+    double lhs[] = {0, -INF, -INF};
+    double rhs[] = {0, 5, 7};
     double lbs[] = {0, 0, 0, 0, 0};
-    double ubs[] = {INF, INF, INF, INF, INF};
-    double c[] = {-2, -1, -1, 3, -1};
+    double ubs[] = {10, 10, 10, 10, 10};
+    double c[] = {0, 0, 0, 0, 0};
 
     Settings *stgs = default_settings();
     set_settings_false(stgs);
     stgs->dton_eq = true;
     Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+        new_presolver(Ax, Ai, Ap, 3, 5, 8, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
-    remove_dton_eq_rows(prob, 0);
-    problem_clean(prob);
 
-    mu_assert("error row_sizes",
-              check_row_sizes(constraints->A, constraints->state->row_sizes));
-    mu_assert("error col_sizes",
-              check_col_sizes(constraints->AT, constraints->state->col_sizes));
+    remove_dton_eq_rows(prob);
 
-    // check that new A is correct
-    double Ax_correct[] = {2, 1, 2, 2, 3, 4, 4, 5, 6, 4, 7, 8, 2, 7, 8,
-                           2, 7, 8, 3, 7, 8, 4, 7, 8, 5, 7, 8, 6, 7, 8};
-    int Ai_correct[] = {0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2,
-                        0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2};
-    int Ap_correct[] = {0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 30));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 30));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
+    mu_assert("x1 inactive", HAS_TAG(constraints->col_tags[1], C_TAG_INACTIVE));
+    mu_assert("r0 inactive", HAS_TAG(constraints->row_tags[0], R_TAG_INACTIVE));
 
-    PS_FREE(stgs);
-    DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
+    // r1 collapsed to the single x2 entry and joined the singleton rows
+    mu_assert("r1 shrank to 1", constraints->state->row_sizes[1] == 1);
+    mu_assert("r1 keeps x2 only", A->i[A->p[1].start] == 2);
+    mu_assert("r1 rhs unshifted", constraints->rhs[1] == 5.0);
+    mu_assert("r1 in ston_rows", iVec_contains(constraints->state->ston_rows, 1));
+
+    // r2: x1 mapped onto x0 (fill -0.5), the tiny untouched x3 entry stays
+    mu_assert("r2 length", constraints->state->row_sizes[2] == 3);
+    mu_assert("r2 cols", A->i[A->p[2].start] == 0 && A->i[A->p[2].start + 1] == 3 &&
+                             A->i[A->p[2].start + 2] == 4);
+    mu_assert("r2 fill value", A->x[A->p[2].start] == -0.5);
+    mu_assert("r2 tiny entry kept", A->x[A->p[2].start + 1] == 1e-12);
+
+    mu_assert("final nnz", A->nnz == 4);
+
     DEBUG(run_debugger(constraints, false));
-    free_presolver(presolver);
 
+    free_presolver(presolver);
+    PS_FREE(stgs);
     return 0;
 }
 
-/* Same as the previous test, but we change columns 0 and 1. We set
-   max shift to 0. The second reduction is then rejected, because although there
-   is free space on the left we can't eat it up. Very interesting.
-   Is this how we want it to be? */
-static char *test_14_dton()
+/* A chain that eliminates the entire matrix: three doubletons claim
+   x0 -> x1, x2 -> x1,
+   x3 -> x2, every row is an owner row, and the survivor column x1 ends
+   empty. */
+static char *test_dton_chain_empties_matrix()
 {
-    double Ax[] = {-1, 2, 2, -1, 1, 1, 2, 1, 3, 4, 2, 5, 6, 2, 7, 8, 1,
-                   7,  8, 2, 7,  8, 3, 7, 8, 4, 7, 8, 5, 7, 8, 6, 7, 8};
-    int Ai[] = {0, 1, 1, 2, 0, 3, 4, 0, 3, 4, 2, 3, 4, 2, 3, 4, 2,
-                3, 4, 1, 3, 4, 1, 3, 4, 1, 3, 4, 1, 3, 4, 1, 3, 4};
-    int Ap[] = {0, 2, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31, 34};
-    int nnz = 34;
-    int n_rows = 12;
-    int n_cols = 5;
-
-    double lhs[] = {0,    0,    -INF, -INF, -INF, -INF,
-                    -INF, -INF, -INF, -INF, -INF, -INF};
-    double rhs[] = {0, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
-    double lbs[] = {0, 0, 0, 0, 0};
-    double ubs[] = {INF, INF, INF, INF, INF};
-    double c[] = {-2, -1, -1, 3, -1};
+    // r0: x0 + x1 = 1, r1: x1 + x2 = 1, r2: x2 + x3 = 1
+    double Ax[] = {1, 1, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 1, 2, 2, 3};
+    int Ap[] = {0, 2, 4, 6};
+    double lhs[] = {1, 1, 1};
+    double rhs[] = {1, 1, 1};
+    double lbs[] = {0, 0, 0, 0};
+    double ubs[] = {1, 1, 1, 1};
+    double c[] = {1, 1, 1, 1};
 
     Settings *stgs = default_settings();
     set_settings_false(stgs);
     stgs->dton_eq = true;
     Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+        new_presolver(Ax, Ai, Ap, 3, 4, 6, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
-    Matrix *A = constraints->A;
-    remove_dton_eq_rows(prob, 0);
-    problem_clean(prob);
 
-    mu_assert("error row_sizes",
-              check_row_sizes(constraints->A, constraints->state->row_sizes));
-    mu_assert("error col_sizes",
-              check_col_sizes(constraints->AT, constraints->state->col_sizes));
+    remove_dton_eq_rows(prob);
 
-    // check that new A is correct
-    double Ax_correct[] = {2, -1, 2, 1, 2, 2, 3, 4, 2, 5, 6, 2, 7, 8, 1, 7,
-                           8, 2,  7, 8, 3, 7, 8, 4, 7, 8, 5, 7, 8, 6, 7, 8};
-    int Ai_correct[] = {0, 1, 0, 2, 3, 0, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2,
-                        3, 0, 2, 3, 0, 2, 3, 0, 2, 3, 0, 2, 3, 0, 2, 3};
-    int Ap_correct[] = {0, 2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 32));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 32));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
+    mu_assert("matrix fully eliminated", constraints->A->nnz == 0);
+    for (int r = 0; r < 3; ++r)
+    {
+        mu_assert("all rows inactive",
+                  HAS_TAG(constraints->row_tags[r], R_TAG_INACTIVE));
+    }
+    mu_assert("x0 inactive", HAS_TAG(constraints->col_tags[0], C_TAG_INACTIVE));
+    mu_assert("x2 inactive", HAS_TAG(constraints->col_tags[2], C_TAG_INACTIVE));
+    mu_assert("x3 inactive", HAS_TAG(constraints->col_tags[3], C_TAG_INACTIVE));
+    mu_assert("survivor active", !HAS_TAG(constraints->col_tags[1], C_TAG_INACTIVE));
+    mu_assert("survivor empty", constraints->state->col_sizes[1] == 0);
+    mu_assert("survivor in empty_cols",
+              iVec_contains(constraints->state->empty_cols, 1));
 
-    // check new AT
-    DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
+    // x0 = 1 - x1, x2 = 1 - x1, x3 = x1: objective folds to 2 + 0 * x1
+    mu_assert("obj survivor", prob->obj->c[1] == 0.0);
+    mu_assert("obj offset", prob->obj->offset == 2.0);
 
-    PS_FREE(stgs);
+    mu_assert("worklist empty", constraints->state->dton_rows->len == 0);
+
     DEBUG(run_debugger(constraints, false));
-    free_presolver(presolver);
 
+    free_presolver(presolver);
+    PS_FREE(stgs);
     return 0;
 }
 
-/* Same as previous test, but with max shift set to 4.
-   The reduction should be accepted because shifting the
-   right row requires shifting four elements.  */
-static char *test_15_dton()
+/* Within-round chain: bound transfer must run deepest link first and
+   read the intermediate column's bounds LIVE. r0: x0 + x1 = 1 claims
+   x0 -> x1 (singleton rule); r1: 2 x1 + x2 = 4 claims x1 -> x2 (larger
+   coefficient; the r2 pad keeps x2 non-singleton). Depth-descending
+   transfer: x0 in [0,1] gives x1 in [0,1], and the UPDATED x1 bounds give
+   x2 = 4 - 2 x1 in [2, 4]. A stale snapshot of x1's claim-time bounds
+   [-5,5] would give [-6, 14] instead. */
+static char *test_dton_chain_bounds_live()
 {
-    double Ax[] = {-1, 2, 2, -1, 1, 1, 2, 1, 3, 4, 2, 5, 6, 2, 7, 8, 1,
-                   7,  8, 2, 7,  8, 3, 7, 8, 4, 7, 8, 5, 7, 8, 6, 7, 8};
-    int Ai[] = {0, 1, 1, 2, 0, 3, 4, 0, 3, 4, 2, 3, 4, 2, 3, 4, 2,
-                3, 4, 1, 3, 4, 1, 3, 4, 1, 3, 4, 1, 3, 4, 1, 3, 4};
-    int Ap[] = {0, 2, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31, 34};
-    int nnz = 34;
-    int n_rows = 12;
-    int n_cols = 5;
-
-    double lhs[] = {0,    0,    -INF, -INF, -INF, -INF,
-                    -INF, -INF, -INF, -INF, -INF, -INF};
-    double rhs[] = {0, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
-    double lbs[] = {0, 0, 0, 0, 0};
-    double ubs[] = {INF, INF, INF, INF, INF};
-    double c[] = {-2, -1, -1, 3, -1};
+    double Ax[] = {1, 1, 2, 1, 1, 1};
+    int Ai[] = {0, 1, 1, 2, 2, 3};
+    int Ap[] = {0, 2, 4, 6};
+    double lhs[] = {1, 4, -INF};
+    double rhs[] = {1, 4, 10};
+    double lbs[] = {0, -5, -5, 0};
+    double ubs[] = {1, 5, 5, 10};
+    double c[] = {0, 0, 0, 0};
 
     Settings *stgs = default_settings();
     set_settings_false(stgs);
     stgs->dton_eq = true;
     Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+        new_presolver(Ax, Ai, Ap, 3, 4, 6, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
-    Matrix *A = constraints->A;
-    remove_dton_eq_rows(prob, 4);
-    problem_clean(prob);
 
-    mu_assert("error row_sizes",
-              check_row_sizes(constraints->A, constraints->state->row_sizes));
-    mu_assert("error col_sizes",
-              check_col_sizes(constraints->AT, constraints->state->col_sizes));
+    remove_dton_eq_rows(prob);
 
-    // check that new A is correct
-    double Ax_correct[] = {2, 1, 2, 2, 3, 4, 4, 5, 6, 4, 7, 8, 2, 7, 8,
-                           2, 7, 8, 3, 7, 8, 4, 7, 8, 5, 7, 8, 6, 7, 8};
-    int Ai_correct[] = {0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2,
-                        0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2};
-    int Ap_correct[] = {0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 30));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 30));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
+    // intermediate column x1 tightened by the deeper link (deactivation
+    // does not reset bounds)
+    mu_assert("x1 lb", constraints->bounds[1].lb == 0.0);
+    mu_assert("x1 ub", constraints->bounds[1].ub == 1.0);
 
-    // check new AT
-    DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
+    // survivor x2 tightened from x1's LIVE bounds
+    mu_assert("x2 lb", constraints->bounds[2].lb == 2.0);
+    mu_assert("x2 ub", constraints->bounds[2].ub == 4.0);
 
-    PS_FREE(stgs);
+    mu_assert("x0 inactive", HAS_TAG(constraints->col_tags[0], C_TAG_INACTIVE));
+    mu_assert("x1 inactive", HAS_TAG(constraints->col_tags[1], C_TAG_INACTIVE));
+
     DEBUG(run_debugger(constraints, false));
+
     free_presolver(presolver);
+    PS_FREE(stgs);
     return 0;
 }
 
-/* Same as previous test, but with max shift set to 3.
-   The reduction should be rejected because shifting the
-   right row requires shifting four elements.  */
-static char *test_16_dton()
+/* Tag-liveness variant: x1 starts with an INFINITE lower bound. The
+   deeper link's update_lb(x1, 0) clears C_TAG_LB_INF; the shallower
+   link's x2 upper-bound update happens only if it reads x1's tag LIVE
+   (a stale claim-time snapshot tag would skip the branch entirely). */
+static char *test_dton_chain_bounds_live_tags()
 {
-    printf("starting test 16_dton\n");
-    double Ax[] = {-1, 2, 2, -1, 1, 1, 2, 1, 3, 4, 2, 5, 6, 2, 7, 8, 1,
-                   7,  8, 2, 7,  8, 3, 7, 8, 4, 7, 8, 5, 7, 8, 6, 7, 8};
-    int Ai[] = {0, 1, 1, 2, 0, 3, 4, 0, 3, 4, 2, 3, 4, 2, 3, 4, 2,
-                3, 4, 1, 3, 4, 1, 3, 4, 1, 3, 4, 1, 3, 4, 1, 3, 4};
-    int Ap[] = {0, 2, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31, 34};
-    int nnz = 34;
-    int n_rows = 12;
-    int n_cols = 5;
-
-    double lhs[] = {0,    0,    -INF, -INF, -INF, -INF,
-                    -INF, -INF, -INF, -INF, -INF, -INF};
-    double rhs[] = {0, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
-    double lbs[] = {0, 0, 0, 0, 0};
-    double ubs[] = {INF, INF, INF, INF, INF};
-    double c[] = {-2, -1, -1, 3, -1};
+    double Ax[] = {1, 1, 2, 1, 1, 1};
+    int Ai[] = {0, 1, 1, 2, 2, 3};
+    int Ap[] = {0, 2, 4, 6};
+    double lhs[] = {1, 4, -INF};
+    double rhs[] = {1, 4, 10};
+    double lbs[] = {0, -INF, -5, 0};
+    double ubs[] = {1, 5, 5, 10};
+    double c[] = {0, 0, 0, 0};
 
     Settings *stgs = default_settings();
     set_settings_false(stgs);
     stgs->dton_eq = true;
     Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+        new_presolver(Ax, Ai, Ap, 3, 4, 6, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
 
     Problem *prob = presolver->prob;
     Constraints *constraints = prob->constraints;
-    Matrix *A = constraints->A;
-    remove_dton_eq_rows(prob, 3);
-    problem_clean(prob);
 
-    mu_assert("error row_sizes",
-              check_row_sizes(constraints->A, constraints->state->row_sizes));
-    mu_assert("error col_sizes",
-              check_col_sizes(constraints->AT, constraints->state->col_sizes));
+    remove_dton_eq_rows(prob);
 
-    // check that new A is correct
-    double Ax_correct[] = {2, -1, 2, 1, 2, 2, 3, 4, 2, 5, 6, 2, 7, 8, 1, 7,
-                           8, 2,  7, 8, 3, 7, 8, 4, 7, 8, 5, 7, 8, 6, 7, 8};
-    int Ai_correct[] = {0, 1, 0, 2, 3, 0, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2,
-                        3, 0, 2, 3, 0, 2, 3, 0, 2, 3, 0, 2, 3, 0, 2, 3};
-    int Ap_correct[] = {0, 2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 32));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 32));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
+    // deeper link: x1 gets lb 0 (clearing its inf tag) and ub 1
+    mu_assert("x1 lb set", constraints->bounds[1].lb == 0.0);
+    mu_assert("x1 ub", constraints->bounds[1].ub == 1.0);
 
-    PS_FREE(stgs);
+    // shallower link must see the now-finite x1 lb: x2 ub = 4 - 2 * 0
+    mu_assert("x2 ub from live tag", constraints->bounds[2].ub == 4.0);
+    mu_assert("x2 lb", constraints->bounds[2].lb == 2.0);
+
     DEBUG(run_debugger(constraints, false));
-    DEBUG(mu_assert("error AT", verify_A_and_AT_consistency(A, constraints->AT)));
+
     free_presolver(presolver);
-    printf("finished test 16_dton\n");
+    PS_FREE(stgs);
     return 0;
 }
 
-/* We eliminate a doubleton row and substitute a variable in a row with
-   no extra space. We get in-place fill-in in A, but that should be
-   fine.
+/* ------------------------------------------------------------------------
+   Postsolve checks. The records are linear maps, so they are tested on a
+   reduced point that satisfies reduced stationarity (z_red = c_red - A_red' y_red
+   for arbitrary x_red, y_red): the postsolved point must satisfy stationarity
+   on the original exactly and the removed equality rows must hold exactly.
+   Optimality on real instances is covered by the map_checker sweep.
+   ------------------------------------------------------------------------ */
+#define DTON_POSTSOLVE_TOL 1e-9
 
-    min. [2  -1 -1 3 2]x
-    s.t. [2  1   0  0  0]      [2]
-         [0  1   1  3  0] x >= [5]
-         [0 -2   1  3  1]      [4]
-         [1 -1   0  1  1]      [1]
-         0 <= x1 <= 5
-         x2, x3, x4, x5 >= 0
-*/
-static char *test_17_dton()
+static double dton_dual_residual(const double *Ax, const int *Ai, const int *Ap,
+                                 int m, int n, const double *c, const double *y,
+                                 const double *z)
 {
-    double Ax[] = {2, 1, 1, 1, 3, -2, 1, 3, 1, 1, -1, 1, 1};
-    int Ai[] = {0, 1, 1, 2, 3, 1, 2, 3, 4, 0, 1, 3, 4};
-    int Ap[] = {0, 2, 5, 9, 13};
-    int nnz = 13;
-    int n_rows = 4;
-    int n_cols = 5;
-
-    double lhs[] = {2, 5, 4, 1};
-    double rhs[] = {2, INF, 4, 1};
-    double lbs[] = {0, 0, 0, 0, 0};
-    double ubs[] = {5, INF, INF, INF, INF};
-    double c[] = {2, -1, -1, 3, 2};
-
-    Settings *stgs = default_settings();
-    set_settings_false(stgs);
-    stgs->dton_eq = true;
-    Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
-
-    Problem *prob = presolver->prob;
-    Constraints *constraints = prob->constraints;
-    Matrix *A = constraints->A;
-    State *data = constraints->state;
-    int new_n_cols =
-        update_column_map(data->col_sizes, data->work->mappings->cols, 5);
-    remove_extra_space(A, data->row_sizes, data->work->mappings->cols, new_n_cols);
-
-    remove_dton_eq_rows(prob, 0);
-    problem_clean(prob);
-
-    // check that new A is correct
-    double Ax_correct[] = {-2, 1, 3, 4, 1, 3, 1, 3, 1, 1};
-    int Ai_correct[] = {0, 1, 2, 0, 1, 2, 3, 0, 2, 3};
-    int Ap_correct[] = {0, 3, 7, 10};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 10));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 10));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
-
-    PS_FREE(stgs);
-    DEBUG(run_debugger(constraints, false));
-    free_presolver(presolver);
-    return 0;
+    double *r = (double *) calloc((size_t) n, sizeof(double));
+    for (int j = 0; j < n; ++j)
+    {
+        r[j] = c[j] - z[j];
+    }
+    for (int i = 0; i < m; ++i)
+    {
+        for (int p = Ap[i]; p < Ap[i + 1]; ++p)
+        {
+            r[Ai[p]] -= Ax[p] * y[i];
+        }
+    }
+    double mx = 0.0;
+    for (int j = 0; j < n; ++j)
+    {
+        mx = fmax(mx, fabs(r[j]));
+    }
+    free(r);
+    return mx;
 }
 
-/* We eliminate a doubleton row without having any extra space in
-   AT (and A). We get in-place fill-in in AT and A, but that
-   should be fine.
-
-    min. [2  -1 -1 3 2]x
-    s.t. [2  1   0  0  0]      [2]
-         [0  1   1  3  0] x >= [5]
-         [1 -1   0  1  1]      [1]
-         0 <= x1 <= 5
-         x2, x3, x4, x5 >= 0
-*/
-static char *test_18_dton()
+/* max |a_i x - rhs_i| over the equality rows that the presolve removed */
+static double dton_removed_eq_residual(const double *Ax, const int *Ai,
+                                       const int *Ap, int m, const double *lhs,
+                                       const double *rhs, const int *rows_map,
+                                       const double *x)
 {
-    double Ax[] = {2, 1, 1, 1, 3, 1, -1, 1, 1};
-    int Ai[] = {0, 1, 1, 2, 3, 0, 1, 3, 4};
-    int Ap[] = {0, 2, 5, 9};
-    int nnz = 9;
-    int n_rows = 3;
-    int n_cols = 5;
-
-    double lhs[] = {2, 5, 1};
-    double rhs[] = {2, INF, 1};
-    double lbs[] = {0, 0, 0, 0, 0};
-    double ubs[] = {5, INF, INF, INF, INF};
-    double c[] = {2, -1, -1, 3, 2};
-
-    Settings *stgs = default_settings();
-    set_settings_false(stgs);
-    stgs->dton_eq = true;
-    Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
-
-    Problem *prob = presolver->prob;
-    Constraints *constraints = prob->constraints;
-    Matrix *A = constraints->A;
-    Matrix *AT = constraints->AT;
-    State *data = constraints->state;
-    int new_n_cols =
-        update_column_map(data->col_sizes, data->work->mappings->cols, 5);
-    int new_n_rows =
-        update_column_map(data->row_sizes, data->work->mappings->rows, 3);
-    remove_extra_space(A, data->row_sizes, data->work->mappings->cols, new_n_cols);
-    remove_extra_space(AT, data->col_sizes, data->work->mappings->rows, new_n_rows);
-
-    remove_dton_eq_rows(prob, 0);
-    problem_clean(prob);
-
-    // check that new A is correct
-    double Ax_correct[] = {-2, 1, 3, 3, 1, 1};
-    int Ai_correct[] = {0, 1, 2, 0, 2, 3};
-    int Ap_correct[] = {0, 3, 6};
-    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 6));
-    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 6));
-    mu_assert("error row starts", check_row_starts(A, Ap_correct));
-
-    PS_FREE(stgs);
-    DEBUG(run_debugger(constraints, false));
-    free_presolver(presolver);
-    return 0;
+    double mx = 0.0;
+    for (int i = 0; i < m; ++i)
+    {
+        if (rows_map[i] != -1 || lhs[i] != rhs[i])
+        {
+            continue;
+        }
+        double act = 0.0;
+        for (int p = Ap[i]; p < Ap[i + 1]; ++p)
+        {
+            act += Ax[p] * x[Ai[p]];
+        }
+        mx = fmax(mx, fabs(act - rhs[i]));
+    }
+    return mx;
 }
 
-/* We eliminate a doubleton row and substitute a variable in a row with
-   no extra space. We get in-place fill-in, but that should be fine.
-
-   Same as above, but infeasible constraint. But this should affect
-   anything, but we still get a weird bug! What happened was that
-   we got a chain of doubleton rows, so the entire A matrix was
-   eliminated. We don't run this test for now since it might not be
-   a bug.
-
-    min. [2  -1 -1 3 2]x
-    s.t. [2  1   0  0  0]       [2]
-         [0  1   1  3  0] x   = [-4]
-         [0 -2   1  3  1]       [4]
-         [1 -1   0  1  0]       [1]
-         0 <= x1 <= 5
-         x2, x3, x4, x5 >= 0
-*/
-static char *test_19_dton()
+static void dton_stationary_reduced_point(const PresolvedProblem *red, double *x,
+                                          double *y, double *z)
 {
-    double Ax[] = {2, 1, 1, 1, 3, -2, 1, 3, 1, 1, -1, 1};
-    int Ai[] = {0, 1, 1, 2, 3, 1, 2, 3, 4, 0, 1, 3};
-    int Ap[] = {0, 2, 5, 9, 12};
-    int nnz = 12;
-    int n_rows = 4;
-    int n_cols = 5;
+    for (size_t j = 0; j < red->n; ++j)
+    {
+        x[j] = 0.3 * (double) (j + 1);
+        z[j] = red->c[j];
+    }
+    for (size_t i = 0; i < red->m; ++i)
+    {
+        y[i] = ((i % 2 == 0) ? 0.7 : -0.4) * (double) (i + 1);
+        for (int p = red->Ap[i]; p < red->Ap[i + 1]; ++p)
+        {
+            z[red->Ai[p]] -= red->Ax[p] * y[i];
+        }
+    }
+}
 
-    double lhs[] = {2, -4, 4, 1};
-    double rhs[] = {2, -4, 4, 1};
+/* Presolves (all other explorers as set by 'all_explorers'), postsolves a
+   stationary reduced point and checks the original point: the dual must stay
+   stationary and every removed equality row must hold. Returns 0 or the
+   failing check. */
+static char *dton_check_postsolve(double *Ax, int *Ai, int *Ap, int m, int n,
+                                  int nnz, double *lhs, double *rhs, double *lbs,
+                                  double *ubs, double *c, bool all_explorers,
+                                  double rebuild_frac)
+{
+    Settings *stgs = default_settings(); // the presolver keeps a pointer to it
+    if (all_explorers)
+    {
+        set_settings_true(stgs);
+        stgs->parallel_cols = false;
+    }
+    else
+    {
+        set_settings_false(stgs);
+        stgs->dton_eq = true;
+    }
+    stgs->verbose = false;
+    Presolver *ps =
+        new_presolver(Ax, Ai, Ap, m, n, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    if (ps == NULL)
+    {
+        return "presolver allocation failed";
+    }
+    // steer the transpose update: 1e9 never rebuilds (merge path), 0.0
+    // always rebuilds (fallback path)
+    Work *work = ps->prob->constraints->state->work;
+    work->dton->rebuild_frac = rebuild_frac;
+    if (run_presolver(ps) != REDUCED)
+    {
+        return "presolve must reduce and stay feasible";
+    }
+
+    // the test must have exercised the elimination
+    const PresolvedProblem *red = ps->reduced_prob;
+    const u16Vec *types = ps->prob->constraints->state->postsolve_info->type;
+    int n_dton = 0;
+    for (size_t t = 0; t < types->len; ++t)
+    {
+        n_dton += (types->data[t] == SUB_COL_DTON);
+    }
+    if (n_dton == 0)
+    {
+        return "no SUB_COL_DTON record emitted";
+    }
+
+    double *x = (double *) calloc(red->n + 1, sizeof(double));
+    double *y = (double *) calloc(red->m + 1, sizeof(double));
+    double *z = (double *) calloc(red->n + 1, sizeof(double));
+    dton_stationary_reduced_point(red, x, y, z);
+
+    char *msg = 0;
+    postsolve(ps, x, y, z);
+    const Solution *sol = ps->sol;
+    const int *rows_map = ps->prob->constraints->state->work->mappings->rows;
+    if (dton_dual_residual(Ax, Ai, Ap, m, n, c, sol->y, sol->z) > DTON_POSTSOLVE_TOL)
+    {
+        msg = "postsolve breaks stationarity on the original";
+    }
+    else if (dton_removed_eq_residual(Ax, Ai, Ap, m, lhs, rhs, rows_map, sol->x) >
+             DTON_POSTSOLVE_TOL)
+    {
+        msg = "postsolve violates a removed equality row";
+    }
+
+    free(x);
+    free(y);
+    free(z);
+    free_presolver(ps);
+    PS_FREE(stgs);
+    return msg;
+}
+
+/* Single link, no chain: x0 = 2 - 0.5 x1 substituted into two rows. */
+static char *test_dton_postsolve_single_link()
+{
+    // r0: 2 x0 + x1 = 4, r1: x0 + x1 + x2 <= 10, r2: 3 x0 + x2 + x3 >= 1
+    double Ax[] = {2, 1, 1, 1, 1, 3, 1, 1};
+    int Ai[] = {0, 1, 0, 1, 2, 0, 2, 3};
+    int Ap[] = {0, 2, 5, 8};
+    double lhs[] = {4, -INF, 1};
+    double rhs[] = {4, 10, INF};
+    double lbs[] = {0, 0, 0, 0};
+    double ubs[] = {10, 10, 10, 10};
+    double c[] = {1, 2, 3, 4};
+    return dton_check_postsolve(Ax, Ai, Ap, 3, 4, 8, lhs, rhs, lbs, ubs, c, false,
+                                1e9);
+}
+
+/* Depth-2 chain x0 -> x1 -> x2 with both eliminated columns in a kept row,
+   so the owner-row multipliers need the deeper owner row and the kept row. */
+static char *test_dton_postsolve_chain()
+{
+    // r0: x0 + x1 = 1, r1: 2 x1 + x2 = 4, r2: 2 x0 + x1 + x2 + x3 <= 10
+    double Ax[] = {1, 1, 2, 1, 2, 1, 1, 1};
+    int Ai[] = {0, 1, 1, 2, 0, 1, 2, 3};
+    int Ap[] = {0, 2, 4, 8};
+    double lhs[] = {1, 4, -INF};
+    double rhs[] = {1, 4, 10};
+    double lbs[] = {0, 0, 0, 0};
+    double ubs[] = {10, 10, 10, 10};
+    double c[] = {1, 2, 3, 4};
+    return dton_check_postsolve(Ax, Ai, Ap, 3, 4, 8, lhs, rhs, lbs, ubs, c, false,
+                                1e9);
+}
+
+/* Tree: x0 -> x2 and x1 -> x2 (two heads), x2 -> x3; the column of x2 holds
+   two owner rows of the same round. */
+static char *test_dton_postsolve_tree()
+{
+    // r0: x0 + x2 = 1, r1: x1 + x2 = 1, r2: 2 x2 + x3 = 4,
+    // r3: x0 + 2 x1 + 3 x2 + x3 <= 10
+    double Ax[] = {1, 1, 1, 1, 2, 1, 1, 2, 3, 1};
+    int Ai[] = {0, 2, 1, 2, 2, 3, 0, 1, 2, 3};
+    int Ap[] = {0, 2, 4, 6, 10};
+    double lhs[] = {1, 1, 4, -INF};
+    double rhs[] = {1, 1, 4, 10};
+    double lbs[] = {0, 0, 0, 0};
+    double ubs[] = {10, 10, 10, 10};
+    double c[] = {1, 2, 3, 4};
+    return dton_check_postsolve(Ax, Ai, Ap, 4, 4, 10, lhs, rhs, lbs, ubs, c, false,
+                                1e9);
+}
+
+/* Two rounds: r1 loses the claim on x0 in round one and is eliminated in
+   round two after r0's substitution rewrote it. */
+static char *test_dton_postsolve_two_rounds()
+{
+    // r0: 3 x0 + x1 = 1, r1: 5 x0 + x2 = 2, r2: x1 + x2 <= 10
+    double Ax[] = {3, 1, 5, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 2, 1, 2};
+    int Ap[] = {0, 2, 4, 6};
+    double lhs[] = {1, 2, -INF};
+    double rhs[] = {1, 2, 10};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {10, 10, 10};
+    double c[] = {1, 2, 3};
+    return dton_check_postsolve(Ax, Ai, Ap, 3, 3, 6, lhs, rhs, lbs, ubs, c, false,
+                                1e9);
+}
+
+/* Cycle: the broken owner row stays active, becomes a singleton row after
+   the other substitution and is handled by the trivial explorers. */
+static char *test_dton_postsolve_cycle()
+{
+    // r0: 2 x0 + x1 = 0, r1: x0 + 2 x1 = 0, r2: x0 + x1 + x2 <= 10
+    double Ax[] = {2, 1, 1, 2, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 1, 0, 1, 2};
+    int Ap[] = {0, 2, 4, 7};
+    double lhs[] = {0, 0, -INF};
+    double rhs[] = {0, 0, 10};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {10, 10, 10};
+    double c[] = {1, 2, 3};
+    return dton_check_postsolve(Ax, Ai, Ap, 3, 3, 7, lhs, rhs, lbs, ubs, c, false,
+                                1e9);
+}
+
+/* Exact cancellation of a substituted entry (dropped below ZERO_TOL). */
+static char *test_dton_postsolve_cancellation()
+{
+    // r0: x0 + 2 x1 = 0, r1: 0.5 x0 + x1 + x2 <= 5, r2: x1 + x3 + x4 <= 7
+    double Ax[] = {1, 2, 0.5, 1, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 1, 2, 1, 3, 4};
+    int Ap[] = {0, 2, 5, 8};
+    double lhs[] = {0, -INF, -INF};
+    double rhs[] = {0, 5, 7};
     double lbs[] = {0, 0, 0, 0, 0};
-    double ubs[] = {5, INF, INF, INF, INF};
-    double c[] = {2, -1, -1, 3, 2};
+    double ubs[] = {10, 10, 10, 10, 10};
+    double c[] = {1, 2, 3, 4, 5};
+    return dton_check_postsolve(Ax, Ai, Ap, 3, 5, 8, lhs, rhs, lbs, ubs, c, false,
+                                1e9);
+}
+
+/* The substituted column is free: nothing is transferred onto the stay
+   column, whose bounds survive unchanged; the postsolve round trip holds. */
+static char *test_dton_free_subst()
+{
+    // r0: x0 + x1 = 2 (x1 free and sparser -> substituted), r1: x0 + x2 <= 5,
+    // r2: x0 + 2 x1 + x3 <= 7 (no cancellation: -x0 + x3 <= 3 after)
+    double Ax[] = {1, 1, 1, 1, 1, 2, 1};
+    int Ai[] = {0, 1, 0, 2, 0, 1, 3};
+    int Ap[] = {0, 2, 4, 7};
+    double lhs[] = {2, -INF, -INF};
+    double rhs[] = {2, 5, 7};
+    double lbs[] = {0, -INF, 0, 0};
+    double ubs[] = {10, INF, 10, 10};
+    double c[] = {1, 2, 3, 4};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dton_eq = true;
+    stgs->verbose = false;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 3, 4, 7, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+    mu_assert("must reduce", run_presolver(presolver) == REDUCED);
+    const PresolvedProblem *red = presolver->reduced_prob;
+    mu_assert("x1 eliminated", red->n == 3);
+    mu_assert("stay lb unchanged", red->lbs[0] == 0.0);
+    mu_assert("stay ub unchanged", red->ubs[0] == 10.0);
+    free_presolver(presolver);
+    PS_FREE(stgs);
+
+    return dton_check_postsolve(Ax, Ai, Ap, 3, 4, 7, lhs, rhs, lbs, ubs, c, false,
+                                1e9);
+}
+
+/* Primal infeasibility ray through a substitution. r0 eliminates
+   x0 = 1 - x1 (x0 is a column singleton in r0? no: it also sits in r1, so the
+   sparser rule picks it); the reduced rows r1: x2 + x3 >= 4 and
+   r2: x1 + x2 + x3 <= 2 are infeasible together. */
+static char *test_dton_primal_ray()
+{
+    // r0: x0 + x1 = 1, r1: x0 + x1 + x2 + x3 >= 5, r2: x1 + x2 + x3 <= 2
+    double Ax[] = {1, 1, 1, 1, 1, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 1, 2, 3, 1, 2, 3};
+    int Ap[] = {0, 2, 6, 9};
+    int m = 3, n = 4, nnz = 9;
+    double lhs[] = {1, 5, -INF};
+    double rhs[] = {1, INF, 2};
+    double lbs[] = {0, 0, 0, 0};
+    double ubs[] = {10, 10, 10, 10};
+    double c[] = {1, 1, 1, 1};
+    PresolvedProblem orig =
+        problem_from_csr(Ax, Ai, Ap, m, n, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_false(stgs);
     stgs->dton_eq = true;
     Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+        new_presolver(Ax, Ai, Ap, m, n, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+    mu_assert("presolve reduces", run_presolver(presolver) == REDUCED);
+    mu_assert("reduced dims",
+              presolver->reduced_prob->m == 2 && presolver->reduced_prob->n == 3);
 
-    Problem *prob = presolver->prob;
-    Constraints *constraints = prob->constraints;
-    Matrix *A = constraints->A;
-    State *data = constraints->state;
-    int new_n_cols =
-        update_column_map(data->col_sizes, data->work->mappings->cols, 5);
-    remove_extra_space(A, data->row_sizes, data->work->mappings->cols, new_n_cols);
-    remove_dton_eq_rows(prob, 0);
-    problem_clean(prob);
+    // reduced Farkas certificate: y >= 0 on an rhs row, <= 0 on an lhs row
+    double y[] = {-1.0, 1.0};
+    double y_orig[] = {0, 0, 0};
+    postsolve_primal_infeas_ray(presolver, y, y_orig);
+    mu_assert("original primal ray certificate",
+              is_primal_ray_certificate(&orig, y_orig, 1e-9));
+    // y_0 makes A'y + z = 0 for the eliminated (free) column x0
+    mu_assert("owner row multiplier", fabs(y_orig[0] - 1.0) < 1e-12);
 
     PS_FREE(stgs);
-    DEBUG(run_debugger(constraints, false));
     free_presolver(presolver);
     return 0;
 }
 
-/* x0 + x1 = 1 with x0 in [0, 0.2] and x1 in [0, 0.5]: the bound transfer is
-   infeasible whichever column is substituted. */
+/* Dual infeasibility ray through a substitution: x0 = x1, minimise
+   -x0 with x1 - x2 <= 10 and x >= 0 is unbounded along (1, 1, 1). */
+static char *test_dton_dual_ray()
+{
+    // r0: x0 - x1 = 0, r1: x1 - x2 <= 10
+    double Ax[] = {1, -1, 1, -1};
+    int Ai[] = {0, 1, 1, 2};
+    int Ap[] = {0, 2, 4};
+    int m = 2, n = 3, nnz = 4;
+    double lhs[] = {0, -INF};
+    double rhs[] = {0, 10};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {INF, INF, INF};
+    double c[] = {-1, 0, 0};
+    PresolvedProblem orig =
+        problem_from_csr(Ax, Ai, Ap, m, n, nnz, lhs, rhs, lbs, ubs, c);
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dton_eq = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, m, n, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+    mu_assert("presolve reduces", run_presolver(presolver) == REDUCED);
+    mu_assert("reduced dims",
+              presolver->reduced_prob->m == 1 && presolver->reduced_prob->n == 2);
+
+    double d[] = {1.0, 1.0};
+    double d_orig[] = {0, 0, 0};
+    postsolve_dual_infeas_ray(presolver, d, d_orig);
+    mu_assert("original dual ray certificate",
+              is_dual_ray_certificate(&orig, d_orig, 1e-9));
+    mu_assert("eliminated component follows the survivor",
+              fabs(d_orig[0] - 1.0) < 1e-12);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/* ------------------------------------------------------------------------
+   Transpose update (phase 5). The transpose is compact, so a target whose
+   length does not grow is merged in place and one that grows is moved to the tail.
+   Each test sets the workspace's rebuild_frac to 1e9 (small LPs
+   always trip the default quarter-of-nnz guard) and ends with the debugger's
+   comparison against a fresh transpose.
+   ------------------------------------------------------------------------ */
+static Presolver *dton_new_presolver(double *Ax, int *Ai, int *Ap, int m, int n,
+                                     int nnz, double *lhs, double *rhs, double *lbs,
+                                     double *ubs, double *c, Settings **stgs_out,
+                                     double rebuild_frac)
+{
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dton_eq = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, m, n, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    if (presolver != NULL)
+    {
+        Work *work = presolver->prob->constraints->state->work;
+        work->dton->rebuild_frac = rebuild_frac;
+    }
+    *stgs_out = stgs;
+    return presolver;
+}
+
+static bool dton_col_is(const Matrix *AT, int c, const int *rows, const double *vals,
+                        int len)
+{
+    if (AT->p[c].end - AT->p[c].start != len)
+    {
+        return false;
+    }
+    for (int q = 0; q < len; ++q)
+    {
+        if (AT->i[AT->p[c].start + q] != rows[q] ||
+            AT->x[AT->p[c].start + q] != vals[q])
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool dton_spans_ordered(const Matrix *AT)
+{
+    for (int c = 0; c < (int) AT->m; ++c)
+    {
+        if (AT->p[c + 1].start < AT->p[c].end)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* Same substitution with four fill-in rows: x0's column {r0, r5} grows to
+   5 > 2 entries, so it moves to the tail reserved by the initial transpose. */
+static char *test_dton_merge_relocate()
+{
+    // r0: x0 + 2 x1 = 1, r1..r4: x1 + x_{2..5} <= 5, r5: x0 + x6 <= 5
+    double Ax[] = {1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 1, 2, 1, 3, 1, 4, 1, 5, 0, 6};
+    int Ap[] = {0, 2, 4, 6, 8, 10, 12};
+    double lhs[] = {1, -INF, -INF, -INF, -INF, -INF};
+    double rhs[] = {1, 5, 5, 5, 5, 5};
+    double lbs[] = {0, 0, 0, 0, 0, 0, 0};
+    double ubs[] = {10, 10, 10, 10, 10, 10, 10};
+    double c[] = {1, 1, 1, 1, 1, 1, 1};
+    Settings *stgs;
+    Presolver *ps =
+        dton_new_presolver(Ax, Ai, Ap, 6, 7, 12, lhs, rhs, lbs, ubs, c, &stgs, 1e9);
+    mu_assert("presolver allocation failed", ps != NULL);
+    Constraints *constraints = ps->prob->constraints;
+    const Matrix *AT = constraints->AT;
+    DtonWorkspace *dton_work = constraints->state->work->dton;
+    size_t old_alloc = AT->n_alloc;
+    int old_start_x2 = AT->p[2].start;
+
+    remove_dton_eq_rows(ps->prob);
+
+    mu_assert("merge path taken", dton_work->merge_round);
+    mu_assert("x1 span empty", AT->p[1].end == AT->p[1].start);
+    mu_assert("x0 moved to the tail",
+              AT->p[0].start >= dton_work->AT_slots.tail_base &&
+                  dton_work->AT_slots.tail_base == AT->p[AT->m].start);
+    mu_assert("tail reserved up front, no realloc",
+              AT->n_alloc == old_alloc &&
+                  (size_t) dton_work->AT_slots.tail_next <= AT->n_alloc &&
+                  (size_t) dton_work->AT_slots.tail_base < AT->n_alloc);
+    mu_assert("relocated slot fits exactly", dton_work->AT_slots.cap[0] == 5);
+    mu_assert("neighbour untouched", AT->p[2].start == old_start_x2);
+    int rows[] = {1, 2, 3, 4, 5};
+    double vals[] = {-0.5, -0.5, -0.5, -0.5, 1};
+    mu_assert("x0 column content", dton_col_is(AT, 0, rows, vals, 5));
+    mu_assert("x0 size", constraints->state->col_sizes[0] == 5);
+    mu_assert("spans now out of order", !dton_spans_ordered(AT));
+
+    DEBUG(run_debugger(constraints, false));
+
+    // a rebuild restores the ordered compact layout and invalidates the caps
+    dton_rebuild_AT(ps->prob, dton_work);
+    AT = constraints->AT;
+    mu_assert("rebuild orders spans", dton_spans_ordered(AT));
+    mu_assert("caps invalidated", !dton_work->AT_slots_valid);
+    mu_assert("x0 content after rebuild", dton_col_is(AT, 0, rows, vals, 5));
+    DEBUG(run_debugger(constraints, false));
+
+    free_presolver(ps);
+    PS_FREE(stgs);
+    return 0;
+}
+
+/* Shrink and cancellation: x0's column {r0, r1, r2} loses the owner row r0
+   and the r1 entry that cancels (2 x0 - 2 x0), keeping only r2. */
+static char *test_dton_merge_shrink()
+{
+    // r0: x0 + 2 x1 = 1, r1: 0.5 x0 + x1 + x2 <= 5, r2: x0 + x3 <= 3
+    double Ax[] = {1, 2, 0.5, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 1, 2, 0, 3};
+    int Ap[] = {0, 2, 5, 7};
+    double lhs[] = {1, -INF, -INF};
+    double rhs[] = {1, 5, 3};
+    double lbs[] = {0, 0, 0, 0};
+    double ubs[] = {10, 10, 10, 10};
+    double c[] = {1, 1, 1, 1};
+    Settings *stgs;
+    Presolver *ps =
+        dton_new_presolver(Ax, Ai, Ap, 3, 4, 7, lhs, rhs, lbs, ubs, c, &stgs, 1e9);
+    mu_assert("presolver allocation failed", ps != NULL);
+    Constraints *constraints = ps->prob->constraints;
+    const Matrix *AT = constraints->AT;
+    DtonWorkspace *dton_work = constraints->state->work->dton;
+    int old_start = AT->p[0].start;
+
+    remove_dton_eq_rows(ps->prob);
+
+    mu_assert("merge path taken", dton_work->merge_round);
+    mu_assert("x0 stayed in place", AT->p[0].start == old_start);
+    int rows[] = {2};
+    double vals[] = {1};
+    mu_assert("x0 column content", dton_col_is(AT, 0, rows, vals, 1));
+    mu_assert("x0 size", constraints->state->col_sizes[0] == 1);
+    mu_assert("x0 now a singleton column",
+              iVec_contains(constraints->state->ston_cols, 0));
+    mu_assert("r1 shrank to x2", constraints->state->row_sizes[1] == 1);
+    DEBUG(run_debugger(constraints, false));
+
+    free_presolver(ps);
+    PS_FREE(stgs);
+    return 0;
+}
+
+/* The relocation LP through the full presolver (all explorers) with a
+   postsolve round trip: later explorers must cope with a relocated column. */
+static char *test_dton_merge_full_presolve()
+{
+    // the relocation LP plus a dense row r6 so that no column is a singleton
+    // (otherwise the singleton-column pass removes everything before the
+    // doubleton code runs): r6: x0 + ... + x6 <= 20
+    double Ax[] = {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 1, 2, 1, 3, 1, 4, 1, 5, 0, 6, 0, 1, 2, 3, 4, 5, 6};
+    int Ap[] = {0, 2, 4, 6, 8, 10, 12, 19};
+    double lhs[] = {1, -INF, -INF, -INF, -INF, -INF, -INF};
+    double rhs[] = {1, 5, 5, 5, 5, 5, 20};
+    double lbs[] = {0, 0, 0, 0, 0, 0, 0};
+    double ubs[] = {10, 10, 10, 10, 10, 10, 10};
+    double c[] = {1, 2, 3, 4, 5, 6, 7};
+    return dton_check_postsolve(Ax, Ai, Ap, 7, 7, 19, lhs, rhs, lbs, ubs, c, true,
+                                1e9);
+}
+
+/* The chain LP through the rebuild fallback on every round. */
+static char *test_dton_postsolve_chain_rebuild_path()
+{
+    double Ax[] = {1, 1, 2, 1, 2, 1, 1, 1};
+    int Ai[] = {0, 1, 1, 2, 0, 1, 2, 3};
+    int Ap[] = {0, 2, 4, 8};
+    double lhs[] = {1, 4, -INF};
+    double rhs[] = {1, 4, 10};
+    double lbs[] = {0, 0, 0, 0};
+    double ubs[] = {10, 10, 10, 10};
+    double c[] = {1, 2, 3, 4};
+    return dton_check_postsolve(Ax, Ai, Ap, 3, 4, 8, lhs, rhs, lbs, ubs, c, false,
+                                0.0);
+}
+
+/* More claims in one round than the initial record capacity: 300 independent
+   doubleton rows x_{2i} + 2 x_{2i+1} = 1 grow the record and target arrays. */
+static char *test_dton_record_growth()
+{
+    enum
+    {
+        N = 300
+    };
+    double Ax[2 * N];
+    int Ai[2 * N];
+    int Ap[N + 1];
+    double lhs[N], rhs[N], lbs[2 * N], ubs[2 * N], c[2 * N];
+    for (int i = 0; i < N; ++i)
+    {
+        Ax[2 * i] = 1;
+        Ax[2 * i + 1] = 2;
+        Ai[2 * i] = 2 * i;
+        Ai[2 * i + 1] = 2 * i + 1;
+        Ap[i] = 2 * i;
+        lhs[i] = rhs[i] = 1;
+    }
+    Ap[N] = 2 * N;
+    for (int j = 0; j < 2 * N; ++j)
+    {
+        lbs[j] = 0;
+        ubs[j] = 10;
+        c[j] = 1;
+    }
+    Settings *stgs;
+    Presolver *ps = dton_new_presolver(Ax, Ai, Ap, N, 2 * N, 2 * N, lhs, rhs, lbs,
+                                       ubs, c, &stgs, 1e9);
+    mu_assert("presolver allocation failed", ps != NULL);
+    Constraints *constraints = ps->prob->constraints;
+    DtonWorkspace *dton_work = constraints->state->work->dton;
+
+    mu_assert("initial capacity below the round", dton_work->substs.cap < N);
+
+    remove_dton_eq_rows(ps->prob);
+
+    mu_assert("records grew", dton_work->substs.cap >= N);
+    for (int i = 0; i < N; ++i)
+    {
+        mu_assert("every row eliminated",
+                  HAS_TAG(constraints->row_tags[i], R_TAG_INACTIVE));
+        mu_assert("odd columns eliminated",
+                  HAS_TAG(constraints->col_tags[2 * i + 1], C_TAG_INACTIVE));
+        mu_assert("claim state reset", dton_work->substs.col_subst[2 * i + 1] == -1);
+    }
+    mu_assert("matrix empty", constraints->A->nnz == 0);
+    DEBUG(run_debugger(constraints, false));
+
+    free_presolver(ps);
+    PS_FREE(stgs);
+    return 0;
+}
+
+/* ------------------------------------------------------------------------
+   Long row. r0 spans columns [0, L) minus column 5, and doubleton rows
+   substitute sources sitting in r0, covering every placement of a target
+   relative to its sources:
+     A: x110 + x120 = 1     -> x110 = 1 - x120       (sparser column; target
+                                                      x120 present in r0)
+     B: x120 + 2 x130 = 1   -> x130 = (1 - x120) / 2 (larger coefficient;
+        target x120 again, so it sits between its two sources)
+     C: x5 + 2 x150 = 1     -> x150 = (1 - x5) / 2   (target x5 absent from
+                                                      r0: inserted)
+     D: x30 + 2 x_{L+1} = 1 -> x_{L+1} eliminated    (not in r0; target x30
+                                                      present without a source)
+   Row r_last: x120 + x_L <= 5 keeps x120 in a non-owner row.
+   ------------------------------------------------------------------------ */
+typedef struct
+{
+    int L, n, m, nnz;
+    double *Ax, *lhs, *rhs, *lbs, *ubs, *c;
+    int *Ai, *Ap;
+} DtonLongLP;
+
+static void dton_long_lp_build(DtonLongLP *lp, int L, double coef120)
+{
+    lp->L = L;
+    lp->n = L + 2;
+    lp->m = 1 + 4 + 1;
+    lp->nnz = (L - 1) + 2 * 4 + 2;
+    lp->Ax = (double *) calloc((size_t) lp->nnz, sizeof(double));
+    lp->Ai = (int *) calloc((size_t) lp->nnz, sizeof(int));
+    lp->Ap = (int *) calloc((size_t) lp->m + 1, sizeof(int));
+    lp->lhs = (double *) calloc((size_t) lp->m, sizeof(double));
+    lp->rhs = (double *) calloc((size_t) lp->m, sizeof(double));
+    lp->lbs = (double *) calloc((size_t) lp->n, sizeof(double));
+    lp->ubs = (double *) calloc((size_t) lp->n, sizeof(double));
+    lp->c = (double *) calloc((size_t) lp->n, sizeof(double));
+    int p = 0, r = 0;
+    // r0: every column but 5, coefficient 1 except x120 (coef120)
+    lp->Ap[r] = p;
+    for (int j = 0; j < L; ++j)
+    {
+        if (j == 5) continue;
+        lp->Ai[p] = j;
+        lp->Ax[p] = (j == 120) ? coef120 : 1.0;
+        p++;
+    }
+    lp->lhs[r] = -INF;
+    lp->rhs[r] = 1000;
+    r++;
+    int dton[4][3] = {{110, 120, 1}, {120, 130, 2}, {5, 150, 2}, {30, L + 1, 2}};
+    for (int d = 0; d < 4; ++d)
+    {
+        lp->Ap[r] = p;
+        lp->Ai[p] = dton[d][0];
+        lp->Ax[p] = 1.0;
+        p++;
+        lp->Ai[p] = dton[d][1];
+        lp->Ax[p] = dton[d][2];
+        p++;
+        lp->lhs[r] = lp->rhs[r] = 1;
+        r++;
+    }
+    // r_last: x120 + x_L <= 5
+    lp->Ap[r] = p;
+    lp->Ai[p] = 120;
+    lp->Ax[p] = 1;
+    p++;
+    lp->Ai[p] = L;
+    lp->Ax[p] = 1;
+    p++;
+    lp->lhs[r] = -INF;
+    lp->rhs[r] = 5;
+    r++;
+    lp->Ap[r] = p;
+    assert(r == lp->m && p == lp->nnz);
+    for (int j = 0; j < lp->n; ++j)
+    {
+        lp->lbs[j] = 0;
+        lp->ubs[j] = 10;
+        lp->c[j] = 1 + (j % 3);
+    }
+}
+
+static void dton_long_lp_free(DtonLongLP *lp)
+{
+    free(lp->Ax);
+    free(lp->Ai);
+    free(lp->Ap);
+    free(lp->lhs);
+    free(lp->rhs);
+    free(lp->lbs);
+    free(lp->ubs);
+    free(lp->c);
+}
+
+/* Coefficient of column j in row q, or 0 when absent. */
+static double dton_coeff(const Constraints *cs, int q, int j)
+{
+    const Matrix *A = cs->A;
+    int pos = sorted_find(A->i + A->p[q].start, cs->state->row_sizes[q], j);
+    return pos < 0 ? 0.0 : A->x[A->p[q].start + pos];
+}
+
+/* r0's x120 entry (coefficient 1.5) cancels against its two sources
+   (x110 = 1 - x120 contributes -1, x130 = (1 - x120)/2 contributes -0.5): the
+   target is dropped from r0 and the merge applies the delete tuple. */
+static char *test_dton_cancellation_log()
+{
+    DtonLongLP lp;
+    dton_long_lp_build(&lp, 200, 1.5);
+    Settings *stgs;
+    Presolver *ps =
+        dton_new_presolver(lp.Ax, lp.Ai, lp.Ap, lp.m, lp.n, lp.nnz, lp.lhs, lp.rhs,
+                           lp.lbs, lp.ubs, lp.c, &stgs, 1e9);
+    mu_assert("presolver allocation failed", ps != NULL);
+    remove_dton_eq_rows(ps->prob);
+    const Constraints *cs = ps->prob->constraints;
+    mu_assert("merge path taken", cs->state->work->dton->merge_round);
+    mu_assert("x120 dropped from r0", dton_coeff(cs, 0, 120) == 0.0);
+    // 199 - 3 eliminated (x110, x130, x150) + x5 inserted - x120 dropped
+    mu_assert("r0 length", cs->state->row_sizes[0] == 196);
+    mu_assert("x120 column is r_last only",
+              cs->state->col_sizes[120] == 1 &&
+                  cs->AT->i[cs->AT->p[120].start] == lp.m - 1);
+    DEBUG(run_debugger(cs, false));
+    free_presolver(ps);
+    PS_FREE(stgs);
+    dton_long_lp_free(&lp);
+    return 0;
+}
+
+/* ------------------------------------------------------------------------
+   Infeasible bound transfers. A transferred bound that contradicts the stay
+   column's bounds means the row and the two columns' bounds are
+   inconsistent: the eliminator must report INFEASIBLE instead of dropping
+   the substituted column's bound with the row.
+   ------------------------------------------------------------------------ */
+
+/* One row: x0 + x1 = 1 with x0 in [0, 0.2] forces x1 >= 0.8, but x1 <= 0.5.
+   The eliminator reports INFEASIBLE and leaves A untouched. */
 static char *test_dton_infeasible_transfer()
 {
-    // r0: x0 + x1 = 1, r1: x0 + x2 <= 10, r2: x1 + x2 <= 10
+    // r0: x0 + x1 = 1, r1: x0 + x2 <= 10, r2: x1 + x2 <= 10 (pads)
     double Ax[] = {1, 1, 1, 1, 1, 1};
     int Ai[] = {0, 1, 0, 2, 1, 2};
     int Ap[] = {0, 2, 4, 6};
@@ -1673,17 +1420,25 @@ static char *test_dton_infeasible_transfer()
     stgs->dton_eq = true;
     Presolver *presolver =
         new_presolver(Ax, Ai, Ap, 3, 3, 6, lhs, rhs, lbs, ubs, c, stgs);
-    mu_assert("infeasible", remove_dton_eq_rows(presolver->prob, 10) == INFEASIBLE);
+    mu_assert("presolver allocation failed", presolver != NULL);
+    Constraints *constraints = presolver->prob->constraints;
+
+    mu_assert("infeasible", remove_dton_eq_rows(presolver->prob) == INFEASIBLE);
+    mu_assert("r0 still active", !HAS_TAG(constraints->row_tags[0], R_TAG_INACTIVE));
+    mu_assert("x0 still active", !HAS_TAG(constraints->col_tags[0], C_TAG_INACTIVE));
+    mu_assert("A untouched", constraints->A->nnz == 6);
 
     free_presolver(presolver);
     PS_FREE(stgs);
     return 0;
 }
 
-/* x0 + x1 = 1 with x0 in [0, 0.4] and x1 + x3 = 1 with x3 in [0.5, 1]. Each
-   row is feasible alone, together they are not. Checked with only the
-   doubleton explorer, and with the default explorers minus singleton
-   columns. */
+/* Two rows onto one column, each feasible on its own: x0 + x1 = 1 with
+   x0 in [0, 0.4] gives x1 in [0.6, 1]; x3 + x1 = 1 with x3 in [0.5, 1] gives
+   x1 in [0, 0.5]. Neither row is activity-infeasible, so only the transfer
+   can see it. Through the presolver, with the eliminator alone and with the
+   default explorers minus the singleton-column one (which happened to mask
+   the wrong answer on this LP). */
 static char *test_dton_infeasible_two_rows()
 {
     // r0: x0 + x1 = 1, r1: x1 + x3 = 1, r2: x0 + x2 <= 10, r3: x2 + x3 <= 10
@@ -1711,6 +1466,7 @@ static char *test_dton_infeasible_two_rows()
         }
         Presolver *presolver =
             new_presolver(Ax, Ai, Ap, 4, 4, 8, lhs, rhs, lbs, ubs, c, stgs);
+        mu_assert("presolver allocation failed", presolver != NULL);
         mu_assert("infeasible", run_presolver(presolver) == INFEASIBLE);
         free_presolver(presolver);
         PS_FREE(stgs);
@@ -1718,37 +1474,111 @@ static char *test_dton_infeasible_two_rows()
     return 0;
 }
 
+/* The contradiction appears at the second link of a chain: x0 -> x1 gives
+   x1 in [0.6, 1], then x1 -> x2 through 2 x1 + x2 = 4 gives x2 >= 2, but
+   x2 <= 1. The deeper link's tightening stays, the round is abandoned. */
+static char *test_dton_infeasible_chain()
+{
+    // r0: x0 + x1 = 1, r1: 2 x1 + x2 = 4, r2: x2 + x3 <= 10 (pad)
+    double Ax[] = {1, 1, 2, 1, 1, 1};
+    int Ai[] = {0, 1, 1, 2, 2, 3};
+    int Ap[] = {0, 2, 4, 6};
+    double lhs[] = {1, 4, -INF};
+    double rhs[] = {1, 4, 10};
+    double lbs[] = {0, 0, 0, 0};
+    double ubs[] = {0.4, 10, 1, 10};
+    double c[] = {1, 1, 1, 1};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dton_eq = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 3, 4, 6, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+    Constraints *constraints = presolver->prob->constraints;
+
+    mu_assert("infeasible", remove_dton_eq_rows(presolver->prob) == INFEASIBLE);
+    mu_assert("first link transferred",
+              constraints->bounds[1].lb == 0.6 && constraints->bounds[1].ub == 1.0);
+    mu_assert("x2 bounds untouched",
+              constraints->bounds[2].lb == 0.0 && constraints->bounds[2].ub == 1.0);
+    mu_assert("A untouched", constraints->A->nnz == 6);
+
+    free_presolver(presolver);
+    PS_FREE(stgs);
+    return 0;
+}
+
+/* End-to-end: the full presolver with ALL default explorers plus the
+   doubleton eliminator, on the substitution/chain LP. Only coarse outcomes are
+   asserted (other explorers legitimately reshape the exact reduction), plus
+   a postsolve round trip on a stationary reduced point. */
+static char *test_dton_e2e_full_settings()
+{
+    // feasible: x1 = 0, x4 = 1, x0 = 4 satisfies every row (r0/r2 force
+    // x0 >= 10/3, so r1's rhs must exceed 10)
+    double Ax[] = {1, 2, 3, 1, 1, 2, 7, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 2, 3, 0, 1, 4, 1, 3};
+    int Ap[] = {0, 2, 5, 8, 10};
+    double lhs[] = {4, -INF, 9, -INF};
+    double rhs[] = {4, 20, 9, 10};
+    double lbs[] = {0, 0, 0, 0, 0};
+    double ubs[] = {10, 10, 10, 10, 10};
+    double c[] = {1, 1, 1, 1, 1};
+
+    Settings *stgs = default_settings();
+    stgs->verbose = false;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 4, 5, 10, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+
+    PresolveStatus status = run_presolver(presolver);
+    mu_assert("presolve must reduce", status == REDUCED);
+    mu_assert("reduced problem exists", presolver->reduced_prob != NULL);
+    mu_assert("rows reduced", presolver->reduced_prob->m < 4);
+    mu_assert("cols reduced", presolver->reduced_prob->n < 5);
+    mu_assert("nnz reduced", presolver->reduced_prob->nnz < 10);
+
+    free_presolver(presolver);
+    PS_FREE(stgs);
+
+    return dton_check_postsolve(Ax, Ai, Ap, 4, 5, 10, lhs, rhs, lbs, ubs, c, true,
+                                1e9);
+}
+
 static const char *all_tests_dton()
 {
-    mu_run_test(test_00_dton, counter_dton);  // implemented
-    mu_run_test(test_01_dton, counter_dton);  // implemented
-    mu_run_test(test_02_dton, counter_dton);  // implemented
-    mu_run_test(test_03_dton, counter_dton);  // implemented
-    mu_run_test(test_04_dton, counter_dton);  // implemented
-    mu_run_test(test_05_dton, counter_dton);  // implemented
-    mu_run_test(test_06_dton, counter_dton);  // implemented
-    mu_run_test(test_1_dton, counter_dton);   // implemented
-    mu_run_test(test_2_dton, counter_dton);   // implemented
-    mu_run_test(test_3_dton, counter_dton);   // implemented
-    mu_run_test(test_004_dton, counter_dton); // implemented
-    mu_run_test(test_4_dton, counter_dton);   // implemented
-    mu_run_test(test_6_dton, counter_dton);   // implemented
-    mu_run_test(test_7_dton, counter_dton);   // implemented
-    mu_run_test(test_8_dton, counter_dton);   // implemented
-    mu_run_test(test_9_dton, counter_dton);   // implemented
-    mu_run_test(test_10_dton, counter_dton);  // implemented
-    mu_run_test(test_11_dton, counter_dton);  // implemented
-    //   mu_run_test(test_12_dton, counter_dton);
-    mu_run_test(test_13_dton, counter_dton); // implemented
-    mu_run_test(test_14_dton, counter_dton); // implemented
-    mu_run_test(test_15_dton, counter_dton); // implemented
-    mu_run_test(test_16_dton, counter_dton); // implemented
-    mu_run_test(test_17_dton, counter_dton); // implemented
-    mu_run_test(test_18_dton, counter_dton); // implemented
+    mu_run_test(test_dton_workspace, counter_dton);
+    mu_run_test(test_dton_choose_subst, counter_dton);
+    mu_run_test(test_dton_claim_conflict, counter_dton);
+    mu_run_test(test_dton_chain_depth2, counter_dton);
+    mu_run_test(test_dton_cycle_break, counter_dton);
+    mu_run_test(test_dton_pivot_large, counter_dton);
+    mu_run_test(test_dton_eliminate_isolated, counter_dton);
+    mu_run_test(test_dton_apply_substitution, counter_dton);
+    mu_run_test(test_dton_cancellation, counter_dton);
+    mu_run_test(test_dton_chain_empties_matrix, counter_dton);
+    mu_run_test(test_dton_chain_bounds_live, counter_dton);
+    mu_run_test(test_dton_chain_bounds_live_tags, counter_dton);
+    mu_run_test(test_dton_postsolve_single_link, counter_dton);
+    mu_run_test(test_dton_postsolve_chain, counter_dton);
+    mu_run_test(test_dton_postsolve_tree, counter_dton);
+    mu_run_test(test_dton_postsolve_two_rounds, counter_dton);
+    mu_run_test(test_dton_postsolve_cycle, counter_dton);
+    mu_run_test(test_dton_postsolve_cancellation, counter_dton);
+    mu_run_test(test_dton_free_subst, counter_dton);
+    mu_run_test(test_dton_primal_ray, counter_dton);
+    mu_run_test(test_dton_dual_ray, counter_dton);
+    mu_run_test(test_dton_merge_relocate, counter_dton);
+    mu_run_test(test_dton_merge_shrink, counter_dton);
+    mu_run_test(test_dton_merge_full_presolve, counter_dton);
+    mu_run_test(test_dton_postsolve_chain_rebuild_path, counter_dton);
+    mu_run_test(test_dton_record_growth, counter_dton);
+    mu_run_test(test_dton_cancellation_log, counter_dton);
     mu_run_test(test_dton_infeasible_transfer, counter_dton);
     mu_run_test(test_dton_infeasible_two_rows, counter_dton);
-    //    mu_run_test(test_19_dton, counter_dton); // implemented but we don't
-    //    run it
+    mu_run_test(test_dton_infeasible_chain, counter_dton);
+    mu_run_test(test_dton_e2e_full_settings, counter_dton);
     return 0;
 }
 

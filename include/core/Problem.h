@@ -59,10 +59,9 @@ void fix_var_in_obj(Objective *obj, int col, double value);
 void sub_var_in_obj(Objective *obj, const double *vals, const int *cols, int len,
                     int k, double aik, double rhs);
 
-/* Substitutes variable 'subst' from the objective using the doubleton
-   equality row aij * x_stay + aik * x_subst = rhs. c[subst] is left
-   unchanged; the caller stores it for the postsolve. */
-void sub_var_in_obj_dton(Objective *obj, int stay, int subst, double aik, double aij,
-                         double rhs);
+/* Substitutes x_subst = shift + mult * x_stay in the objective and zeroes
+   c[subst]. */
+void sub_var_in_obj_dton(Objective *obj, int subst, int stay, double mult,
+                         double shift);
 
 #endif // CORE_PROBLEM_H

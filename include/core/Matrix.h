@@ -31,8 +31,8 @@ typedef struct
     int end;
 } RowRange;
 
-// Represents a sparse matrix stored in a modified CSR format.
-// The modification is that every row includes some extra space.
+// Sparse matrix in CSR format with an explicit range per row. The rows can be
+// stored in any order.
 typedef struct Matrix
 {
     size_t m;
@@ -45,13 +45,10 @@ typedef struct Matrix
     double *x;
 } Matrix;
 
-// Constructs a new matrix with the given values but extra space.
-// Assumes that (Ax, Ai, Ap) are CSR.
+/* Constructs a matrix from CSR input (Ax, Ai, Ap); explicit zeros are
+   dropped. */
 Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, size_t n_rows,
                    size_t n_cols, size_t nnz);
-
-Matrix *matrix_new_no_extra_space(const double *Ax, const int *Ai, const int *Ap,
-                                  size_t n_rows, size_t n_cols, size_t nnz);
 
 /* True if (Ai, Ap) is a valid n_rows x n_cols CSR structure with nnz entries:
    Ap[0] == 0, Ap non-decreasing, Ap[n_rows] == nnz, and every row has strictly
@@ -59,48 +56,19 @@ Matrix *matrix_new_no_extra_space(const double *Ax, const int *Ai, const int *Ap
    it can run before a matrix is built. */
 bool matrix_valid_csr_input(const int *Ai, const int *Ap, size_t n_rows,
                             size_t n_cols, size_t nnz);
-// Allocate a new matrix with the given dimensions and nnz.
-// write matrix_alloc
+// Allocates a matrix with the given dimensions and room for nnz entries.
 Matrix *matrix_alloc(size_t n_rows, size_t n_cols, size_t nnz);
 
-// Returns the transpose of the given matrix
-Matrix *transpose(const Matrix *A, int *work_n_cols);
+/* Returns the transpose of A with room for 'tail' spare entries after its
+   rows, or NULL on failure. */
+Matrix *transpose(const Matrix *A, int *work_n_cols, size_t tail);
 
-// Computes the number of entries allocated for a row with 'size' nnzs
-int calc_memory_row(int size, int extra_row_space, double memory_ratio);
-
-// Computes the total number of entries allocated for A
-size_t calc_memory(size_t nnz, size_t n_rows, size_t extra_row_space,
-                   double memory_ratio);
-
-/* Chooses (extra_row_space, memory_ratio) for a matrix with 'nnz' entries and
-   'n_rows' rows. Starts from EXTRA_ROW_SPACE / EXTRA_MEMORY_RATIO and reduces
-   the slack until calc_memory(...) <= INT_MAX, so that the row pointers fit in
-   an int. The final choice (0, 1.0) fits whenever nnz <= INT_MAX, which
-   new_presolver checks. */
-void choose_extra_space(size_t nnz, size_t n_rows, int *extra_row_space,
-                        double *memory_ratio);
+/* Like transpose(), but writes into AT's existing allocation, which must have
+   the transposed dimensions and room for A->nnz entries. */
+void transpose_into(const Matrix *A, Matrix *AT, int *work_n_cols);
 
 // frees all allocated memory
 void free_matrix(Matrix *A);
-
-// Shifts row obtain extra space. Returns true if the shift was
-// successful, and false otherwise.
-bool shift_row(Matrix *A, int row, int extra_space, int max_shift);
-
-/* Updates a coefficient of the matrix. If the coefficient does not exists,
-   it inserts it. This function assumes there is space. Returns the old
-   value. The function updates the row size but not any other internal
-   data structures.
-
-   This function can handle the case when val is zero. In this case,
-   if the coefficient of 'col' is nonzero in the row, it will be removed.
-
-   This function expects that if 'val' is zero, then 'col' exists in the
-   row.
-*/
-double insert_or_update_coeff(Matrix *A, int row, int col, double val,
-                              int *row_size);
 
 /* Removes 'col' from a row. Updates the length of the row, but not column
    sizes. It is assumed  that col exists in the row. */
@@ -109,19 +77,18 @@ void remove_coeff(struct RowView *row, int col);
 void count_rows(const Matrix *A, int *row_sizes);
 
 /*
-When the presolving is finished we want to remove all redundant space,
-regardless of its nature.
+When the presolving is finished we want to remove all redundant space, i.e.
+the inactive rows (marked SIZE_INACTIVE_ROW in row_sizes).
 
-It may also be beneficial to remove redundant space associated with
-inactive rows/inactive variables in the middle of the presolving process.
-In this case we must keep track of inactive rows/columns that are deleted,
-since the corresponding rows must also be removed from other data
-structures (eg. rowSize, stonRows, rowActivities etc).
+It may also be beneficial to remove the space associated with inactive
+rows/inactive variables in the middle of the presolving process. In this
+case we must keep track of inactive rows/columns that are deleted, since
+the corresponding rows must also be removed from other data structures
+(eg. rowSize, stonRows, rowActivities etc).
 
-This function will be called on both A and AT. An empty row of AT, ie. an
-empty column of A, will be removed when this function is called on AT.
-To have consistency between A and AT we must update the column indices of A.
-This is done in the end of the function (columns[j] = colsmap[columns[j]]).
+The column indices are renumbered through col_idxs_map at the end of the
+function (columns[j] = colsmap[columns[j]]). Assumes the rows are stored in
+index order.
 */
 void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_idxs_map,
                         size_t new_n_cols);
