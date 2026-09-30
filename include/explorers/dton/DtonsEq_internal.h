@@ -63,30 +63,28 @@ typedef struct DtonSubsts
                        through recs. */
 } DtonSubsts;
 
-/* Phases 4-5: a composed target of the round, with its pre-round size for the
-   size transitions (empty/singleton column worklists). Its part of the change
-   log is [log_start, log_end). */
+/* Phases 4-5: a surviving column that the round changes. Its part of the
+   change log is [log_start, log_end). */
 typedef struct DtonTarget
 {
     int col;
-    int old_size;
     int log_start;
     int log_end;
 } DtonTarget;
 
 typedef struct DtonTargets
 {
-    DtonTarget *list; /* [DtonSubsts.cap] the unique targets */
+    DtonTarget *list; /* [DtonSubsts.cap] each changed column once */
     int n_targets;
     int *col_to_target; /* [n_cols] index into list, -1 otherwise. Reset through
                            list. */
 } DtonTargets;
 
-/* Phases 4-5: change log of the sweep, one (row, value) tuple for every
-   target entry a swept row ends up with, and value 0 for a present target
-   entry that was dropped (A holds no exact zeros, so 0 marks a delete). Every
-   target has its own segment with rows ascending, which the merge applies
-   onto the old column. */
+/* Phases 4-5: change log of the sweep, one (row, value) tuple for every entry
+   of a surviving column the sweep changed, with value 0 for an entry that was
+   dropped (A holds no exact zeros, so 0 marks a delete). Every changed column
+   has its own segment with rows ascending, which the merge applies onto the
+   old column. */
 typedef struct DtonLog
 {
     int *row;
@@ -94,9 +92,9 @@ typedef struct DtonLog
     int cap;
 } DtonLog;
 
-/* Scratch for the doubleton eliminator (work->dton). Only 'AT' persists across
-   calls. The rest is per round or per row and is reset through the round's own
-   lists. */
+/* Scratch for the doubleton eliminator (work->dton). Only 'AT_slots' persists
+   across calls. The rest is per round or per row and is reset through the
+   round's own lists. */
 typedef struct DtonWorkspace
 {
     int n_rows; /* rows of A at allocation */
@@ -107,18 +105,24 @@ typedef struct DtonWorkspace
                              Zero between rounds. */
     SparseAccumulator acc;
     DtonLog log;
-    RowSlots AT;      /* slots of A transpose's rows */
-    bool AT_valid;    /* 'AT' matches the layout of A transpose */
-    bool merge_round; /* the round logs its changes and merges them into A
-                         transpose. Otherwise A transpose is rebuilt. */
+    RowSlots AT_slots;   /* slots of A transpose's rows */
+    bool AT_slots_valid; /* 'AT_slots' matches the layout of A transpose */
+    bool merge_round;    /* the round logs its changes and merges them into A
+                            transpose. Otherwise A transpose is rebuilt. */
     /* For the tests. Nothing depends on it for correctness. */
-    double rebuild_dirty_frac; /* rebuild when dirty content > frac * nnz (0.25) */
+    double rebuild_frac; /* rebuild when the affected nnz > frac * nnz (0.25) */
 } DtonWorkspace;
 
 /* Number of 64-bit words in a bitmap of n_bits bits. */
 static inline int bitmap_words(int n_bits)
 {
     return (n_bits + 63) / 64;
+}
+
+/* Sets bit 'index' of a bitmap. */
+static inline void bitmap_set(uint64_t *bits, int index)
+{
+    bits[index / 64] |= (uint64_t) 1 << (index % 64);
 }
 
 /* Points the borrowed per-column arrays at the presolver's shared scratch and

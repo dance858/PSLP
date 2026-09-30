@@ -86,8 +86,8 @@ bool dton_claim(Problem *prob, DtonWorkspace *dton_work, int *deferred,
 
     int i, ii, col0, col1, subst, stay, k;
 
-    /* Every worklist row claims at most one record, and the targets are
-       bounded by the records. */
+    /* Every worklist row claims at most one record, and the changed surviving
+       columns are bounded by the records. */
     if (!dton_reserve_records(dton_work, (size_t) dton_rows->len))
     {
         return false;

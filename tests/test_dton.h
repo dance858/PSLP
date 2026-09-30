@@ -734,7 +734,7 @@ static void dton_stationary_reduced_point(const PresolvedProblem *red, double *x
 static char *dton_check_postsolve(double *Ax, int *Ai, int *Ap, int m, int n,
                                   int nnz, double *lhs, double *rhs, double *lbs,
                                   double *ubs, double *c, bool all_explorers,
-                                  double dirty_frac)
+                                  double rebuild_frac)
 {
     Settings *stgs = default_settings(); // the presolver keeps a pointer to it
     if (all_explorers)
@@ -757,7 +757,7 @@ static char *dton_check_postsolve(double *Ax, int *Ai, int *Ap, int m, int n,
     // steer the transpose update: 1e9 never rebuilds (merge path), 0.0
     // always rebuilds (fallback path)
     Work *work = ps->prob->constraints->state->work;
-    work->dton->rebuild_dirty_frac = dirty_frac;
+    work->dton->rebuild_frac = rebuild_frac;
     if (run_presolver(ps) != REDUCED)
     {
         return "presolve must reduce and stay feasible";
@@ -1024,14 +1024,14 @@ static char *test_dton_dual_ray()
 /* ------------------------------------------------------------------------
    Transpose update (phase 5). The transpose is compact, so a target whose
    length does not grow is merged in place and one that grows is moved to the tail.
-   Each test sets the workspace's rebuild_dirty_frac to 1e9 (small LPs
+   Each test sets the workspace's rebuild_frac to 1e9 (small LPs
    always trip the default quarter-of-nnz guard) and ends with the debugger's
    comparison against a fresh transpose.
    ------------------------------------------------------------------------ */
 static Presolver *dton_new_presolver(double *Ax, int *Ai, int *Ap, int m, int n,
                                      int nnz, double *lhs, double *rhs, double *lbs,
                                      double *ubs, double *c, Settings **stgs_out,
-                                     double dirty_frac)
+                                     double rebuild_frac)
 {
     Settings *stgs = default_settings();
     set_settings_false(stgs);
@@ -1041,7 +1041,7 @@ static Presolver *dton_new_presolver(double *Ax, int *Ai, int *Ap, int m, int n,
     if (presolver != NULL)
     {
         Work *work = presolver->prob->constraints->state->work;
-        work->dton->rebuild_dirty_frac = dirty_frac;
+        work->dton->rebuild_frac = rebuild_frac;
     }
     *stgs_out = stgs;
     return presolver;
@@ -1105,13 +1105,13 @@ static char *test_dton_merge_relocate()
     mu_assert("merge path taken", dton_work->merge_round);
     mu_assert("x1 span empty", AT->p[1].end == AT->p[1].start);
     mu_assert("x0 moved to the tail",
-              AT->p[0].start >= dton_work->AT.tail_base &&
-                  dton_work->AT.tail_base == AT->p[AT->m].start);
+              AT->p[0].start >= dton_work->AT_slots.tail_base &&
+                  dton_work->AT_slots.tail_base == AT->p[AT->m].start);
     mu_assert("tail reserved up front, no realloc",
               AT->n_alloc == old_alloc &&
-                  (size_t) dton_work->AT.tail_next <= AT->n_alloc &&
-                  (size_t) dton_work->AT.tail_base < AT->n_alloc);
-    mu_assert("relocated slot fits exactly", dton_work->AT.cap[0] == 5);
+                  (size_t) dton_work->AT_slots.tail_next <= AT->n_alloc &&
+                  (size_t) dton_work->AT_slots.tail_base < AT->n_alloc);
+    mu_assert("relocated slot fits exactly", dton_work->AT_slots.cap[0] == 5);
     mu_assert("neighbour untouched", AT->p[2].start == old_start_x2);
     int rows[] = {1, 2, 3, 4, 5};
     double vals[] = {-0.5, -0.5, -0.5, -0.5, 1};
@@ -1125,7 +1125,7 @@ static char *test_dton_merge_relocate()
     dton_rebuild_AT(ps->prob, dton_work);
     AT = constraints->AT;
     mu_assert("rebuild orders spans", dton_spans_ordered(AT));
-    mu_assert("caps invalidated", !dton_work->AT_valid);
+    mu_assert("caps invalidated", !dton_work->AT_slots_valid);
     mu_assert("x0 content after rebuild", dton_col_is(AT, 0, rows, vals, 5));
     DEBUG(run_debugger(constraints, false));
 

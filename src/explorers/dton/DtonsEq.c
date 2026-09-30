@@ -24,7 +24,7 @@
 #include "State.h"
 #include "Workspace.h"
 
-#define REBUILD_DIRTY_FRAC 0.25
+#define REBUILD_FRAC 0.25
 
 /* allocation but no initialization */
 DtonWorkspace *dton_workspace_new(size_t n_rows, size_t n_cols)
@@ -33,16 +33,16 @@ DtonWorkspace *dton_workspace_new(size_t n_rows, size_t n_cols)
     RETURN_PTR_IF_NULL(dton_work, NULL);
     dton_work->n_rows = (int) n_rows;
     dton_work->n_cols = (int) n_cols;
-    dton_work->rebuild_dirty_frac = REBUILD_DIRTY_FRAC;
+    dton_work->rebuild_frac = REBUILD_FRAC;
 
     dton_work->swept_rows = (uint64_t *) ps_calloc(
         (size_t) bitmap_words(dton_work->n_rows), sizeof(uint64_t));
     dton_work->acc.value = (double *) ps_malloc(n_cols, sizeof(double));
     dton_work->acc.flags = (uint8_t *) ps_malloc(n_cols, sizeof(uint8_t));
-    dton_work->AT.cap = (int *) ps_malloc(n_cols, sizeof(int));
+    dton_work->AT_slots.cap = (int *) ps_malloc(n_cols, sizeof(int));
 
     if (!dton_work->swept_rows || !dton_work->acc.value || !dton_work->acc.flags ||
-        !dton_work->AT.cap)
+        !dton_work->AT_slots.cap)
     {
         dton_workspace_free(dton_work);
         return NULL;
@@ -64,7 +64,7 @@ void dton_workspace_free(DtonWorkspace *dton_work)
     PS_FREE(dton_work->swept_rows);
     PS_FREE(dton_work->acc.value);
     PS_FREE(dton_work->acc.flags);
-    PS_FREE(dton_work->AT.cap);
+    PS_FREE(dton_work->AT_slots.cap);
     PS_FREE(dton_work->log.row);
     PS_FREE(dton_work->log.val);
     PS_FREE(dton_work);
