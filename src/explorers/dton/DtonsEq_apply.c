@@ -46,8 +46,9 @@ static inline void dton_log_push(DtonWorkspace *dton_work, int target_index, int
     }
     DtonTarget *target = dton_work->targets.list + target_index;
     int pos = target->log_end++;
-    assert(pos < (target_index + 1 < dton_work->targets.n ? target[1].log_start
-                                                          : dton_work->log.cap));
+    assert(pos < (target_index + 1 < dton_work->targets.n_targets
+                      ? target[1].log_start
+                      : dton_work->log.cap));
     dton_work->log.row[pos] = row;
     dton_work->log.val[pos] = val;
 }
@@ -62,13 +63,13 @@ static void dton_log_start(DtonWorkspace *dton_work, size_t nnz)
 
     /* Dirty content of the round. */
     double dirty = 0.0;
-    for (int ii = 0; ii < targets->n; ++ii)
+    for (int ii = 0; ii < targets->n_targets; ++ii)
     {
         dirty += targets->list[ii].log_end;
     }
     bool tail_bloated =
-        dton_work->at_valid &&
-        (size_t) (dton_work->at.tail_next - dton_work->at.tail_base) > 2 * nnz;
+        dton_work->AT_valid &&
+        (size_t) (dton_work->AT.tail_next - dton_work->AT.tail_base) > 2 * nnz;
     dton_work->merge_round =
         !tail_bloated && dirty <= dton_work->rebuild_dirty_frac * (double) nnz;
     if (!dton_work->merge_round)
@@ -89,7 +90,7 @@ static void dton_log_start(DtonWorkspace *dton_work, size_t nnz)
     }
 
     int log_start = 0;
-    for (int ii = 0; ii < targets->n; ++ii)
+    for (int ii = 0; ii < targets->n_targets; ++ii)
     {
         DtonTarget *target = targets->list + ii;
         int room = target->log_end;
@@ -257,14 +258,14 @@ void dton_apply(Problem *prob, DtonWorkspace *dton_work, int *deferred,
     /* Collect the composed targets, the only active columns whose content
        changes this round, with their pre-round sizes. A target's log segment
        needs room for one tuple per entry of its old column. */
-    targets->n = 0;
-    for (int idx = 0; idx < substs->n; ++idx)
+    targets->n_targets = 0;
+    for (int idx = 0; idx < substs->n_recs; ++idx)
     {
         int col = substs->recs[idx].target;
         if (targets->col_to_target[col] < 0)
         {
-            targets->col_to_target[col] = targets->n;
-            DtonTarget *target = targets->list + targets->n++;
+            targets->col_to_target[col] = targets->n_targets;
+            DtonTarget *target = targets->list + targets->n_targets++;
             target->col = col;
             target->old_size = col_sizes[col];
             target->log_end = col_sizes[col];
@@ -273,7 +274,7 @@ void dton_apply(Problem *prob, DtonWorkspace *dton_work, int *deferred,
 
     /* Deactivate the owner rows. Substitution turns them into 0 = 0, and the
        sweep must skip them. */
-    for (int idx = 0; idx < substs->n; ++idx)
+    for (int idx = 0; idx < substs->n_recs; ++idx)
     {
         int i = substs->recs[idx].owner;
         assert(row_sizes[i] == 2);
@@ -287,7 +288,7 @@ void dton_apply(Problem *prob, DtonWorkspace *dton_work, int *deferred,
     /* Mark the rows to sweep: every active row of an eliminated column, from
        the pre-round AT. Each marked entry adds one tuple of room to the log
        segment of the column's target. */
-    for (int idx = 0; idx < substs->n; ++idx)
+    for (int idx = 0; idx < substs->n_recs; ++idx)
     {
         const DtonSubst *rec = substs->recs + idx;
         DtonTarget *target = targets->list + targets->col_to_target[rec->target];
@@ -306,7 +307,7 @@ void dton_apply(Problem *prob, DtonWorkspace *dton_work, int *deferred,
 
     /* Sweep the marked rows in ascending order, so every log segment is
        row-ascending, and clear the marks. */
-    int n_words = (dton_work->m + 63) / 64;
+    int n_words = bitmap_words(dton_work->n_rows);
     for (int ii = 0; ii < n_words; ++ii)
     {
         uint64_t word = swept_rows[ii];
@@ -322,7 +323,7 @@ void dton_apply(Problem *prob, DtonWorkspace *dton_work, int *deferred,
 
     /* Substitute the eliminated columns in the objective. Targets are never
        eliminated, so no c[k] read follows a c[target] write. */
-    for (int ii = 0; ii < substs->n; ++ii)
+    for (int ii = 0; ii < substs->n_recs; ++ii)
     {
         const DtonSubst *rec = substs->recs + substs->order[ii];
         if (obj->c[rec->k] != 0.0)
@@ -333,7 +334,7 @@ void dton_apply(Problem *prob, DtonWorkspace *dton_work, int *deferred,
 
     /* Deactivate the eliminated columns, after the activity updates, whose
        asserts reject inactive columns. */
-    for (int idx = 0; idx < substs->n; ++idx)
+    for (int idx = 0; idx < substs->n_recs; ++idx)
     {
         int k = substs->recs[idx].k;
         assert(!HAS_TAG(col_tags[k], C_TAG_INACTIVE));
@@ -348,11 +349,11 @@ void dton_rebuild_AT(Problem *prob, DtonWorkspace *dton_work)
     Constraints *constraints = prob->constraints;
     Matrix *AT = constraints->AT;
     transpose_into(constraints->A, AT, constraints->state->work->iwork_n_cols);
-    dton_work->at_valid = false;
+    dton_work->AT_valid = false;
 
     /* Update the targets' column sizes. */
     int *col_sizes = constraints->state->col_sizes;
-    for (int ii = 0; ii < dton_work->targets.n; ++ii)
+    for (int ii = 0; ii < dton_work->targets.n_targets; ++ii)
     {
         int col = dton_work->targets.list[ii].col;
         col_sizes[col] = AT->p[col].end - AT->p[col].start;
@@ -371,14 +372,14 @@ static bool dton_merge_into_AT(Problem *prob, DtonWorkspace *dton_work)
     int *col_sizes = constraints->state->col_sizes;
     const DtonLog *change_log = &dton_work->log;
 
-    if (!dton_work->at_valid)
+    if (!dton_work->AT_valid)
     {
-        row_slots_init(&dton_work->at, AT);
-        dton_work->at_valid = true;
+        row_slots_init(&dton_work->AT, AT);
+        dton_work->AT_valid = true;
     }
 
     /* Empty the eliminated columns. */
-    for (int idx = 0; idx < dton_work->substs.n; ++idx)
+    for (int idx = 0; idx < dton_work->substs.n_recs; ++idx)
     {
         int k = dton_work->substs.recs[idx].k;
         AT->p[k].end = AT->p[k].start;
@@ -386,11 +387,11 @@ static bool dton_merge_into_AT(Problem *prob, DtonWorkspace *dton_work)
 
     /* Each target merges its log segment (rows ascending) into its old column.
        The owner rows of the round are inactive and dropped. */
-    for (int ii = 0; ii < dton_work->targets.n; ++ii)
+    for (int ii = 0; ii < dton_work->targets.n_targets; ++ii)
     {
         const DtonTarget *target = dton_work->targets.list + ii;
         if (!matrix_update_row(
-                AT, &dton_work->at, target->col, change_log->row + target->log_start,
+                AT, &dton_work->AT, target->col, change_log->row + target->log_start,
                 change_log->val + target->log_start,
                 target->log_end - target->log_start, row_tags, R_TAG_INACTIVE))
         {
@@ -423,7 +424,7 @@ void dton_update_AT(Problem *prob, DtonWorkspace *dton_work)
     }
     assert(AT->nnz == constraints->A->nnz);
 
-    for (int ii = 0; ii < dton_work->targets.n; ++ii)
+    for (int ii = 0; ii < dton_work->targets.n_targets; ++ii)
     {
         int col = dton_work->targets.list[ii].col;
         dton_work->targets.col_to_target[col] = -1;

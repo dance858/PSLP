@@ -58,8 +58,8 @@ typedef struct DtonSubsts
     int *drop_priority; /* [cap] compute_chain_depths input: owner row */
     int *stamp;         /* [cap] compute_chain_depths scratch */
     int cap;            /* also sizes DtonTargets.list */
-    int n;
-    int *col_subst; /* [n] record index of a claimed column, -1 otherwise. Reset
+    int n_recs;
+    int *col_subst; /* [n_cols] record index of a claimed column, -1 otherwise. Reset
                        through recs. */
 } DtonSubsts;
 
@@ -77,8 +77,8 @@ typedef struct DtonTarget
 typedef struct DtonTargets
 {
     DtonTarget *list; /* [DtonSubsts.cap] the unique targets */
-    int n;
-    int *col_to_target; /* [n] index into list, -1 otherwise. Reset through
+    int n_targets;
+    int *col_to_target; /* [n_cols] index into list, -1 otherwise. Reset through
                            list. */
 } DtonTargets;
 
@@ -94,30 +94,36 @@ typedef struct DtonLog
     int cap;
 } DtonLog;
 
-/* Scratch for the doubleton eliminator (work->dton). Only 'at' persists across
+/* Scratch for the doubleton eliminator (work->dton). Only 'AT' persists across
    calls. The rest is per round or per row and is reset through the round's own
    lists. */
 typedef struct DtonWorkspace
 {
-    int m; /* rows of A at allocation */
-    int n; /* cols of A at allocation */
+    int n_rows; /* rows of A at allocation */
+    int n_cols; /* cols of A at allocation */
     DtonSubsts substs;
     DtonTargets targets;
-    uint64_t *swept_rows; /* [ceil(m / 64)] bitmap of the rows the round sweeps.
+    uint64_t *swept_rows; /* [ceil(n_rows / 64)] bitmap of the rows the round sweeps.
                              Zero between rounds. */
     SparseAccumulator acc;
     DtonLog log;
-    RowSlots at;      /* slots of A transpose's rows */
-    bool at_valid;    /* 'at' matches the layout of A transpose */
+    RowSlots AT;      /* slots of A transpose's rows */
+    bool AT_valid;    /* 'AT' matches the layout of A transpose */
     bool merge_round; /* the round logs its changes and merges them into A
                          transpose. Otherwise A transpose is rebuilt. */
     /* For the tests. Nothing depends on it for correctness. */
     double rebuild_dirty_frac; /* rebuild when dirty content > frac * nnz (0.25) */
 } DtonWorkspace;
 
+/* Number of 64-bit words in a bitmap of n_bits bits. */
+static inline int bitmap_words(int n_bits)
+{
+    return (n_bits + 63) / 64;
+}
+
 /* Points the borrowed per-column arrays at the presolver's shared scratch and
    initializes them. Once per call of the eliminator, before any kernel runs. */
-void dton_ws_attach(DtonWorkspace *dton_work, struct Work *work);
+void dton_workspace_init(DtonWorkspace *dton_work, struct Work *work);
 
 /* Which entry (0 or 1) of a doubleton equality row to substitute. */
 int dton_choose_subst(const double *row_vals, int col_size0, int col_size1);

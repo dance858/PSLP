@@ -24,31 +24,34 @@
 #include "State.h"
 #include "Workspace.h"
 
-DtonWorkspace *dton_ws_new(size_t n_rows, size_t n_cols)
+#define REBUILD_DIRTY_FRAC 0.25
+
+/* allocation but no initialization */
+DtonWorkspace *dton_workspace_new(size_t n_rows, size_t n_cols)
 {
     DtonWorkspace *dton_work = (DtonWorkspace *) ps_calloc(1, sizeof(DtonWorkspace));
     RETURN_PTR_IF_NULL(dton_work, NULL);
-    dton_work->m = (int) n_rows;
-    dton_work->n = (int) n_cols;
-    dton_work->rebuild_dirty_frac = 0.25;
+    dton_work->n_rows = (int) n_rows;
+    dton_work->n_cols = (int) n_cols;
+    dton_work->rebuild_dirty_frac = REBUILD_DIRTY_FRAC;
 
-    dton_work->swept_rows =
-        (uint64_t *) ps_calloc((n_rows + 63) / 64, sizeof(uint64_t));
+    dton_work->swept_rows = (uint64_t *) ps_calloc(
+        (size_t) bitmap_words(dton_work->n_rows), sizeof(uint64_t));
     dton_work->acc.value = (double *) ps_malloc(n_cols, sizeof(double));
     dton_work->acc.flags = (uint8_t *) ps_malloc(n_cols, sizeof(uint8_t));
-    dton_work->at.cap = (int *) ps_malloc(n_cols, sizeof(int));
+    dton_work->AT.cap = (int *) ps_malloc(n_cols, sizeof(int));
 
     if (!dton_work->swept_rows || !dton_work->acc.value || !dton_work->acc.flags ||
-        !dton_work->at.cap)
+        !dton_work->AT.cap)
     {
-        dton_ws_free(dton_work);
+        dton_workspace_free(dton_work);
         return NULL;
     }
 
     return dton_work;
 }
 
-void dton_ws_free(DtonWorkspace *dton_work)
+void dton_workspace_free(DtonWorkspace *dton_work)
 {
     RETURN_IF_NULL(dton_work);
     PS_FREE(dton_work->substs.recs);
@@ -61,18 +64,19 @@ void dton_ws_free(DtonWorkspace *dton_work)
     PS_FREE(dton_work->swept_rows);
     PS_FREE(dton_work->acc.value);
     PS_FREE(dton_work->acc.flags);
-    PS_FREE(dton_work->at.cap);
+    PS_FREE(dton_work->AT.cap);
     PS_FREE(dton_work->log.row);
     PS_FREE(dton_work->log.val);
     PS_FREE(dton_work);
 }
 
-void dton_ws_attach(DtonWorkspace *dton_work, Work *work)
+/* no allocation but initialization */
+void dton_workspace_init(DtonWorkspace *dton_work, Work *work)
 {
-    int n = dton_work->n;
+    int n_cols = dton_work->n_cols;
     int *col_subst = work->iwork1_max_nrows_ncols;
     int *col_to_target = work->iwork2_max_nrows_ncols;
-    for (int k = 0; k < n; ++k)
+    for (int k = 0; k < n_cols; ++k)
     {
         col_subst[k] = -1;
         col_to_target[k] = -1;
@@ -81,7 +85,7 @@ void dton_ws_attach(DtonWorkspace *dton_work, Work *work)
     dton_work->targets.col_to_target = col_to_target;
     sparse_accumulator_init(&dton_work->acc, work->radix_aux, dton_work->acc.value,
                             dton_work->acc.flags, work->iwork_n_cols,
-                            (size_t) dton_work->n);
+                            (size_t) dton_work->n_cols);
 }
 
 PresolveStatus remove_dton_eq_rows(Problem *prob)
@@ -89,17 +93,15 @@ PresolveStatus remove_dton_eq_rows(Problem *prob)
     Constraints *constraints = prob->constraints;
     State *state = constraints->state;
     Work *work = state->work;
+    DtonWorkspace *dton_work = work->dton;
+    dton_workspace_init(dton_work, work);
+    iVec *dton_rows = state->dton_rows;
+    int *deferred = work->iwork_n_rows;
 
     assert(state->ston_rows->len == 0);
     assert(state->empty_rows->len == 0);
     assert(state->empty_cols->len == 0);
     DEBUG(verify_problem_up_to_date(constraints));
-
-    DtonWorkspace *dton_work = work->dton;
-    dton_ws_attach(dton_work, work);
-
-    iVec *dton_rows = state->dton_rows;
-    int *deferred = work->iwork_n_rows;
 
     while (dton_rows->len > 0)
     {
@@ -107,43 +109,40 @@ PresolveStatus remove_dton_eq_rows(Problem *prob)
 
         DEBUG(verify_no_duplicates_sort(dton_rows));
 
-        /* A failed reservation gives the round up before anything is
-           mutated. */
+        /* determine which columns to subtitute */
         bool progress = dton_claim(prob, dton_work, deferred, &n_deferred);
         dton_compose(dton_work, deferred, &n_deferred);
-        progress = progress && dton_work->substs.n > 0;
+        progress = progress && dton_work->substs.n_recs > 0;
 
         if (progress)
         {
-            /* An infeasible transfer ends the presolve. */
+            /* transfer bounds for substituted columns */
             if (dton_transfer_bounds(prob, dton_work) == INFEASIBLE)
             {
                 return INFEASIBLE;
             }
+
+            /* save postsolve information */
             dton_record(prob, dton_work);
+
+            /* XXX some comment here */
             dton_apply(prob, dton_work, deferred, &n_deferred);
             dton_update_AT(prob, dton_work);
 
-            /* Clear the substitutions for the next round. */
-            for (int idx = 0; idx < dton_work->substs.n; ++idx)
+            /* clear the substituted columns for the next round. */
+            for (int idx = 0; idx < dton_work->substs.n_recs; ++idx)
             {
                 dton_work->substs.col_subst[dton_work->substs.recs[idx].k] = -1;
             }
-            dton_work->substs.n = 0;
+            dton_work->substs.n_recs = 0;
         }
 
-        /* The worklist becomes the deferred rows plus the sweep's new doubleton
-           candidates. */
+        /* refresh the list of dton_rows for the next round */
         iVec_clear_no_resize(dton_rows);
         if (n_deferred > 0)
         {
             DEBUG(verify_no_duplicates_sort_ptr(deferred, (size_t) n_deferred));
             iVec_append_array(dton_rows, deferred, (size_t) n_deferred);
-        }
-
-        if (!progress)
-        {
-            break; /* Only deferrals: retrying now would spin. */
         }
     }
 

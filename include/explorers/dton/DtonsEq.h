@@ -33,10 +33,10 @@ static inline size_t dton_extra_memory(size_t nnz)
 
 /* Allocates the eliminator's workspace (work->dton). Returns NULL if any
    allocation fails. */
-struct DtonWorkspace *dton_ws_new(size_t n_rows, size_t n_cols);
+struct DtonWorkspace *dton_workspace_new(size_t n_rows, size_t n_cols);
 
 /* Frees the eliminator's workspace (work->dton). */
-void dton_ws_free(struct DtonWorkspace *dton_work);
+void dton_workspace_free(struct DtonWorkspace *dton_work);
 
 /* Eliminates the doubleton equality rows on state->dton_rows, round by round.
    Returns INFEASIBLE when a transferred bound contradicts the bounds of the

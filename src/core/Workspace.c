@@ -29,7 +29,7 @@ Work *new_work(size_t n_rows, size_t n_cols, bool dton_eq)
     Work *work = (Work *) ps_malloc(1, sizeof(Work));
     RETURN_PTR_IF_NULL(work, NULL);
 
-    work->dton = dton_eq ? dton_ws_new(n_rows, n_cols) : NULL;
+    work->dton = dton_eq ? dton_workspace_new(n_rows, n_cols) : NULL;
     work->iwork_n_cols = (int *) ps_calloc(n_cols, sizeof(int));
     work->iwork_n_rows = (int *) ps_calloc(n_rows, sizeof(int));
     work->iwork1_max_nrows_ncols =
@@ -66,7 +66,7 @@ void free_work_scratch(Work *work)
         iVec_free(work->int_vec);
         work->int_vec = NULL;
     }
-    dton_ws_free(work->dton);
+    dton_workspace_free(work->dton);
     work->dton = NULL;
 }
 

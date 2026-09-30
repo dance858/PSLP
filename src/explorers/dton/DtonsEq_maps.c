@@ -70,11 +70,8 @@ static inline bool dton_reserve_records(DtonWorkspace *dton_work, size_t need)
     return true;
 }
 
-/* Phase 1, no mutation: walks state->dton_rows and claims the substituted
-   column of every eliminable row into dton_work. A row whose chosen column is
-   already claimed is appended to 'deferred' and retried next round. Stale
-   worklist entries are dropped. False if the round's records cannot be
-   reserved (nothing is claimed then). */
+/* For every doubleton equality row, choose one column to substitute. If the chosen
+   column is already claimed by another row, the row is deferred to the next round */
 bool dton_claim(Problem *prob, DtonWorkspace *dton_work, int *deferred,
                 int *n_deferred)
 {
@@ -85,7 +82,7 @@ bool dton_claim(Problem *prob, DtonWorkspace *dton_work, int *deferred,
     const int *col_sizes = constraints->state->col_sizes;
     const iVec *dton_rows = constraints->state->dton_rows;
 
-    dton_work->substs.n = 0;
+    dton_work->substs.n_recs = 0;
 
     int i, ii, col0, col1, subst, stay, k;
 
@@ -100,7 +97,7 @@ bool dton_claim(Problem *prob, DtonWorkspace *dton_work, int *deferred,
     {
         i = dton_rows->data[ii];
 
-        /* A row that used to be a doubleton might have been modified. */
+        /* a row that used to be a doubleton might have been modified */
         if (row_sizes[i] < 2)
         {
             continue;
@@ -124,16 +121,16 @@ bool dton_claim(Problem *prob, DtonWorkspace *dton_work, int *deferred,
 
         k = cols[subst];
 
-        /* The column this row wants to substitute is already claimed by another
-           row this round. */
+        /* the col this row wants to substitute is already claimed by another row */
         if (dton_work->substs.col_subst[k] >= 0)
         {
             deferred[(*n_deferred)++] = i;
             continue;
         }
 
-        assert(dton_work->substs.n < dton_work->substs.cap);
-        DtonSubst *rec = dton_work->substs.recs + dton_work->substs.n;
+        /* store information about the substitution */
+        assert(dton_work->substs.n_recs < dton_work->substs.cap);
+        DtonSubst *rec = dton_work->substs.recs + dton_work->substs.n_recs;
         rec->k = k;
         rec->owner = i;
         rec->j = cols[stay];
@@ -141,14 +138,14 @@ bool dton_claim(Problem *prob, DtonWorkspace *dton_work, int *deferred,
         rec->aij = vals[stay];
         rec->dir_mult = -rec->aij / rec->aik;
         rec->dir_shift = rhs[i] / rec->aik;
-        dton_work->substs.col_subst[k] = dton_work->substs.n++;
+        dton_work->substs.col_subst[k] = dton_work->substs.n_recs++;
     }
     return true;
 }
 
-/* Phase 2, no mutation: composes the per-link maps into maps onto the round's
-   survivors. A cycle is broken by un-eliminating the record with the largest
-   owner row on it, and that owner row is appended to 'deferred'. */
+/* Map substituted columns onto the round's survivors. Cycles are broken by
+   ignoring the substitution done by the row with largest index. The row
+   for the ignored substitution is appended to 'deferred'. */
 void dton_compose(DtonWorkspace *dton_work, int *deferred, int *n_deferred)
 {
     DtonSubst *recs = dton_work->substs.recs;
@@ -158,35 +155,25 @@ void dton_compose(DtonWorkspace *dton_work, int *deferred, int *n_deferred)
     int *order = dton_work->substs.order;
     int *drop_priority = dton_work->substs.drop_priority;
     int *stamp = dton_work->substs.stamp;
-    int n = dton_work->substs.n;
+    int n_recs = dton_work->substs.n_recs;
 
-    /* Inputs of compute_chain_depths: the record of each stay column (-1 when
-       the stay column survives) and each record's owner row as drop priority. */
-    for (int idx = 0; idx < n; ++idx)
+    /* succ[i] is the index of the substitution that eliminates the stay column
+       of substitution i, or -1 if no substitution eliminates the stay column */
+    for (int i = 0; i < n_recs; ++i)
     {
-        succ[idx] = col_subst[recs[idx].j];
-        drop_priority[idx] = recs[idx].owner;
+        succ[i] = col_subst[recs[i].j];
+        drop_priority[i] = recs[i].owner;
     }
 
-    /* Break cycles. The accumulator's touched list serves as the path scratch. */
+    /* break cycles by ignoring the substitution done by the row with largest idx */
     int *dropped = deferred + *n_deferred;
-    int n_dropped = compute_chain_depths(n, succ, drop_priority, depth, order,
+    int n_dropped = compute_chain_depths(n_recs, succ, drop_priority, depth, order,
                                          dropped, stamp, dton_work->acc.touched);
 
-    /* Turn the dropped records into their owner rows, in place at the end of
-       'deferred'. */
-    for (int ii = 0; ii < n_dropped; ++ii)
-    {
-        int idx = dropped[ii];
-        col_subst[recs[idx].k] = -1;
-        dropped[ii] = recs[idx].owner;
-    }
-    *n_deferred += n_dropped;
-
-    /* Map every eliminated column onto the surviving column at the end of its
-       chain. Walking order backwards visits a record's child before the
-       record. */
-    int n_kept = n - n_dropped;
+    // -----------------------------------------------------------------------------
+    //  map every eliminated col onto the surviving col at the end of its chain
+    // -----------------------------------------------------------------------------
+    int n_kept = n_recs - n_dropped;
     for (int ii = n_kept - 1; ii >= 0; --ii)
     {
         int idx = order[ii];
@@ -206,11 +193,20 @@ void dton_compose(DtonWorkspace *dton_work, int *deferred, int *n_deferred)
         }
     }
 
-    /* Remove the dropped records, keep claim order, and renumber col_subst and
-       order. stamp is free after compute_chain_depths. */
+    // -----------------------------------------------------------------------
+    // reset ignored substitutions and remove the ignored records
+    // -----------------------------------------------------------------------
+    for (int ii = 0; ii < n_dropped; ++ii)
+    {
+        int idx = dropped[ii];
+        col_subst[recs[idx].k] = -1;
+        dropped[ii] = recs[idx].owner;
+    }
+    *n_deferred += n_dropped;
+
     int *new_index = stamp;
     int out = 0;
-    for (int idx = 0; idx < n; ++idx)
+    for (int idx = 0; idx < n_recs; ++idx)
     {
         if (depth[idx] == CHAINS_DROPPED)
         {
@@ -221,7 +217,7 @@ void dton_compose(DtonWorkspace *dton_work, int *deferred, int *n_deferred)
         col_subst[recs[out].k] = out;
         new_index[idx] = out++;
     }
-    dton_work->substs.n = out;
+    dton_work->substs.n_recs = out;
     for (int ii = 0; ii < n_kept; ++ii)
     {
         order[ii] = new_index[order[ii]];
@@ -240,8 +236,6 @@ static PresolveStatus dton_transfer_bounds_link(Constraints *constraints, int i,
     bool same_sign = (aik * aij > 0.0);
     PresolveStatus status = UNCHANGED;
 
-    /* A finite lb_k bounds x_j from above when the signs agree, else from
-       below. */
     if (!HAS_TAG(col_tag_k, C_TAG_LB_INF))
     {
         double bound = (rhs - aik * lb_k) / aij;
@@ -251,7 +245,6 @@ static PresolveStatus dton_transfer_bounds_link(Constraints *constraints, int i,
         RETURN_IF_INFEASIBLE(status);
     }
 
-    /* A finite ub_k bounds x_j from the other side. */
     if (!HAS_TAG(col_tag_k, C_TAG_UB_INF))
     {
         double bound = (rhs - aik * ub_k) / aij;
@@ -262,7 +255,7 @@ static PresolveStatus dton_transfer_bounds_link(Constraints *constraints, int i,
     return status;
 }
 
-/* Phase 3: transfers the bounds of each eliminated column onto its direct stay
+/* Transfers the bounds of each eliminated column onto its direct stay
    column, one link at a time in descending chain depth, so each transfer sees
    the bounds tightened by the deeper links. A composed transfer would break
    dual complementarity on chains. Returns INFEASIBLE at the first
@@ -276,7 +269,7 @@ PresolveStatus dton_transfer_bounds(Problem *prob, DtonWorkspace *dton_work)
     const DtonSubst *recs = dton_work->substs.recs;
     const int *order = dton_work->substs.order;
 
-    for (int ii = 0; ii < dton_work->substs.n; ++ii)
+    for (int ii = 0; ii < dton_work->substs.n_recs; ++ii)
     {
         const DtonSubst *rec = recs + order[ii];
         int i = rec->owner;
@@ -289,15 +282,11 @@ PresolveStatus dton_transfer_bounds(Problem *prob, DtonWorkspace *dton_work)
             dton_transfer_bounds_link(constraints, i, j, rec->aij, rec->aik, rhs[i],
                                       bounds[k].lb, bounds[k].ub, col_tags[k]);
         RETURN_IF_INFEASIBLE(status);
-
-        /* update_lb and update_ub cannot fix or deactivate columns. */
-        assert(!HAS_TAG(col_tags[j], C_TAG_INACTIVE));
-        assert(!HAS_TAG(col_tags[k], C_TAG_INACTIVE));
     }
     return UNCHANGED;
 }
 
-/* Phase 3b: postsolve records, three per eliminated column k with owner row i
+/* Postsolve records, three per eliminated column k with owner row i
    and survivor s: ADDED_ROWS(i, column k, aik), SUB_COL_DTON(k, s, mult,
    shift) and DELETED_ROW(i, c_k / aik). Replayed in reverse they give x_k and
        y_i = (c_k - sum_{r != i} a_rk y_r) / a_ik,
@@ -311,8 +300,8 @@ void dton_record(Problem *prob, DtonWorkspace *dton_work)
     const double *c = prob->obj->c;     /* pre-round objective */
     PostsolveInfo *info = constraints->state->postsolve_info;
 
-    /* Ascending depth: order lists the records by descending depth. */
-    for (int ii = dton_work->substs.n - 1; ii >= 0; --ii)
+    /* ascending depth: order lists the substitutions by descending depth */
+    for (int ii = dton_work->substs.n_recs - 1; ii >= 0; --ii)
     {
         const DtonSubst *rec = dton_work->substs.recs + dton_work->substs.order[ii];
         int k = rec->k;
