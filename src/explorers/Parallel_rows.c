@@ -33,6 +33,7 @@
 #include <PSLP_warnings.h>
 #include <math.h> // For round()
 #include <stdint.h>
+#include <string.h>
 
 // djb2 hash function
 static inline uint32_t hash_int_array(const int *arr, int size)
@@ -272,6 +273,61 @@ static inline int find_parallel_rows_in_bin(const Matrix *A, const int *bin,
     return n_new_parallel_rows;
 }
 
+#define MIN_ROWS_FOR_KEY_FILTER 64
+
+static inline size_t get_key_position(int row, const int *sparsity_IDs,
+                                      const int *coeff_hashes, size_t mask)
+{
+    uint32_t key =
+        (uint32_t) sparsity_IDs[row] ^ ((uint32_t) coeff_hashes[row] * 0x9E3779B1u);
+    return (size_t) key & mask;
+}
+
+/* Keeps only the rows whose key (sparsity ID, coefficient hash) may be shared
+   with another row, in their original order, and returns how many are kept.
+   The two bitmaps use fewer than 32 * n bits, so they fit in n ints. */
+static int remove_rows_with_unique_key(int *rows, int n, const int *sparsity_IDs,
+                                       const int *coeff_hashes, uint32_t *bits)
+{
+    size_t n_bits = 64;
+    while (n_bits < 8 * (size_t) n)
+    {
+        n_bits *= 2;
+    }
+
+    size_t mask = n_bits - 1;
+    size_t n_words = n_bits / 32;
+    uint32_t *seen = bits;
+    uint32_t *shared = bits + n_words;
+    memset(bits, 0, 2 * n_words * sizeof(uint32_t));
+
+    for (int idx = 0; idx < n; ++idx)
+    {
+        size_t pos = get_key_position(rows[idx], sparsity_IDs, coeff_hashes, mask);
+        uint32_t bit = 1u << (pos & 31);
+        if (seen[pos >> 5] & bit)
+        {
+            shared[pos >> 5] |= bit;
+        }
+        else
+        {
+            seen[pos >> 5] |= bit;
+        }
+    }
+
+    int n_kept = 0;
+    for (int idx = 0; idx < n; ++idx)
+    {
+        size_t pos = get_key_position(rows[idx], sparsity_IDs, coeff_hashes, mask);
+        if (shared[pos >> 5] & (1u << (pos & 31)))
+        {
+            rows[n_kept++] = rows[idx];
+        }
+    }
+
+    return n_kept;
+}
+
 // replaced rows with parallel_rows for less memory usage
 void find_parallel_rows(const Matrix *A, const RowTag *r_Tags, iVec *group_starts,
                         int *parallel_rows, int *sparsity_IDs, int *coeff_hashes,
@@ -297,6 +353,14 @@ void find_parallel_rows(const Matrix *A, const RowTag *r_Tags, iVec *group_start
             parallel_rows[n_active++] = i;
         }
     }
+
+    /* Remove rows that no other row can share a bin with. */
+    if (n_active >= MIN_ROWS_FOR_KEY_FILTER)
+    {
+        n_active = remove_rows_with_unique_key(parallel_rows, n_active, sparsity_IDs,
+                                               coeff_hashes, (uint32_t *) radix_aux);
+    }
+
     sort_rows(parallel_rows, (size_t) n_active, sparsity_IDs, coeff_hashes,
               radix_aux);
 
