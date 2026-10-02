@@ -187,6 +187,12 @@ void delete_inactive_cols_from_A_and_AT(Constraints *constraints)
     RowRange *row_r = A->p;
     RowRange *col_r = AT->p;
 
+    if (fixed_cols_to_delete->len == 0 && sub_cols_to_delete->len == 0)
+    {
+        constraints->AT->nnz = A->nnz;
+        return;
+    }
+
     // ------------------------------------------------------------------------
     //              Delete rows of A and update column sizes.
     // ------------------------------------------------------------------------
