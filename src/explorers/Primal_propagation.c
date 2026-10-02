@@ -31,6 +31,35 @@
 #include "radix_sort.h"
 #include "utils.h"
 
+/* Returns the largest absolute value in column col of AT. The position of the
+   largest entry is stored in max_abs_pos[col], where -1 means not computed. */
+static inline double get_cached_max_abs(const Matrix *AT, int col, int *max_abs_pos)
+{
+    const double *vals = AT->x + AT->p[col].start;
+
+    if (max_abs_pos[col] == -1)
+    {
+        int len = AT->p[col].end - AT->p[col].start;
+        int best = 0;
+        double best_abs = ABS(vals[0]);
+        assert(len > 0);
+
+        for (int idx = 1; idx < len; ++idx)
+        {
+            if (ABS(vals[idx]) > best_abs)
+            {
+                best_abs = ABS(vals[idx]);
+                best = idx;
+            }
+        }
+
+        max_abs_pos[col] = best;
+        return best_abs;
+    }
+
+    return ABS(vals[max_abs_pos[col]]);
+}
+
 static PresolveStatus update_lb_within_propagation(double new_lb, double *lb,
                                                    double ub, int col, ColTag *cTag,
                                                    Problem *prob,
@@ -47,6 +76,7 @@ static PresolveStatus update_lb_within_propagation(double new_lb, double *lb,
     const double *vals = AT->x + AT->p[col].start;
     const int *rows = AT->i + AT->p[col].start;
     size_t len = (size_t) (AT->p[col].end - AT->p[col].start);
+    int *max_abs_pos = constraints->state->work->iwork_n_cols;
 
     // -----------------------------------------------------------------------
     // If ub is finite we compare it to the new lower bound (we check for
@@ -64,7 +94,8 @@ static PresolveStatus update_lb_within_propagation(double new_lb, double *lb,
         }
 
         // check if variable can be fixed
-        if (new_lb >= ub || (ub - new_lb) * get_max_abs(vals, len) <= FEAS_TOL)
+        if (new_lb >= ub ||
+            (ub - new_lb) * get_cached_max_abs(AT, col, max_abs_pos) <= FEAS_TOL)
         {
             save_retrieval_bound_change_no_row(constraints->state->postsolve_info,
                                                col, new_lb, ub, false);
@@ -123,6 +154,7 @@ static PresolveStatus update_ub_within_propagation(double new_ub, double *ub,
     const double *vals = AT->x + AT->p[col].start;
     const int *rows = AT->i + AT->p[col].start;
     size_t len = (size_t) (AT->p[col].end - AT->p[col].start);
+    int *max_abs_pos = constraints->state->work->iwork_n_cols;
 
     // -----------------------------------------------------------------------
     // If lb is finite we compare it to the new upper bound (we check for
@@ -139,7 +171,8 @@ static PresolveStatus update_ub_within_propagation(double new_ub, double *ub,
         }
 
         // check if variable can be fixed
-        if (new_ub <= lb || (new_ub - lb) * get_max_abs(vals, len) <= FEAS_TOL)
+        if (new_ub <= lb ||
+            (new_ub - lb) * get_cached_max_abs(AT, col, max_abs_pos) <= FEAS_TOL)
         {
             save_retrieval_bound_change_no_row(constraints->state->postsolve_info,
                                                col, new_ub, lb, true);
@@ -657,6 +690,13 @@ PresolveStatus propagate_primal(Problem *prob, bool finite_bound_tightening)
 #ifndef NDEBUG
     bool *HAVE_ROWS_BEEN_PROP = (bool *) ps_calloc(A->m, sizeof(bool));
 #endif
+
+    /* Reset the cached positions of the largest entries in the columns. */
+    int *max_abs_pos = constraints->state->work->iwork_n_cols;
+    for (ii = 0; ii < A->n; ++ii)
+    {
+        max_abs_pos[ii] = -1;
+    }
 
     // -------------------------------------------------------------------------
     // Loop through and propagate the rows in order to tighten variable bounds.
