@@ -8,7 +8,6 @@
 #include "fold_ref.h"
 #include "glbopts.h"
 #include "minunit.h"
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -54,6 +53,52 @@ static void flp_free(FoldTestLP *p)
     free(p->c);
 }
 
+/* An LP with the given matrix and zero line data. */
+static FoldTestLP flp_new(int m, int n, int nnz, const int *Ap, const int *Ai,
+                          const double *Ax)
+{
+    FoldTestLP p = flp_alloc(m, n, nnz);
+    memcpy(p.Ap, Ap, ((size_t) m + 1) * sizeof(int));
+    memcpy(p.Ai, Ai, (size_t) nnz * sizeof(int));
+    memcpy(p.Ax, Ax, (size_t) nnz * sizeof(double));
+    return p;
+}
+
+static void flp_fill_rows(FoldTestLP *p, double lhs, double rhs)
+{
+    for (int i = 0; i < p->m; i++)
+    {
+        p->lhs[i] = lhs;
+        p->rhs[i] = rhs;
+    }
+}
+
+static void flp_fill_cols(FoldTestLP *p, double lb, double ub, double c)
+{
+    for (int j = 0; j < p->n; j++)
+    {
+        p->lb[j] = lb;
+        p->ub[j] = ub;
+        p->c[j] = c;
+    }
+}
+
+/* A copy of P with room for more rows, columns and entries after P's. The
+   caller writes the new rows and the final Ap. */
+static FoldTestLP flp_extend(const FoldTestLP *P, int rows, int cols, int nnz)
+{
+    FoldTestLP p = flp_alloc(P->m + rows, P->n + cols, P->nnz + nnz);
+    memcpy(p.Ap, P->Ap, (size_t) P->m * sizeof(int));
+    memcpy(p.Ai, P->Ai, (size_t) P->nnz * sizeof(int));
+    memcpy(p.Ax, P->Ax, (size_t) P->nnz * sizeof(double));
+    memcpy(p.lhs, P->lhs, (size_t) P->m * sizeof(double));
+    memcpy(p.rhs, P->rhs, (size_t) P->m * sizeof(double));
+    memcpy(p.lb, P->lb, (size_t) P->n * sizeof(double));
+    memcpy(p.ub, P->ub, (size_t) P->n * sizeof(double));
+    memcpy(p.c, P->c, (size_t) P->n * sizeof(double));
+    return p;
+}
+
 /* Block-diagonal k copies of P. */
 static FoldTestLP flp_replicate(const FoldTestLP *P, int k)
 {
@@ -94,7 +139,7 @@ static FoldOptions fold_test_options(double min_reduction)
     return options;
 }
 
-/* Runs the fold on P. Row and column class ids are written when given. */
+/* Runs the fold on P. */
 static FoldReason run_fold(const FoldTestLP *P, const FoldOptions *options,
                            FoldMaps *maps, FoldStats *stats)
 {
@@ -117,9 +162,10 @@ static FoldReason run_fold(const FoldTestLP *P, const FoldOptions *options,
     return reason;
 }
 
-/* NULL if the fold's partition (with the gate off) equals the reference's. */
+/* NULL if the fold's partition (with the gate off) equals the reference's. The
+   maps are handed back through 'maps_out' when given, else freed. */
 static const char *compare_with_ref(const FoldTestLP *P, FoldReason *reason_out,
-                                    FoldStats *stats)
+                                    FoldStats *stats, FoldMaps *maps_out)
 {
     FoldOptions options = fold_test_options(0.0);
     FoldMaps maps;
@@ -179,20 +225,23 @@ static const char *compare_with_ref(const FoldTestLP *P, FoldReason *reason_out,
     }
     free(row_ref);
     free(col_ref);
-    fold_maps_free(&maps);
+    if (maps_out && !err)
+    {
+        *maps_out = maps;
+    }
+    else
+    {
+        fold_maps_free(&maps);
+    }
     return err;
 }
 
 /* Two rows, two columns, no symmetry inside the block. */
 static FoldTestLP base_block(void)
 {
-    FoldTestLP p = flp_alloc(2, 2, 4);
-    int Ap[3] = {0, 2, 4};
-    int Ai[4] = {0, 1, 0, 1};
-    double Ax[4] = {1, 2, 3, -1};
-    memcpy(p.Ap, Ap, sizeof(Ap));
-    memcpy(p.Ai, Ai, sizeof(Ai));
-    memcpy(p.Ax, Ax, sizeof(Ax));
+    static const int Ap[3] = {0, 2, 4}, Ai[4] = {0, 1, 0, 1};
+    static const double Ax[4] = {1, 2, 3, -1};
+    FoldTestLP p = flp_new(2, 2, 4, Ap, Ai, Ax);
     p.lhs[0] = -INF;
     p.rhs[0] = 4;
     p.lhs[1] = -2;
@@ -212,31 +261,18 @@ static FoldTestLP base_block(void)
    two identical columns do. */
 static const char *test_fold_sides(void)
 {
-    FoldTestLP p = flp_alloc(2, 2, 4);
-    int Ap[3] = {0, 2, 4}, Ai[4] = {0, 1, 0, 1};
-    double Ax[4] = {1, 1, 1, 1};
-    memcpy(p.Ap, Ap, sizeof(Ap));
-    memcpy(p.Ai, Ai, sizeof(Ai));
-    memcpy(p.Ax, Ax, sizeof(Ax));
-    p.lhs[0] = -INF;
-    p.rhs[0] = 1;
-    p.lhs[1] = -INF;
+    static const int Ap[3] = {0, 2, 4}, Ai[4] = {0, 1, 0, 1};
+    static const double Ax[4] = {1, 1, 1, 1};
+    FoldTestLP p = flp_new(2, 2, 4, Ap, Ai, Ax);
+    flp_fill_rows(&p, -INF, 1);
     p.rhs[1] = 2;
-    for (int j = 0; j < 2; j++)
-    {
-        p.lb[j] = 0;
-        p.ub[j] = INF;
-        p.c[j] = 1;
-    }
+    flp_fill_cols(&p, 0, INF, 1);
     FoldReason reason;
     FoldStats stats;
-    const char *err = compare_with_ref(&p, &reason, &stats);
+    FoldMaps maps;
+    const char *err = compare_with_ref(&p, &reason, &stats, &maps);
     mu_assert(err ? err : "", err == NULL);
     mu_assert("expected foldable", reason == FOLD_FOLDABLE);
-
-    FoldOptions options = fold_test_options(0.0);
-    FoldMaps maps;
-    run_fold(&p, &options, &maps, &stats);
     mu_assert("rows should be singletons, columns one class",
               maps.n_rows_folded == 2 && maps.n_cols_folded == 1);
     mu_assert("removable entries", maps.removable_entries == 2);
@@ -252,18 +288,16 @@ static const char *test_fold_symmetric_blocks(void)
     FoldTestLP p = flp_replicate(&b, 2);
     FoldReason reason;
     FoldStats stats;
-    const char *err = compare_with_ref(&p, &reason, &stats);
-    mu_assert(err ? err : "", err == NULL);
-    FoldOptions options = fold_test_options(0.01);
     FoldMaps maps;
-    reason = run_fold(&p, &options, &maps, &stats);
+    const char *err = compare_with_ref(&p, &reason, &stats, &maps);
+    mu_assert(err ? err : "", err == NULL);
     mu_assert("expected foldable", reason == FOLD_FOLDABLE);
     mu_assert("expected 2 x 2 folded",
               maps.n_rows_folded == 2 && maps.n_cols_folded == 2);
     mu_assert("expected ids {0,1,0,1}",
               maps.row_class[2] == 0 && maps.row_class[3] == 1 &&
                   maps.col_class[2] == 0 && maps.col_class[3] == 1);
-    mu_assert("removable entries != 8", maps.removable_entries == 8);
+    mu_assert("removable entries", maps.removable_entries == 8);
     fold_maps_free(&maps);
     flp_free(&p);
     flp_free(&b);
@@ -276,15 +310,8 @@ static const char *test_fold_asymmetric_blocks(void)
 {
     FoldTestLP b = base_block();
     FoldTestLP r = flp_replicate(&b, 2);
-    FoldTestLP p = flp_alloc(r.m + 1, r.n, r.nnz + 1);
-    memcpy(p.Ap, r.Ap, (size_t) (r.m + 1) * sizeof(int));
-    memcpy(p.Ai, r.Ai, (size_t) r.nnz * sizeof(int));
-    memcpy(p.Ax, r.Ax, (size_t) r.nnz * sizeof(double));
-    memcpy(p.lhs, r.lhs, (size_t) r.m * sizeof(double));
-    memcpy(p.rhs, r.rhs, (size_t) r.m * sizeof(double));
-    memcpy(p.lb, r.lb, (size_t) r.n * sizeof(double));
-    memcpy(p.ub, r.ub, (size_t) r.n * sizeof(double));
-    memcpy(p.c, r.c, (size_t) r.n * sizeof(double));
+    FoldTestLP p = flp_extend(&r, 1, 0, 1);
+    p.Ap[r.m] = r.nnz;
     p.Ai[r.nnz] = 0;
     p.Ax[r.nnz] = 1.0;
     p.Ap[p.m] = r.nnz + 1;
@@ -292,7 +319,7 @@ static const char *test_fold_asymmetric_blocks(void)
     p.rhs[r.m] = 3;
     FoldReason reason;
     FoldStats stats;
-    const char *err = compare_with_ref(&p, &reason, &stats);
+    const char *err = compare_with_ref(&p, &reason, &stats, NULL);
     mu_assert(err ? err : "", err == NULL);
     mu_assert("expected nothing to fold", reason == FOLD_NOTHING);
     mu_assert("expected several rounds", stats.rounds >= 2);
@@ -305,11 +332,9 @@ static const char *test_fold_asymmetric_blocks(void)
 /* Degenerate dimensions. */
 static const char *test_fold_degenerate(void)
 {
-    FoldTestLP p = flp_alloc(1, 1, 1);
-    p.Ap[0] = 0;
-    p.Ap[1] = 1;
-    p.Ai[0] = 0;
-    p.Ax[0] = 2.0;
+    static const int Ap[2] = {0, 1}, Ai[1] = {0};
+    static const double Ax[1] = {2.0};
+    FoldTestLP p = flp_new(1, 1, 1, Ap, Ai, Ax);
     p.lhs[0] = 1;
     p.rhs[0] = 1;
     p.lb[0] = 0;
@@ -317,18 +342,15 @@ static const char *test_fold_degenerate(void)
     p.c[0] = 1;
     FoldReason reason;
     FoldStats stats;
-    const char *err = compare_with_ref(&p, &reason, &stats);
+    const char *err = compare_with_ref(&p, &reason, &stats, NULL);
     mu_assert(err ? err : "", err == NULL);
     mu_assert("expected nothing to fold", reason == FOLD_NOTHING);
     flp_free(&p);
 
     /* Two empty rows with equal sides and no entries: nothing to fold. */
     FoldTestLP q = flp_alloc(2, 1, 0);
-    q.lhs[0] = q.lhs[1] = -INF;
-    q.rhs[0] = q.rhs[1] = 1;
-    q.lb[0] = 0;
-    q.ub[0] = 1;
-    q.c[0] = 1;
+    flp_fill_rows(&q, -INF, 1);
+    flp_fill_cols(&q, 0, 1, 1);
     FoldOptions options = fold_test_options(0.0);
     FoldMaps maps;
     reason = run_fold(&q, &options, &maps, &stats);
@@ -363,16 +385,11 @@ static FoldTestLP staircase(int T)
     p.lhs[T - 1] = -INF;
     p.rhs[T - 1] = 0;
     p.Ap[T] = pos;
-    for (int j = 0; j < T; j++)
-    {
-        p.lb[j] = 0;
-        p.ub[j] = 10;
-        p.c[j] = 1;
-    }
+    flp_fill_cols(&p, 0, 10, 1);
     return p;
 }
 
-/* The half-round cap and the work budget both report NOT_CONVERGED. */
+/* The round limit and the work budget both stop the fold. */
 static const char *test_fold_not_converged(void)
 {
     FoldTestLP p = staircase(64);
@@ -390,7 +407,7 @@ static const char *test_fold_not_converged(void)
     reason = run_fold(&p, &options, &maps, &stats);
     mu_assert("expected the work budget", reason == FOLD_LIMIT);
 
-    const char *err = compare_with_ref(&p, &reason, &stats);
+    const char *err = compare_with_ref(&p, &reason, &stats, NULL);
     mu_assert(err ? err : "", err == NULL);
     mu_assert("expected nothing to fold", reason == FOLD_NOTHING);
     mu_assert("expected ~T/2 rounds", stats.rounds >= 30);
@@ -416,19 +433,12 @@ static const char *test_fold_one_sided(void)
         p.rhs[i] = (double) i;
     }
     p.Ap[3] = pos;
-    for (int j = 0; j < 2; j++)
-    {
-        p.lb[j] = 0;
-        p.ub[j] = INF;
-        p.c[j] = 1;
-    }
+    flp_fill_cols(&p, 0, INF, 1);
     FoldReason reason;
     FoldStats stats;
-    const char *err = compare_with_ref(&p, &reason, &stats);
-    mu_assert(err ? err : "", err == NULL);
-    FoldOptions options = fold_test_options(0.01);
     FoldMaps maps;
-    reason = run_fold(&p, &options, &maps, &stats);
+    const char *err = compare_with_ref(&p, &reason, &stats, &maps);
+    mu_assert(err ? err : "", err == NULL);
     mu_assert("expected foldable", reason == FOLD_FOLDABLE);
     mu_assert("expected 3 x 1", maps.n_rows_folded == 3 && maps.n_cols_folded == 1);
     fold_maps_free(&maps);
@@ -445,19 +455,14 @@ static const char *test_fold_one_sided(void)
             q.Ax[qpos] = 1.0;
             qpos++;
         }
-        q.lhs[i] = -INF;
-        q.rhs[i] = 5;
     }
     q.Ap[2] = qpos;
-    for (int j = 0; j < 3; j++)
-    {
-        q.lb[j] = 0;
-        q.ub[j] = INF;
-        q.c[j] = (double) j;
-    }
-    err = compare_with_ref(&q, &reason, &stats);
+    flp_fill_rows(&q, -INF, 5);
+    flp_fill_cols(&q, 0, INF, 0);
+    q.c[1] = 1;
+    q.c[2] = 2;
+    err = compare_with_ref(&q, &reason, &stats, &maps);
     mu_assert(err ? err : "", err == NULL);
-    reason = run_fold(&q, &options, &maps, &stats);
     mu_assert("expected foldable", reason == FOLD_FOLDABLE);
     mu_assert("expected 1 x 3", maps.n_rows_folded == 1 && maps.n_cols_folded == 3);
     fold_maps_free(&maps);
@@ -472,15 +477,7 @@ static const char *test_fold_gate(void)
     FoldTestLP b = base_block();
     FoldTestLP r = flp_replicate(&b, 2);
     int extra = 2000;
-    FoldTestLP p = flp_alloc(r.m + extra, r.n + extra, r.nnz + extra);
-    memcpy(p.Ap, r.Ap, (size_t) r.m * sizeof(int));
-    memcpy(p.Ai, r.Ai, (size_t) r.nnz * sizeof(int));
-    memcpy(p.Ax, r.Ax, (size_t) r.nnz * sizeof(double));
-    memcpy(p.lhs, r.lhs, (size_t) r.m * sizeof(double));
-    memcpy(p.rhs, r.rhs, (size_t) r.m * sizeof(double));
-    memcpy(p.lb, r.lb, (size_t) r.n * sizeof(double));
-    memcpy(p.ub, r.ub, (size_t) r.n * sizeof(double));
-    memcpy(p.c, r.c, (size_t) r.n * sizeof(double));
+    FoldTestLP p = flp_extend(&r, extra, extra, extra);
     for (int ii = 0; ii < extra; ii++)
     {
         p.Ap[r.m + ii] = r.nnz + ii;
@@ -502,7 +499,7 @@ static const char *test_fold_gate(void)
     options.min_reduction = 0.0;
     reason = run_fold(&p, &options, &maps, &stats);
     mu_assert("expected foldable", reason == FOLD_FOLDABLE);
-    mu_assert("removable entries != 8", maps.removable_entries == 8);
+    mu_assert("removable entries", maps.removable_entries == 8);
     fold_maps_free(&maps);
     flp_free(&p);
     flp_free(&r);
@@ -583,7 +580,8 @@ static const char *test_fold_random_vs_reference(void)
         FoldTestLP p = random_instance();
         FoldReason reason;
         FoldStats stats;
-        const char *err = (p.nnz > 0) ? compare_with_ref(&p, &reason, &stats) : NULL;
+        const char *err =
+            (p.nnz > 0) ? compare_with_ref(&p, &reason, &stats, NULL) : NULL;
         flp_free(&p);
         if (err)
         {
@@ -604,7 +602,7 @@ static const char *test_fold_large(void)
     p.Ax[7] += 1.0;
     FoldReason reason;
     FoldStats stats;
-    const char *err = compare_with_ref(&p, &reason, &stats);
+    const char *err = compare_with_ref(&p, &reason, &stats, NULL);
     mu_assert(err ? err : "", err == NULL);
     mu_assert("expected foldable", reason == FOLD_FOLDABLE);
     flp_free(&p);
@@ -627,13 +625,8 @@ static const char *test_fold_large(void)
         q.rhs[i] = (double) (fold_rnd() % 50000);
     }
     q.Ap[m] = pos;
-    for (int j = 0; j < n; j++)
-    {
-        q.lb[j] = 0;
-        q.ub[j] = INF;
-        q.c[j] = 1;
-    }
-    err = compare_with_ref(&q, &reason, &stats);
+    flp_fill_cols(&q, 0, INF, 1);
+    err = compare_with_ref(&q, &reason, &stats, NULL);
     mu_assert(err ? err : "", err == NULL);
     flp_free(&q);
     return 0;
@@ -641,8 +634,8 @@ static const char *test_fold_large(void)
 
 /* ---- verification --------------------------------------------------------- */
 
-/* Refines P with the internal API so the partition can be tampered with before
-   verification. Returns NULL on failure. */
+/* Refines P through the workspace so the partition can be tampered with before
+   verification. */
 typedef struct FoldVerifyFixture
 {
     Matrix *A;
@@ -732,25 +725,12 @@ static const char *test_fold_verify_entries(void)
    class of the other end. */
 static const char *test_fold_verify_other_end(void)
 {
-    FoldTestLP p = flp_alloc(2, 2, 2);
-    p.Ap[0] = 0;
-    p.Ap[1] = 1;
-    p.Ap[2] = 2;
-    p.Ai[0] = 0;
-    p.Ai[1] = 1;
-    p.Ax[0] = 1;
-    p.Ax[1] = 1;
-    for (int i = 0; i < 2; i++)
-    {
-        p.lhs[i] = -INF;
-        p.rhs[i] = 1;
-    }
-    for (int j = 0; j < 2; j++)
-    {
-        p.lb[j] = 0;
-        p.ub[j] = 10 + j;
-        p.c[j] = 1;
-    }
+    static const int Ap[3] = {0, 1, 2}, Ai[2] = {0, 1};
+    static const double Ax[2] = {1, 1};
+    FoldTestLP p = flp_new(2, 2, 2, Ap, Ai, Ax);
+    flp_fill_rows(&p, -INF, 1);
+    flp_fill_cols(&p, 0, 10, 1);
+    p.ub[1] = 11;
     FoldVerifyFixture fx;
     FoldOptions options = fold_test_options(0.0);
     FoldMaps maps;
@@ -783,7 +763,6 @@ static const char *test_fold_memory_guard(void)
     mu_assert("expected foldable",
               run_fold(&p, &options, &maps, &stats) == FOLD_FOLDABLE);
     fold_maps_free(&maps);
-
     flp_free(&p);
     flp_free(&b);
     return 0;

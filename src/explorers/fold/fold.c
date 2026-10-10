@@ -32,10 +32,10 @@ double fold_memory_estimate(size_t n_rows, size_t n_cols, size_t nnz)
 {
     double lines = (double) n_rows + (double) n_cols;
     double larger = (double) (n_rows > n_cols ? n_rows : n_cols);
-    /* The refinement, the line records and the scratch of the larger side,
-       and the maps. */
-    return colour_refinement_memory_estimate(n_rows, n_cols, nnz) +
-           (sizeof(LineData) + sizeof(int)) * larger + sizeof(int) * lines;
+    double bytes = colour_refinement_memory_estimate(n_rows, n_cols, nnz);
+    bytes += (sizeof(LineData) + sizeof(int)) * larger; /* Line records, scratch. */
+    bytes += sizeof(int) * lines;                       /* The maps. */
+    return bytes;
 }
 
 const char *fold_reason_string(FoldReason reason)
