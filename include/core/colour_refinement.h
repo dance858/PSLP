@@ -44,11 +44,8 @@ typedef struct ColourRefinement ColourRefinement;
 
 typedef enum ColourRefinementResult
 {
-    COLOUR_REFINEMENT_CONVERGED,     /* Stable partition. */
-    COLOUR_REFINEMENT_NOT_CONVERGED, /* Work budget or round limit reached. */
-    COLOUR_REFINEMENT_EQUITABLE,     /* From verify. */
-    COLOUR_REFINEMENT_NOT_EQUITABLE, /* From verify: two lines of a class differ. */
-    COLOUR_REFINEMENT_ALLOCATION_FAILED
+    COLOUR_REFINEMENT_CONVERGED,    /* Stable partition. */
+    COLOUR_REFINEMENT_NOT_CONVERGED /* Work budget or round limit reached. */
 } ColourRefinementResult;
 
 typedef struct ColourRefinementOptions
@@ -63,7 +60,8 @@ typedef struct ColourRefinementStats
     double work; /* Entries touched, in multiples of nnz. */
 } ColourRefinementStats;
 
-/* State for A and its transpose. Keeps pointers to both. NULL on failure. */
+/* State and scratch for A and its transpose. Keeps pointers to both. NULL on
+   failure; nothing after this allocates. */
 ColourRefinement *colour_refinement_new(const struct Matrix *A,
                                         const struct Matrix *AT);
 void colour_refinement_free(ColourRefinement *refine);
@@ -95,8 +93,10 @@ int colour_refinement_duplicate_entries(const ColourRefinement *refine);
 void colour_refinement_lowest_member_ids(const ColourRefinement *refine, bool rows,
                                          int *scratch, int *ids);
 
-/* Exact check that the partition is equitable: one more round splits nothing.
-   Returns EQUITABLE, NOT_EQUITABLE or ALLOCATION_FAILED. */
-ColourRefinementResult colour_refinement_verify(const ColourRefinement *refine);
+/* True when the partition is equitable: one more round splits nothing. */
+bool colour_refinement_verify(ColourRefinement *refine);
+
+/* Bytes allocated by colour_refinement_new. */
+double colour_refinement_memory_estimate(size_t n_rows, size_t n_cols, size_t nnz);
 
 #endif // COLOUR_REFINEMENT_H

@@ -43,12 +43,6 @@ typedef struct RefineSide
     int duplicate_entries;
 } RefineSide;
 
-struct ColourRefinement
-{
-    RefineSide rows;
-    RefineSide cols;
-};
-
 /* The sort key of a line. */
 typedef struct RefineKey
 {
@@ -57,6 +51,16 @@ typedef struct RefineKey
     int line;
     const uint64_t *signature; /* count sorted pairs, NULL in the start pass. */
 } RefineKey;
+
+struct ColourRefinement
+{
+    RefineSide rows;
+    RefineSide cols;
+    RefineKey *keys;     /* Of the larger side. */
+    uint64_t *signature; /* Of the side with more entries. */
+    uint32_t *row_copy;  /* Class ids refined by verify. */
+    uint32_t *col_copy;
+};
 
 /* Bit pattern of a value with -0.0 read as 0.0. */
 static uint64_t value_bits(double value)
@@ -96,14 +100,20 @@ static int line_count(const RefineSide *side, int line)
     return side->ranges[line].end - side->ranges[line].start;
 }
 
-/* Sorts the keys and gives every run of equal keys a class id. */
-static void assign_classes(RefineSide *side, RefineKey *keys)
+/* Sorts the keys and gives every run of equal keys a class id. Returns the
+   number of distinct keys the lines came with. */
+static int assign_classes(RefineSide *side, RefineKey *keys)
 {
     qsort(keys, (size_t) side->n_lines, sizeof(RefineKey), compare_key);
+    int n_old = 0;
     int n_classes = 0;
     int duplicate_entries = 0;
     for (int ii = 0; ii < side->n_lines; ii++)
     {
+        if (ii == 0 || keys[ii - 1].key != keys[ii].key)
+        {
+            n_old++;
+        }
         if (ii == 0 || compare_key(&keys[ii - 1], &keys[ii]) != 0)
         {
             n_classes++;
@@ -116,6 +126,7 @@ static void assign_classes(RefineSide *side, RefineKey *keys)
     }
     side->n_classes = n_classes;
     side->duplicate_entries = duplicate_entries;
+    return n_old;
 }
 
 /* Groups the lines by start colour and number of entries. */
@@ -129,9 +140,10 @@ static void group_side(RefineSide *side, RefineKey *keys)
     assign_classes(side, keys);
 }
 
-/* Splits the classes of a side by the classes of the other side. */
-static void refine_side(RefineSide *side, const uint32_t *other_class,
-                        RefineKey *keys, uint64_t *signature)
+/* Splits the classes of a side by the classes of the other side. Returns the
+   number of classes before the split. */
+static int refine_side(RefineSide *side, const uint32_t *other_class,
+                       RefineKey *keys, uint64_t *signature)
 {
     uint64_t *pair = signature;
     for (int line = 0; line < side->n_lines; line++)
@@ -146,34 +158,7 @@ static void refine_side(RefineSide *side, const uint32_t *other_class,
         }
         qsort(pair - 2 * count, (size_t) count, 2 * sizeof(uint64_t), compare_pair);
     }
-    assign_classes(side, keys);
-}
-
-/* The keys of the larger side and the signatures of the side with more
-   entries. */
-typedef struct RefineScratch
-{
-    RefineKey *keys;
-    uint64_t *signature;
-} RefineScratch;
-
-static bool scratch_new(RefineScratch *scratch, const ColourRefinement *refine)
-{
-    const RefineSide *rows = &refine->rows;
-    const RefineSide *cols = &refine->cols;
-    int n_lines = rows->n_lines > cols->n_lines ? rows->n_lines : cols->n_lines;
-    int n_entries =
-        rows->n_entries > cols->n_entries ? rows->n_entries : cols->n_entries;
-    scratch->keys = (RefineKey *) ps_malloc((size_t) n_lines + 1, sizeof(RefineKey));
-    scratch->signature =
-        (uint64_t *) ps_malloc(2 * (size_t) n_entries + 1, sizeof(uint64_t));
-    return scratch->keys && scratch->signature;
-}
-
-static void scratch_free(RefineScratch *scratch)
-{
-    PS_FREE(scratch->keys);
-    PS_FREE(scratch->signature);
+    return assign_classes(side, keys);
 }
 
 ColourRefinementResult colour_refinement_run(ColourRefinement *refine,
@@ -182,66 +167,48 @@ ColourRefinementResult colour_refinement_run(ColourRefinement *refine,
 {
     RefineSide *rows = &refine->rows;
     RefineSide *cols = &refine->cols;
-    RefineScratch scratch = {NULL, NULL};
-    ColourRefinementResult result = COLOUR_REFINEMENT_ALLOCATION_FAILED;
+    ColourRefinementResult result = COLOUR_REFINEMENT_NOT_CONVERGED;
     int rounds = 0;
     double work = 0;
-    if (scratch_new(&scratch, refine))
+    group_side(rows, refine->keys);
+    group_side(cols, refine->keys);
+    while (rounds < options->max_rounds && work <= options->work_budget)
     {
-        group_side(rows, scratch.keys);
-        group_side(cols, scratch.keys);
-        result = COLOUR_REFINEMENT_NOT_CONVERGED;
+        int n_row_classes = rows->n_classes;
+        int n_col_classes = cols->n_classes;
+        refine_side(rows, cols->class_id, refine->keys, refine->signature);
+        refine_side(cols, rows->class_id, refine->keys, refine->signature);
+        rounds++;
         /* A round touches the entries of both sides. */
-        double round_work = rows->n_entries > 0 ? 2.0 : 0.0;
-        while (rounds < options->max_rounds && work <= options->work_budget)
+        work += 2.0;
+        if (rows->n_classes == n_row_classes && cols->n_classes == n_col_classes)
         {
-            int n_row_classes = rows->n_classes;
-            int n_col_classes = cols->n_classes;
-            refine_side(rows, cols->class_id, scratch.keys, scratch.signature);
-            refine_side(cols, rows->class_id, scratch.keys, scratch.signature);
-            rounds++;
-            work += round_work;
-            if (rows->n_classes == n_row_classes && cols->n_classes == n_col_classes)
-            {
-                result = COLOUR_REFINEMENT_CONVERGED;
-                break;
-            }
+            result = COLOUR_REFINEMENT_CONVERGED;
+            break;
         }
     }
     stats->rounds = rounds;
     stats->work = work;
-    scratch_free(&scratch);
     return result;
 }
 
-ColourRefinementResult colour_refinement_verify(const ColourRefinement *refine)
+bool colour_refinement_verify(ColourRefinement *refine)
 {
-    /* Copies of both sides are refined against the original classes. */
+    /* Copies of both sides are refined against the original classes. The
+       partition is equitable when no class splits, whatever the ids. */
     RefineSide rows = refine->rows;
     RefineSide cols = refine->cols;
-    RefineScratch scratch = {NULL, NULL};
-    rows.class_id =
-        (uint32_t *) ps_malloc((size_t) rows.n_lines + 1, sizeof(uint32_t));
-    cols.class_id =
-        (uint32_t *) ps_malloc((size_t) cols.n_lines + 1, sizeof(uint32_t));
-    ColourRefinementResult result = COLOUR_REFINEMENT_ALLOCATION_FAILED;
-    if (rows.class_id && cols.class_id && scratch_new(&scratch, refine))
-    {
-        memcpy(rows.class_id, refine->rows.class_id,
-               (size_t) rows.n_lines * sizeof(uint32_t));
-        memcpy(cols.class_id, refine->cols.class_id,
-               (size_t) cols.n_lines * sizeof(uint32_t));
-        refine_side(&rows, refine->cols.class_id, scratch.keys, scratch.signature);
-        refine_side(&cols, refine->rows.class_id, scratch.keys, scratch.signature);
-        result = rows.n_classes == refine->rows.n_classes &&
-                         cols.n_classes == refine->cols.n_classes
-                     ? COLOUR_REFINEMENT_EQUITABLE
-                     : COLOUR_REFINEMENT_NOT_EQUITABLE;
-    }
-    scratch_free(&scratch);
-    PS_FREE(rows.class_id);
-    PS_FREE(cols.class_id);
-    return result;
+    rows.class_id = refine->row_copy;
+    cols.class_id = refine->col_copy;
+    memcpy(rows.class_id, refine->rows.class_id,
+           (size_t) rows.n_lines * sizeof(uint32_t));
+    memcpy(cols.class_id, refine->cols.class_id,
+           (size_t) cols.n_lines * sizeof(uint32_t));
+    int n_row_classes =
+        refine_side(&rows, refine->cols.class_id, refine->keys, refine->signature);
+    int n_col_classes =
+        refine_side(&cols, refine->rows.class_id, refine->keys, refine->signature);
+    return rows.n_classes == n_row_classes && cols.n_classes == n_col_classes;
 }
 
 const uint32_t *colour_refinement_row_classes(const ColourRefinement *refine)
@@ -298,6 +265,16 @@ void colour_refinement_lowest_member_ids(const ColourRefinement *refine, bool ro
     }
 }
 
+double colour_refinement_memory_estimate(size_t n_rows, size_t n_cols, size_t nnz)
+{
+    double lines = (double) n_rows + (double) n_cols;
+    double larger = (double) (n_rows > n_cols ? n_rows : n_cols);
+    /* Colour, class id and its copy per line; a key per line of the larger
+       side; a signature pair per entry. */
+    return (sizeof(uint64_t) + 2 * sizeof(uint32_t)) * lines +
+           sizeof(RefineKey) * larger + 2 * sizeof(uint64_t) * (double) nnz;
+}
+
 static bool side_new(RefineSide *side, const Matrix *M)
 {
     side->n_lines = (int) M->m;
@@ -331,6 +308,21 @@ ColourRefinement *colour_refinement_new(const Matrix *A, const Matrix *AT)
         colour_refinement_free(refine);
         return NULL;
     }
+    int n_lines = (int) (A->m > A->n ? A->m : A->n);
+    int n_entries = refine->rows.n_entries > refine->cols.n_entries
+                        ? refine->rows.n_entries
+                        : refine->cols.n_entries;
+    refine->keys = (RefineKey *) ps_malloc((size_t) n_lines + 1, sizeof(RefineKey));
+    refine->signature =
+        (uint64_t *) ps_malloc(2 * (size_t) n_entries + 1, sizeof(uint64_t));
+    refine->row_copy = (uint32_t *) ps_malloc(A->m + 1, sizeof(uint32_t));
+    refine->col_copy = (uint32_t *) ps_malloc(A->n + 1, sizeof(uint32_t));
+    if (!refine->keys || !refine->signature || !refine->row_copy ||
+        !refine->col_copy)
+    {
+        colour_refinement_free(refine);
+        return NULL;
+    }
     return refine;
 }
 
@@ -344,5 +336,9 @@ void colour_refinement_free(ColourRefinement *refine)
     PS_FREE(refine->rows.class_id);
     PS_FREE(refine->cols.colour);
     PS_FREE(refine->cols.class_id);
+    PS_FREE(refine->keys);
+    PS_FREE(refine->signature);
+    PS_FREE(refine->row_copy);
+    PS_FREE(refine->col_copy);
     PS_FREE(refine);
 }

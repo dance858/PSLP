@@ -11,6 +11,7 @@
 #include "test_colour_refinement.h"
 #include "test_domain_propagation.h"
 #include "test_dton.h"
+#include "test_fold.h"
 #include "test_iVec.h"
 #include "test_kkt.h"
 #include "test_map_to_reduced.h"
@@ -36,6 +37,7 @@ const char *run_all_tests()
     mu_assert("domain propagation error", test_domain());
     mu_assert("thread pool error", test_thread_pool());
     mu_assert("colour refinement error", test_colour_refinement());
+    mu_assert("fold error", test_fold());
     mu_assert("radix_sort error", test_radix_sort());
     mu_assert("presolver error", test_presolver());
     mu_assert("pathological error", test_pathological());

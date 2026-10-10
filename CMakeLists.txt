@@ -56,6 +56,7 @@ file(GLOB CORE_SOURCES CONFIGURE_DEPENDS
     src/core/*.c
     src/explorers/*.c
     src/explorers/dton/*.c
+    src/explorers/fold/*.c
 )
 
 # distinguish between public and private headers
@@ -69,6 +70,7 @@ file(GLOB PRIVATE_HEADERS CONFIGURE_DEPENDS
     include/data_structures/*.h
     include/explorers/*.h
     include/explorers/dton/*.h
+    include/explorers/fold/*.h
 )
 
 
@@ -95,6 +97,7 @@ target_include_directories(PSLP
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/explorers>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/explorers/dton>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/explorers/fold>
 )
 
 # Common compile options
@@ -140,7 +143,8 @@ if(PSLP_BUILD_TESTING)
   enable_testing()
   message(STATUS "PSLP testing enabled (this should be disabled for production builds!!!)")
 
-  add_executable(all_tests tests/all_tests.c tests/test_macros.c tests/kkt.c)
+  add_executable(all_tests tests/all_tests.c tests/test_macros.c tests/kkt.c
+                 tests/fold_ref.c)
 
   # Link PSLP library
   target_link_libraries(all_tests PRIVATE PSLP)
@@ -155,6 +159,7 @@ if(PSLP_BUILD_TESTING)
       ${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures
       ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers
       ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers/dton
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers/fold
       ${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP
   )
 
@@ -174,7 +179,8 @@ option(COVERAGE "Enable coverage reporting" OFF)
 
 if(COVERAGE)
     message(STATUS "Building with coverage flags")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g --coverage")
+    # Atomic counters: the tests run instrumented code on several threads.
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g --coverage -fprofile-update=atomic")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage")
 endif()

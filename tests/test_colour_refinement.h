@@ -91,15 +91,13 @@ static const char *test_refine_blocks(void)
     colour_refinement_lowest_member_ids(graph.refine, true, scratch, ids);
     mu_assert("lowest member ids",
               ids[0] == 0 && ids[1] == 1 && ids[2] == 0 && ids[3] == 1);
-    mu_assert("verified",
-              colour_refinement_verify(graph.refine) == COLOUR_REFINEMENT_EQUITABLE);
+    mu_assert("verified", colour_refinement_verify(graph.refine));
 
     /* Row 1 moved into the class of row 0 has different entries. */
     uint32_t *tampered = (uint32_t *) rows;
     tampered[1] = tampered[0];
     mu_assert("tampered partition rejected",
-              colour_refinement_verify(graph.refine) ==
-                  COLOUR_REFINEMENT_NOT_EQUITABLE);
+              !colour_refinement_verify(graph.refine));
     graph_free(&graph);
     return 0;
 }
@@ -206,8 +204,7 @@ static const char *test_refine_path(void)
     mu_assert("one round", stats.rounds == 1);
     int n_row_classes = colour_refinement_n_row_classes(graph.refine);
     mu_assert("partly refined", n_row_classes >= 2 && n_row_classes < 8);
-    mu_assert("not equitable yet", colour_refinement_verify(graph.refine) ==
-                                       COLOUR_REFINEMENT_NOT_EQUITABLE);
+    mu_assert("not equitable yet", !colour_refinement_verify(graph.refine));
     graph_free(&graph);
 
     /* A round touches the entries of both sides, 2 nnz. */
