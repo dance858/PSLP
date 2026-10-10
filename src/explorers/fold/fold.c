@@ -210,7 +210,7 @@ FoldReason fold_problem(const Matrix *A, const Matrix *AT, const double *lhs,
 
     FoldReason reason;
     FoldWorkspace work = {NULL, NULL, NULL};
-    if (A->m == 0 || A->n == 0 || A->nnz == 0)
+    if (A->nnz == 0)
     {
         reason = FOLD_NOTHING;
     }
