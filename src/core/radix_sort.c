@@ -17,7 +17,7 @@
  */
 
 #include "radix_sort.h"
-#include "pslp_thread.h"
+#include "thread_pool.h"
 #include <stdint.h>
 #include <string.h>
 
@@ -237,11 +237,14 @@ typedef struct
     int *aux;
 } SortChunkArg;
 
-static void *sort_chunk_func(void *arg)
+// Pool callback: sorts one chunk. The thread index is not needed because each
+// chunk has its own slice of rows and aux.
+static void sort_chunk(void *context, int chunk, int thread)
 {
-    SortChunkArg *a = (SortChunkArg *) arg;
-    radix_sort_rows(a->rows, a->n, a->sparsity_IDs, a->coeff_hashes, a->aux);
-    return NULL;
+    (void) thread;
+    SortChunkArg *arg = (SortChunkArg *) context + chunk;
+    radix_sort_rows(arg->rows, arg->n, arg->sparsity_IDs, arg->coeff_hashes,
+                    arg->aux);
 }
 
 // Compare two row indices by (sparsity_ID, coeff_hash) as uint32_t.
@@ -313,18 +316,15 @@ void parallel_radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
         offset += chunk_sizes[k];
     }
 
-    // Launch worker threads for chunks 1..3, main thread sorts chunk 0.
-    ps_thread_t threads[NUM_SORT_THREADS - 1];
-    for (int k = 1; k < NUM_SORT_THREADS; k++)
+    // Sort the chunks in parallel. The calling thread also sorts, hence the -1.
+    ThreadPool *pool = thread_pool_new(NUM_SORT_THREADS - 1);
+    if (!pool)
     {
-        ps_thread_create(&threads[k - 1], NULL, sort_chunk_func, &args[k]);
+        radix_sort_rows(rows, n, sparsity_IDs, coeff_hashes, aux);
+        return;
     }
-    sort_chunk_func(&args[0]);
-
-    for (int k = 1; k < NUM_SORT_THREADS; k++)
-    {
-        ps_thread_join(&threads[k - 1], NULL);
-    }
+    thread_pool_run(pool, sort_chunk, args, NUM_SORT_THREADS);
+    thread_pool_free(pool);
 
     // 4-way merge into aux, then copy back.
     merge_4way(aux, chunk_ptrs, chunk_sizes, sparsity_IDs, coeff_hashes, n);
