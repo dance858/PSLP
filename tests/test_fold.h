@@ -3,7 +3,9 @@
 
 #include "Bounds.h"
 #include "Matrix.h"
+#include "Tags.h"
 #include "fold.h"
+#include "fold_apply.h"
 #include "fold_internal.h"
 #include "fold_ref.h"
 #include "glbopts.h"
@@ -768,6 +770,255 @@ static const char *test_fold_memory_guard(void)
     return 0;
 }
 
+/* ---- apply ----------------------------------------------------------------- */
+
+/* The folded problem of P, with the line data folded on copies of P's. */
+typedef struct FoldApplyResult
+{
+    Matrix *A;
+    Matrix *folded;
+    double *lhs, *rhs, *c;
+    RowTag *row_tags;
+    ColTag *col_tags;
+    Bound *bounds;
+    FoldMaps maps;
+    FoldStats stats;
+    FoldReason detect_reason;
+    FoldReason reason;
+} FoldApplyResult;
+
+static void apply_result_free(FoldApplyResult *r)
+{
+    free_matrix(r->A);
+    free_matrix(r->folded);
+    free(r->lhs);
+    free(r->rhs);
+    free(r->c);
+    free(r->row_tags);
+    free(r->col_tags);
+    free(r->bounds);
+    fold_maps_free(&r->maps);
+}
+
+static FoldApplyResult run_apply(const FoldTestLP *P)
+{
+    FoldApplyResult r;
+    memset(&r, 0, sizeof(r));
+    r.A = matrix_new(P->Ax, P->Ai, P->Ap, (size_t) P->m, (size_t) P->n,
+                     (size_t) P->nnz);
+    int *work = (int *) calloc((size_t) P->n + 1, sizeof(int));
+    Matrix *AT = transpose(r.A, work, 0);
+    r.lhs = (double *) malloc(((size_t) P->m + 1) * sizeof(double));
+    r.rhs = (double *) malloc(((size_t) P->m + 1) * sizeof(double));
+    r.c = (double *) malloc(((size_t) P->n + 1) * sizeof(double));
+    r.row_tags = (RowTag *) calloc((size_t) P->m + 1, sizeof(RowTag));
+    r.col_tags = (ColTag *) calloc((size_t) P->n + 1, sizeof(ColTag));
+    r.bounds = (Bound *) malloc(((size_t) P->n + 1) * sizeof(Bound));
+    memcpy(r.lhs, P->lhs, (size_t) P->m * sizeof(double));
+    memcpy(r.rhs, P->rhs, (size_t) P->m * sizeof(double));
+    memcpy(r.c, P->c, (size_t) P->n * sizeof(double));
+    for (int i = 0; i < P->m; i++)
+    {
+        r.row_tags[i] = (RowTag) (i % 7);
+    }
+    for (int j = 0; j < P->n; j++)
+    {
+        r.bounds[j].lb = P->lb[j];
+        r.bounds[j].ub = P->ub[j];
+        r.col_tags[j] = (ColTag) (j % 5);
+    }
+    FoldOptions options = fold_test_options(0.0);
+    r.reason = fold_problem(r.A, AT, r.lhs, r.rhs, r.bounds, r.c, &options, &r.maps,
+                            &r.stats);
+    r.detect_reason = r.reason;
+    if (r.reason == FOLD_FOLDABLE)
+    {
+        r.reason = fold_apply(r.A, r.lhs, r.rhs, r.row_tags, r.bounds, r.col_tags,
+                              r.c, &r.maps, &r.folded);
+    }
+    free_matrix(AT);
+    free(work);
+    return r;
+}
+
+/* NULL if the folded problem equals E with costs scaled by 'cost_factor'. */
+static const char *same_as_lp(const FoldApplyResult *r, const FoldTestLP *E,
+                              double cost_factor)
+{
+    const Matrix *B = r->folded;
+    if ((int) B->m != E->m || (int) B->n != E->n)
+    {
+        snprintf(fold_errbuf, sizeof(fold_errbuf),
+                 "dims %zu x %zu, expected %d x %d", B->m, B->n, E->m, E->n);
+        return fold_errbuf;
+    }
+    if ((int) B->nnz != E->nnz)
+    {
+        snprintf(fold_errbuf, sizeof(fold_errbuf), "nnz %zu, expected %d", B->nnz,
+                 E->nnz);
+        return fold_errbuf;
+    }
+    for (int i = 0; i < E->m; i++)
+    {
+        if (B->p[i].start != E->Ap[i] || B->p[i].end != E->Ap[i + 1])
+        {
+            snprintf(fold_errbuf, sizeof(fold_errbuf), "row %d range", i);
+            return fold_errbuf;
+        }
+        for (int k = E->Ap[i]; k < E->Ap[i + 1]; k++)
+        {
+            if (B->i[k] != E->Ai[k] || B->x[k] != E->Ax[k])
+            {
+                snprintf(fold_errbuf, sizeof(fold_errbuf),
+                         "row %d entry %d: (%d, %g), expected (%d, %g)", i, k,
+                         B->i[k], B->x[k], E->Ai[k], E->Ax[k]);
+                return fold_errbuf;
+            }
+        }
+        if (r->lhs[i] != E->lhs[i] || r->rhs[i] != E->rhs[i])
+        {
+            return "row sides";
+        }
+    }
+    for (int j = 0; j < E->n; j++)
+    {
+        if (r->bounds[j].lb != E->lb[j] || r->bounds[j].ub != E->ub[j])
+        {
+            return "bounds";
+        }
+        if (r->c[j] != cost_factor * E->c[j])
+        {
+            snprintf(fold_errbuf, sizeof(fold_errbuf), "cost %d: %g, expected %g", j,
+                     r->c[j], cost_factor * E->c[j]);
+            return fold_errbuf;
+        }
+    }
+    return NULL;
+}
+
+/* Three copies of the block fold to the block with costs times three; tags
+   travel with the representatives and keepers. */
+static const char *test_fold_apply_blocks(void)
+{
+    FoldTestLP b = base_block();
+    FoldTestLP p = flp_replicate(&b, 3);
+    FoldApplyResult r = run_apply(&p);
+    mu_assert("expected foldable", r.reason == FOLD_FOLDABLE);
+    const char *err = same_as_lp(&r, &b, 3.0);
+    mu_assert(err ? err : "", err == NULL);
+    mu_assert("row tags of the representatives",
+              r.row_tags[0] == 0 && r.row_tags[1] == 1);
+    mu_assert("column tags of the keepers",
+              r.col_tags[0] == 0 && r.col_tags[1] == 1);
+    mu_assert("class sizes",
+              r.maps.row_class_size[0] == 3 && r.maps.col_class_size[1] == 3);
+    mu_assert("fold index of a member",
+              r.maps.row_fold_index[3] == 1 && r.maps.col_fold_index[4] == 0);
+    mu_assert("row sentinel", r.folded->p[2].start == 4 && r.folded->p[2].end == 4);
+    apply_result_free(&r);
+    flp_free(&p);
+    flp_free(&b);
+    return 0;
+}
+
+/* One row over three identical columns: the folded coefficient is the sum. */
+static const char *test_fold_apply_column_sum(void)
+{
+    FoldTestLP p = flp_alloc(1, 3, 3);
+    p.Ap[0] = 0;
+    p.Ap[1] = 3;
+    for (int j = 0; j < 3; j++)
+    {
+        p.Ai[j] = j;
+        p.Ax[j] = 0.5;
+    }
+    flp_fill_rows(&p, -INF, 3);
+    flp_fill_cols(&p, -1, 2, 0.25);
+    FoldApplyResult r = run_apply(&p);
+    mu_assert("expected foldable", r.reason == FOLD_FOLDABLE);
+    mu_assert("1 x 1 with one entry",
+              r.folded->m == 1 && r.folded->n == 1 && r.folded->nnz == 1);
+    mu_assert("coefficient 1.5", r.folded->i[0] == 0 && r.folded->x[0] == 1.5);
+    mu_assert("cost 0.75", r.c[0] == 0.75);
+    mu_assert("bounds", r.bounds[0].lb == -1 && r.bounds[0].ub == 2);
+    mu_assert("sides", r.lhs[0] == -INF && r.rhs[0] == 3);
+    apply_result_free(&r);
+    flp_free(&p);
+    return 0;
+}
+
+/* [[1, -1], [-1, 1]] with equal data folds to one row and one column whose
+   coefficient cancels exactly, so the entry is dropped. */
+static const char *test_fold_apply_exact_zero(void)
+{
+    static const int Ap[3] = {0, 2, 4}, Ai[4] = {0, 1, 0, 1};
+    static const double Ax[4] = {1, -1, -1, 1};
+    FoldTestLP p = flp_new(2, 2, 4, Ap, Ai, Ax);
+    flp_fill_cols(&p, 0, 1, 1);
+    FoldApplyResult r = run_apply(&p);
+    mu_assert("expected foldable", r.reason == FOLD_FOLDABLE);
+    mu_assert("1 x 1 without entries",
+              r.folded->m == 1 && r.folded->n == 1 && r.folded->nnz == 0);
+    mu_assert("empty row range",
+              r.folded->p[0].start == 0 && r.folded->p[0].end == 0);
+    apply_result_free(&r);
+    flp_free(&p);
+    return 0;
+}
+
+/* Random blocks without symmetry of their own, replicated: the folded problem
+   is the block with the costs scaled by the number of copies. The draws are
+   sequenced explicitly. */
+static const char *test_fold_apply_random(void)
+{
+    int trials = 0;
+    while (trials < 30)
+    {
+        int m0 = 2 + (int) (fold_rnd() % 6);
+        int n0 = 2 + (int) (fold_rnd() % 6);
+        FoldTestLP b = random_block(m0, n0, 6, 3);
+        FoldOptions options = fold_test_options(0.0);
+        FoldMaps maps;
+        FoldStats stats;
+        FoldReason reason =
+            b.nnz > 0 ? run_fold(&b, &options, &maps, &stats) : FOLD_FOLDABLE;
+        fold_maps_free(&maps);
+        if (reason != FOLD_NOTHING)
+        {
+            flp_free(&b);
+            continue;
+        }
+        int k = 2 + (int) (fold_rnd() % 3);
+        FoldTestLP p = flp_replicate(&b, k);
+        FoldApplyResult r = run_apply(&p);
+        const char *err = NULL;
+        if (r.reason == FOLD_FOLDABLE)
+        {
+            err = same_as_lp(&r, &b, (double) k);
+        }
+        else
+        {
+            snprintf(fold_errbuf, sizeof(fold_errbuf),
+                     "expected foldable, got %s after %s (block %d x %d, %d nnz, %d "
+                     "copies)",
+                     fold_reason_string(r.reason),
+                     fold_reason_string(r.detect_reason), b.m, b.n, b.nnz, k);
+            err = fold_errbuf;
+        }
+        apply_result_free(&r);
+        flp_free(&p);
+        flp_free(&b);
+        if (err)
+        {
+            static char b2[320];
+            snprintf(b2, sizeof(b2), "trial %d: %s", trials, err);
+            mu_assert(b2, 0);
+        }
+        trials++;
+    }
+    return 0;
+}
+
 static const char *all_tests_fold(void)
 {
     mu_run_test(test_fold_sides, counter_fold);
@@ -782,6 +1033,10 @@ static const char *all_tests_fold(void)
     mu_run_test(test_fold_verify_entries, counter_fold);
     mu_run_test(test_fold_verify_other_end, counter_fold);
     mu_run_test(test_fold_memory_guard, counter_fold);
+    mu_run_test(test_fold_apply_blocks, counter_fold);
+    mu_run_test(test_fold_apply_column_sum, counter_fold);
+    mu_run_test(test_fold_apply_exact_zero, counter_fold);
+    mu_run_test(test_fold_apply_random, counter_fold);
     return 0;
 }
 

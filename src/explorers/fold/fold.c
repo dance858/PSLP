@@ -34,7 +34,7 @@ double fold_memory_estimate(size_t n_rows, size_t n_cols, size_t nnz)
     double larger = (double) (n_rows > n_cols ? n_rows : n_cols);
     double bytes = colour_refinement_memory_estimate(n_rows, n_cols, nnz);
     bytes += (sizeof(LineData) + sizeof(int)) * larger; /* Line records, scratch. */
-    bytes += sizeof(int) * lines;                       /* The maps. */
+    bytes += 3 * sizeof(int) * lines;                   /* The maps. */
     return bytes;
 }
 
@@ -78,13 +78,22 @@ static bool maps_new(FoldMaps *maps, int n_rows, int n_cols)
 {
     maps->row_class = (int *) ps_malloc((size_t) n_rows + 1, sizeof(int));
     maps->col_class = (int *) ps_malloc((size_t) n_cols + 1, sizeof(int));
-    return maps->row_class && maps->col_class;
+    maps->row_fold_index = (int *) ps_malloc((size_t) n_rows + 1, sizeof(int));
+    maps->col_fold_index = (int *) ps_malloc((size_t) n_cols + 1, sizeof(int));
+    maps->row_class_size = (int *) ps_malloc((size_t) n_rows + 1, sizeof(int));
+    maps->col_class_size = (int *) ps_malloc((size_t) n_cols + 1, sizeof(int));
+    return maps->row_class && maps->col_class && maps->row_fold_index &&
+           maps->col_fold_index && maps->row_class_size && maps->col_class_size;
 }
 
 void fold_maps_free(FoldMaps *maps)
 {
     PS_FREE(maps->row_class);
     PS_FREE(maps->col_class);
+    PS_FREE(maps->row_fold_index);
+    PS_FREE(maps->col_fold_index);
+    PS_FREE(maps->row_class_size);
+    PS_FREE(maps->col_class_size);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -146,14 +155,40 @@ void fold_start_colours(FoldWorkspace *work, int n_rows, int n_cols,
 /*  The fold                                                                  */
 /* ------------------------------------------------------------------------- */
 
+/* Folded indices and class sizes of one side from its class ids. */
+static void fold_indices(int n_lines, const int *class_id, int *fold_index,
+                         int *class_size)
+{
+    int n_folded = 0;
+    for (int line = 0; line < n_lines; line++)
+    {
+        if (class_id[line] == line)
+        {
+            fold_index[line] = n_folded;
+            class_size[n_folded] = 0;
+            n_folded++;
+        }
+    }
+    for (int line = 0; line < n_lines; line++)
+    {
+        fold_index[line] = fold_index[class_id[line]];
+        class_size[fold_index[line]]++;
+    }
+}
+
 /* The maps of the refined partition. */
-static void extract_maps(const FoldWorkspace *work, FoldMaps *maps)
+static void extract_maps(const FoldWorkspace *work, int n_rows, int n_cols,
+                         FoldMaps *maps)
 {
     const ColourRefinement *refine = work->refine;
     colour_refinement_lowest_member_ids(refine, true, work->scratch,
                                         maps->row_class);
     colour_refinement_lowest_member_ids(refine, false, work->scratch,
                                         maps->col_class);
+    fold_indices(n_rows, maps->row_class, maps->row_fold_index,
+                 maps->row_class_size);
+    fold_indices(n_cols, maps->col_class, maps->col_fold_index,
+                 maps->col_class_size);
     maps->n_rows_folded = colour_refinement_n_row_classes(refine);
     maps->n_cols_folded = colour_refinement_n_col_classes(refine);
     maps->removable_entries = colour_refinement_duplicate_entries(refine);
@@ -194,7 +229,7 @@ static FoldReason detect(FoldWorkspace *work, const Matrix *A, const double *lhs
     {
         return FOLD_FAILED;
     }
-    extract_maps(work, maps);
+    extract_maps(work, n_rows, n_cols, maps);
     return FOLD_FOLDABLE;
 }
 

@@ -47,11 +47,16 @@ typedef struct FoldOptions
 
 /* Partition of the rows and columns. A class id is the lowest member index, so
    a line whose class id equals its own index is the representative of its row
-   class or the keeper of its column class. */
+   class or the keeper of its column class. The folded index of a line is the
+   rank of its class among the representatives (keepers) in ascending order. */
 typedef struct FoldMaps
 {
-    int *row_class; /* [n_rows] */
-    int *col_class; /* [n_cols] */
+    int *row_class;      /* [n_rows] */
+    int *col_class;      /* [n_cols] */
+    int *row_fold_index; /* [n_rows] */
+    int *col_fold_index; /* [n_cols] */
+    int *row_class_size; /* [n_rows_folded] */
+    int *col_class_size; /* [n_cols_folded] */
     int n_rows_folded;
     int n_cols_folded;
     int removable_entries; /* Upper bound, rows and columns counted separately. */
@@ -77,7 +82,7 @@ FoldReason fold_problem(const struct Matrix *A, const struct Matrix *AT,
 
 void fold_maps_free(FoldMaps *maps);
 
-/* Bytes the fold allocates. */
+/* Bytes fold_problem allocates. */
 double fold_memory_estimate(size_t n_rows, size_t n_cols, size_t nnz);
 
 const char *fold_reason_string(FoldReason reason);
