@@ -43,6 +43,9 @@
 #include "Timer.h"
 #include "Workspace.h"
 #include "dVec.h"
+#include "fold.h"
+#include "fold_apply.h"
+#include "fold_postsolve.h"
 #include "glbopts.h"
 #include "iVec.h"
 #include "pslp_thread.h"
@@ -52,6 +55,9 @@
 
 #define NNZ_REMOVED_FAST 0.95
 #define NNZ_REMOVED_CYCLE 0.95
+#define LP_FOLD_MIN_REDUCTION 0.01 /* removable nnz required, as a share of nnz */
+#define LP_FOLD_WORK_BUDGET 100.0
+#define LP_FOLD_MAX_ROUNDS 8192
 
 typedef uint8_t Complexity;
 
@@ -67,6 +73,8 @@ PresolveStats *init_stats(size_t n_rows, size_t n_cols, size_t nnz)
     stats->n_rows_original = n_rows;
     stats->n_cols_original = n_cols;
     stats->nnz_original = nnz;
+    stats->n_rows_folded = n_rows;
+    stats->n_cols_folded = n_cols;
     return stats;
 }
 
@@ -87,6 +95,7 @@ Settings *default_settings(void)
     stgs->dual_fix = true;
     stgs->finite_bound_tightening = true;
     stgs->relax_bounds = false;
+    stgs->lp_fold = false;
     stgs->max_time = 60.0;
     stgs->verbose = true;
     return stgs;
@@ -109,6 +118,7 @@ typedef struct
     Lock *locks;
     Activity *activities;
     int *row_sizes;
+    bool derived_data; /* locks, activities and row sizes; false with the fold */
 } ParallelInitData;
 
 // thread function for initializing data
@@ -135,9 +145,14 @@ static void *init_thread_func(void *arg)
         }
     }
 
-    data->locks = new_locks(data->A, data->row_tags);
-    data->activities = new_activities(data->A, data->col_tags, data->bounds);
-    count_rows(data->A, data->row_sizes);
+    /* With the fold the matrix may still change; the caller builds these
+       afterwards. */
+    if (data->derived_data)
+    {
+        data->locks = new_locks(data->A, data->row_tags);
+        data->activities = new_activities(data->A, data->col_tags, data->bounds);
+        count_rows(data->A, data->row_sizes);
+    }
 
     return NULL;
 }
@@ -152,6 +167,7 @@ void set_settings_true(Settings *stgs)
     stgs->dual_fix = true;
     stgs->finite_bound_tightening = true;
     stgs->relax_bounds = true;
+    stgs->lp_fold = false;
     stgs->verbose = true;
 }
 
@@ -165,6 +181,7 @@ void set_settings_false(Settings *stgs)
     stgs->dual_fix = false;
     stgs->finite_bound_tightening = false;
     stgs->relax_bounds = false;
+    stgs->lp_fold = false;
     stgs->verbose = false;
 }
 
@@ -206,6 +223,65 @@ void presolver_clean_up(clean_up_scope scope)
     free_presolver(scope.presolver);
 }
 
+/* The outcome of the fold, with the dimensions before and after when it was
+   applied. */
+static void print_fold_message(bool applied, FoldReason reason,
+                               const FoldStats *stats, size_t n_rows, size_t n_cols,
+                               size_t nnz, const Matrix *A)
+{
+    printf("PSLP lp_fold: %s (%d rounds, %.3f seconds)",
+           applied ? "applied" : fold_reason_string(reason), stats->rounds,
+           stats->time);
+    if (applied)
+    {
+        printf(", rows %zu -> %zu, cols %zu -> %zu, nnz %zu -> %zu", n_rows, A->m,
+               n_cols, A->n, nnz, A->nnz);
+    }
+    printf("\n");
+}
+
+/* Finds and applies the fold. Returns true when the problem was folded: *A is
+   then the folded matrix (the given one freed), the line data is compacted in
+   place and 'maps' holds the maps; the caller rebuilds AT. Otherwise nothing
+   is touched and 'maps' is empty. */
+static bool run_fold(Matrix **A, const Matrix *AT, double *lhs, double *rhs,
+                     RowTag *row_tags, Bound *bounds, ColTag *col_tags, double *c,
+                     bool verbose, FoldMaps *maps)
+{
+    FoldOptions options;
+    options.min_reduction = LP_FOLD_MIN_REDUCTION;
+    options.work_budget = LP_FOLD_WORK_BUDGET;
+    options.max_rounds = LP_FOLD_MAX_ROUNDS;
+    options.max_memory = 0.0;
+
+    size_t n_rows = (*A)->m, n_cols = (*A)->n, nnz = (*A)->nnz;
+    FoldStats stats;
+    Matrix *folded = NULL;
+    FoldReason reason =
+        fold_problem(*A, AT, lhs, rhs, bounds, c, &options, maps, &stats);
+    if (reason == FOLD_FOLDABLE)
+    {
+        reason =
+            fold_apply(*A, lhs, rhs, row_tags, bounds, col_tags, c, maps, &folded);
+    }
+    bool applied = reason == FOLD_FOLDABLE;
+    if (applied)
+    {
+        free_matrix(*A);
+        *A = folded;
+    }
+    else
+    {
+        fold_maps_free(maps);
+    }
+
+    if (verbose)
+    {
+        print_fold_message(applied, reason, &stats, n_rows, n_cols, nnz, *A);
+    }
+    return applied;
+}
+
 Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t m,
                          size_t n, size_t nnz, const double *lhs, const double *rhs,
                          const double *lbs, const double *ubs, const double *c,
@@ -233,6 +309,9 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     ColTag *col_tags = NULL;
     Bound *bounds = NULL;
     Work *work = NULL;
+    Timer fold_timer;
+    double fold_time = 0.0;
+    size_t nnz_stripped;
 
     //  ---------------------------------------------------------------------------
     //   Copy data and allocate memory. For an exact specification of the
@@ -268,13 +347,13 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     if (!A) goto cleanup;
 
     ps_thread_t thread_id;
-    ParallelInitData parallel_data = {A,    work,     n_cols,   n_rows,   lbs,
-                                      ubs,  lhs_copy, rhs_copy, bounds,   col_tags,
-                                      NULL, NULL,     NULL,     row_sizes};
+    ParallelInitData parallel_data = {
+        A,      work,     n_cols, n_rows, lbs,  ubs,       lhs_copy,      rhs_copy,
+        bounds, col_tags, NULL,   NULL,   NULL, row_sizes, !stgs->lp_fold};
 
     ps_thread_create(&thread_id, NULL, init_thread_func, &parallel_data);
 
-    // Main thread: Transpose A and count rows
+    // Main thread: Transpose A
     AT = transpose(A, work->iwork_n_cols,
                    stgs->dton_eq ? dton_extra_memory(A->nnz) : 0);
     if (!AT)
@@ -282,7 +361,6 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
         ps_thread_join(&thread_id, NULL);
         goto cleanup;
     }
-    count_rows(AT, col_sizes);
 
     // sync threads
     ps_thread_join(&thread_id, NULL);
@@ -291,12 +369,43 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     if (!row_tags) goto cleanup;
     locks = parallel_data.locks;
     activities = parallel_data.activities;
+
+    nnz_stripped = A->nnz; /* after the explicit zeros were dropped */
+    if (stgs->lp_fold)
+    {
+        clock_gettime(CLOCK_MONOTONIC, &fold_timer.start);
+        work->fold_maps = (FoldMaps *) ps_calloc(1, sizeof(FoldMaps));
+        if (!work->fold_maps) goto cleanup;
+        if (run_fold(&A, AT, lhs_copy, rhs_copy, row_tags, bounds, col_tags, c_copy,
+                     stgs->verbose, work->fold_maps))
+        {
+            free_matrix(AT);
+            AT = transpose(A, work->iwork_n_cols,
+                           stgs->dton_eq ? dton_extra_memory(A->nnz) : 0);
+            if (!AT) goto cleanup;
+            /* postsolve replays the records into the folded dimensions */
+            work->folded_sol = new_solution(A->m, A->n);
+            if (!work->folded_sol) goto cleanup;
+        }
+        else
+        {
+            PS_FREE(work->fold_maps);
+        }
+        clock_gettime(CLOCK_MONOTONIC, &fold_timer.end);
+        fold_time = GET_ELAPSED_SECONDS(fold_timer);
+
+        /* The init thread left these to us. */
+        locks = new_locks(A, row_tags);
+        activities = new_activities(A, col_tags, bounds);
+        count_rows(A, row_sizes);
+    }
     if (!locks || !activities) goto cleanup;
+    count_rows(AT, col_sizes);
 
     // ---------------------------------------------------------------------------
     //  Initialize internal data and constraints
     // ---------------------------------------------------------------------------
-    data = new_state(row_sizes, col_sizes, locks, n_rows, n_cols, activities, work,
+    data = new_state(row_sizes, col_sizes, locks, A->m, A->n, activities, work,
                      row_tags);
 
     if (!data) goto cleanup;
@@ -312,8 +421,11 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     if (!presolver || !obj) goto cleanup;
     presolver->stgs = stgs;
     presolver->prob = new_problem(constraints, obj);
-    presolver->stats = init_stats(A->m, A->n, nnz);
-    presolver->stats->nnz_removed_trivial = nnz - (size_t) A->nnz; /* explicit 0's */
+    presolver->stats = init_stats(n_rows, n_cols, nnz);
+    presolver->stats->nnz_removed_trivial = nnz - nnz_stripped; /* explicit 0's */
+    presolver->stats->nnz_removed_lp_fold = nnz_stripped - A->nnz;
+    presolver->stats->n_rows_folded = A->m;
+    presolver->stats->n_cols_folded = A->n;
     presolver->reduced_prob =
         (PresolvedProblem *) ps_calloc(1, sizeof(PresolvedProblem));
     DEBUG(run_debugger(constraints, false));
@@ -321,20 +433,12 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     // ---------------------------------------------------------------------------
     //           Allocate space for returning the solution
     // ---------------------------------------------------------------------------
-    presolver->sol = (Solution *) ps_malloc(1, sizeof(Solution));
+    presolver->sol = new_solution(n_rows, n_cols);
     if (!presolver->sol) goto cleanup;
-    presolver->sol->x = (double *) ps_malloc(n_cols, sizeof(double));
-    presolver->sol->y = (double *) ps_malloc(n_rows, sizeof(double));
-    presolver->sol->z = (double *) ps_malloc(n_cols, sizeof(double));
-    presolver->sol->dim_x = n_cols;
-    presolver->sol->dim_y = n_rows;
-    if (!presolver->sol->x || !presolver->sol->y || !presolver->sol->z)
-    {
-        goto cleanup;
-    }
 
     clock_gettime(CLOCK_MONOTONIC, &timer.end);
-    presolver->stats->time_init = GET_ELAPSED_SECONDS(timer);
+    presolver->stats->time_lp_fold = fold_time;
+    presolver->stats->time_init = GET_ELAPSED_SECONDS(timer) - fold_time;
 
     return presolver;
 
@@ -824,10 +928,19 @@ void postsolve(Presolver *presolver, const double *x, const double *y,
     PresolveStats *stats = presolver->stats;
     State *data = presolver->prob->constraints->state;
     PostsolveInfo *postsolve_info = data->postsolve_info;
+    const FoldMaps *fold_maps = data->work->fold_maps;
+    /* With a fold the records live in the folded problem: replay them there,
+       then lift to the original. */
+    Solution *target = fold_maps ? data->work->folded_sol : sol;
     clock_gettime(CLOCK_MONOTONIC, &timer.start);
     postsolver_update(postsolve_info, stats->n_cols_reduced, stats->n_rows_reduced,
                       data->work->mappings->cols, data->work->mappings->rows);
-    postsolver_run(postsolve_info, sol, x, y, z);
+    postsolver_run(postsolve_info, target, x, y, z);
+    if (fold_maps)
+    {
+        fold_postsolve(fold_maps, (int) sol->dim_y, (int) sol->dim_x, target->x,
+                       target->y, target->z, sol->x, sol->y, sol->z);
+    }
     clock_gettime(CLOCK_MONOTONIC, &timer.end);
     stats->time_postsolve = GET_ELAPSED_SECONDS(timer);
 
@@ -867,6 +980,12 @@ void postsolve_primal_infeas_ray(Presolver *presolver, const double *y,
     size_t len_z = MAX((size_t) 1, stats->n_cols_reduced);
     double *z;
     assert(reduced_prob != NULL);
+    if (data->work->fold_maps)
+    {
+        fprintf(stderr, "PSLP error: postsolve_primal_infeas_ray is not supported "
+                        "with lp_fold yet! y_orig is left untouched. \n");
+        return;
+    }
     if (!reduced_prob || !reduced_prob->Ax)
     {
         // The reduced constraint matrix was released by
@@ -907,6 +1026,12 @@ void postsolve_dual_infeas_ray(Presolver *presolver, const double *x, double *x_
     State *data = presolver->prob->constraints->state;
     PostsolveInfo *postsolve_info = data->postsolve_info;
     assert(presolver->reduced_prob != NULL);
+    if (data->work->fold_maps)
+    {
+        fprintf(stderr, "PSLP error: postsolve_dual_infeas_ray is not supported "
+                        "with lp_fold yet! x_orig is left untouched. \n");
+        return;
+    }
 
     clock_gettime(CLOCK_MONOTONIC, &timer.start);
     postsolver_update(postsolve_info, stats->n_cols_reduced, stats->n_rows_reduced,
@@ -943,13 +1068,7 @@ void free_presolver(Presolver *presolver)
         PS_FREE(presolver->reduced_prob);
     }
 
-    if (presolver->sol)
-    {
-        PS_FREE(presolver->sol->x);
-        PS_FREE(presolver->sol->y);
-        PS_FREE(presolver->sol->z);
-        PS_FREE(presolver->sol);
-    }
+    free_solution(presolver->sol);
 
     PS_FREE(presolver);
 }

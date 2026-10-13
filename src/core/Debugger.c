@@ -806,10 +806,10 @@ void verify_row_states(const Activity *acts, const iVec *updated_activities)
 
 void run_debugger_stats_consistency_check(const PresolveStats *stats)
 {
-    size_t total_removed = stats->nnz_removed_trivial + stats->nnz_removed_fast +
-                           stats->nnz_removed_primal_propagation +
-                           stats->nnz_removed_parallel_rows +
-                           stats->nnz_removed_parallel_cols;
+    size_t total_removed =
+        stats->nnz_removed_trivial + stats->nnz_removed_fast +
+        stats->nnz_removed_primal_propagation + stats->nnz_removed_parallel_rows +
+        stats->nnz_removed_parallel_cols + stats->nnz_removed_lp_fold;
 
     PSLP_ASSERT(stats->nnz_original - stats->nnz_reduced == total_removed);
 

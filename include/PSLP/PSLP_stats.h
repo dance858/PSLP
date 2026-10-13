@@ -36,15 +36,21 @@ extern "C"
         size_t n_cols_reduced;
         size_t nnz_reduced;
 
+        /* dimensions after the fold (the original ones when nothing folded) */
+        size_t n_rows_folded;
+        size_t n_cols_folded;
+
         /* reduction stats */
         size_t nnz_removed_trivial;
         size_t nnz_removed_fast;
         size_t nnz_removed_primal_propagation;
         size_t nnz_removed_parallel_rows;
         size_t nnz_removed_parallel_cols;
+        size_t nnz_removed_lp_fold;
 
         /* time stats */
         double time_init;
+        double time_lp_fold;
         double time_fast_reductions;
         double time_medium_reductions;
         double time_ston_cols;

@@ -30,6 +30,8 @@ typedef struct Mapping
 } Mapping;
 
 struct DtonWorkspace;
+struct FoldMaps;
+struct Solution;
 
 /* The int_vec in the following struct is used within
     1. parallel_rows to store bin_starts
@@ -55,6 +57,10 @@ typedef struct Work
 
     Mapping *mappings;
 
+    // the fold, kept for postsolve; NULL when the problem was not folded
+    struct FoldMaps *fold_maps;
+    struct Solution *folded_sol; // scratch of the folded dimensions
+
     // allocated when the doubleton explorer is on
     struct DtonWorkspace *dton;
 } Work;
@@ -64,5 +70,10 @@ void free_work(Work *work);
 
 /* Frees the arrays that only presolve uses. The mappings stay. */
 void free_work_scratch(Work *work);
+
+/* A solution of the given dimensions (one spare entry so an empty problem
+   still gets an allocation), or NULL when an allocation fails. */
+struct Solution *new_solution(size_t n_rows, size_t n_cols);
+void free_solution(struct Solution *sol);
 
 #endif // CORE_WORKSPACE_H

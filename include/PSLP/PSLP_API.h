@@ -50,6 +50,7 @@ extern "C"
         bool finite_bound_tightening;
         bool dual_fix;
         bool relax_bounds;
+        bool lp_fold;
         double max_time;
         bool verbose;
     } Settings;

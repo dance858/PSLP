@@ -2,8 +2,17 @@
 #define TEST_FOLD_H
 
 #include "Bounds.h"
+#include "Constraints.h"
 #include "Matrix.h"
+#include "PSLP_API.h"
+#include "PSLP_sol.h"
+#include "PSLP_stats.h"
+#include "PSLP_status.h"
+#include "Postsolver.h"
+#include "Problem.h"
+#include "State.h"
 #include "Tags.h"
+#include "Workspace.h"
 #include "fold.h"
 #include "fold_apply.h"
 #include "fold_internal.h"
@@ -1135,6 +1144,192 @@ static const char *test_fold_postsolve_class_sizes(void)
     return 0;
 }
 
+/* ---- through the presolver ----------------------------------------------- */
+
+static Presolver *fold_presolver(const FoldTestLP *p, const Settings *stgs)
+{
+    return new_presolver(p->Ax, p->Ai, p->Ap, (size_t) p->m, (size_t) p->n,
+                         (size_t) p->nnz, p->lhs, p->rhs, p->lb, p->ub, p->c, stgs);
+}
+
+/* Everything off but the fold. */
+static Settings *fold_only_settings(void)
+{
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->lp_fold = true;
+    return stgs;
+}
+
+/* The LP of test_fold_postsolve_lift: three copies of
+   min -x0 - 2 x1  s.t.  x0 + x1 <= 1,  0 <= x <= 1. */
+static FoldTestLP simplex_copies(void)
+{
+    static const int Ap[2] = {0, 2}, Ai[2] = {0, 1};
+    static const double Ax[2] = {1, 1};
+    FoldTestLP b = flp_new(1, 2, 2, Ap, Ai, Ax);
+    flp_fill_rows(&b, -INF, 1);
+    flp_fill_cols(&b, 0, 1, -1);
+    b.c[1] = -2;
+    FoldTestLP p = flp_replicate(&b, 3);
+    flp_free(&b);
+    return p;
+}
+
+static bool all_equal(const double *values, int len, double value)
+{
+    for (int idx = 0; idx < len; idx++)
+    {
+        if (values[idx] != value) return false;
+    }
+    return true;
+}
+
+/* The fold happens in new_presolver, which rebuilds the transpose, and
+   postsolve lifts the point of the folded problem to the original. */
+static const char *test_fold_presolver_lift(void)
+{
+    FoldTestLP p = simplex_copies();
+    Settings *stgs = fold_only_settings();
+    Presolver *presolver = fold_presolver(&p, stgs);
+    mu_assert("presolver", presolver != NULL);
+    const Constraints *constraints = presolver->prob->constraints;
+    mu_assert("folded 1 x 2", constraints->A->m == 1 && constraints->A->n == 2 &&
+                                  constraints->A->nnz == 2);
+    mu_assert("transpose rebuilt", constraints->AT->m == 2 &&
+                                       constraints->AT->n == 1 &&
+                                       constraints->AT->nnz == 2);
+    mu_assert("maps kept", constraints->state->work->fold_maps != NULL);
+    mu_assert("presolve", run_presolver(presolver) != INFEASIBLE);
+    const PresolvedProblem *reduced = presolver->reduced_prob;
+    mu_assert("reduced 1 x 2",
+              reduced->m == 1 && reduced->n == 2 && reduced->nnz == 2);
+    mu_assert("folded data", reduced->c[0] == -3.0 && reduced->c[1] == -6.0 &&
+                                 reduced->rhs[0] == 1.0);
+    const PresolveStats *stats = presolver->stats;
+    mu_assert("original dimensions", stats->n_rows_original == 3 &&
+                                         stats->n_cols_original == 6 &&
+                                         stats->nnz_original == 6);
+    mu_assert("folded dimensions", stats->n_rows_folded == 1 &&
+                                       stats->n_cols_folded == 2 &&
+                                       stats->nnz_removed_lp_fold == 4);
+
+    double x_f[2] = {0, 1}, y_f[1] = {-3}, z_f[2] = {0, -3};
+    mu_assert("folded point is KKT", is_kkt_point(reduced, x_f, y_f, z_f, 1e-9));
+    postsolve(presolver, x_f, y_f, z_f);
+    const Solution *sol = presolver->sol;
+    for (int j = 0; j < 6; j++)
+    {
+        mu_assert("x copied", sol->x[j] == (double) (j % 2));
+        mu_assert("z divided by the column class size",
+                  sol->z[j] == (j % 2 ? -1.0 : 0.0));
+    }
+    for (int i = 0; i < 3; i++)
+    {
+        mu_assert("y divided by the row class size", sol->y[i] == -1.0);
+    }
+    PresolvedProblem original = lp_problem(&p);
+    mu_assert("lifted point is KKT",
+              is_kkt_point(&original, sol->x, sol->y, sol->z, 1e-9));
+    free_presolver(presolver);
+    free_settings(stgs);
+    flp_free(&p);
+    return 0;
+}
+
+/* The forward map and the ray postsolves are not supported with a fold: they
+   print an error and leave their outputs untouched. */
+static const char *test_fold_refuses_map_to_reduced(void)
+{
+    FoldTestLP p = simplex_copies();
+    Settings *stgs = fold_only_settings();
+    Presolver *presolver = fold_presolver(&p, stgs);
+    mu_assert("presolver", presolver && run_presolver(presolver) != INFEASIBLE);
+    double x[6] = {0, 1, 0, 1, 0, 1}, y[3] = {-1, -1, -1};
+    double x_red[2] = {DUMMY_VALUE, DUMMY_VALUE}, y_red[1] = {DUMMY_VALUE};
+    double z_red[2] = {DUMMY_VALUE, DUMMY_VALUE};
+    map_original_sol_to_reduced(presolver, x, y, x_red, y_red, z_red);
+    mu_assert("x_red untouched", all_equal(x_red, 2, DUMMY_VALUE));
+    mu_assert("y_red untouched", all_equal(y_red, 1, DUMMY_VALUE));
+    mu_assert("z_red untouched", all_equal(z_red, 2, DUMMY_VALUE));
+    free_presolver(presolver);
+    free_settings(stgs);
+    flp_free(&p);
+    return 0;
+}
+
+static const char *test_fold_refuses_primal_ray(void)
+{
+    FoldTestLP p = simplex_copies();
+    Settings *stgs = fold_only_settings();
+    Presolver *presolver = fold_presolver(&p, stgs);
+    mu_assert("presolver", presolver && run_presolver(presolver) != INFEASIBLE);
+    double y_f[1] = {1};
+    double y_orig[3] = {DUMMY_VALUE, DUMMY_VALUE, DUMMY_VALUE};
+    postsolve_primal_infeas_ray(presolver, y_f, y_orig);
+    mu_assert("y_orig untouched", all_equal(y_orig, 3, DUMMY_VALUE));
+    free_presolver(presolver);
+    free_settings(stgs);
+    flp_free(&p);
+    return 0;
+}
+
+static const char *test_fold_refuses_dual_ray(void)
+{
+    FoldTestLP p = simplex_copies();
+    Settings *stgs = fold_only_settings();
+    Presolver *presolver = fold_presolver(&p, stgs);
+    mu_assert("presolver", presolver && run_presolver(presolver) != INFEASIBLE);
+    double x_f[2] = {1, 1};
+    double x_orig[6] = {DUMMY_VALUE, DUMMY_VALUE, DUMMY_VALUE,
+                        DUMMY_VALUE, DUMMY_VALUE, DUMMY_VALUE};
+    postsolve_dual_infeas_ray(presolver, x_f, x_orig);
+    mu_assert("x_orig untouched", all_equal(x_orig, 6, DUMMY_VALUE));
+    free_presolver(presolver);
+    free_settings(stgs);
+    flp_free(&p);
+    return 0;
+}
+
+/* Three copies of  min -x0 - x1  s.t.  x0 + x1 >= 1,  0 <= x <= 1  with every
+   reduction on: rows and columns fold to  2 x_f >= 1  with cost -6, the dual
+   fix solves that, and the lift gives x = 1, y = 0, z = -1. */
+static const char *test_fold_presolver_full_settings(void)
+{
+    static const int Ap[2] = {0, 2}, Ai[2] = {0, 1};
+    static const double Ax[2] = {1, 1};
+    FoldTestLP b = flp_new(1, 2, 2, Ap, Ai, Ax);
+    flp_fill_rows(&b, 1, INF);
+    flp_fill_cols(&b, 0, 1, -1);
+    FoldTestLP p = flp_replicate(&b, 3);
+    Settings *stgs = default_settings();
+    set_settings_true(stgs);
+    stgs->verbose = false;
+    stgs->lp_fold = true;
+    Presolver *presolver = fold_presolver(&p, stgs);
+    mu_assert("presolver", presolver && run_presolver(presolver) != INFEASIBLE);
+    const PresolveStats *stats = presolver->stats;
+    mu_assert("folded 1 x 1",
+              stats->n_rows_folded == 1 && stats->n_cols_folded == 1);
+    mu_assert("solved by presolve",
+              presolver->reduced_prob->m == 0 && presolver->reduced_prob->n == 0);
+
+    double x_f[1], y_f[1], z_f[1]; /* the reduced problem is empty */
+    postsolve(presolver, x_f, y_f, z_f);
+    const Solution *sol = presolver->sol;
+    mu_assert("x lifted", all_equal(sol->x, 6, 1.0));
+    mu_assert("y lifted", all_equal(sol->y, 3, 0.0));
+    mu_assert("z lifted", all_equal(sol->z, 6, -1.0));
+    PresolvedProblem original = lp_problem(&p);
+    mu_assert("lifted point is KKT",
+              is_kkt_point(&original, sol->x, sol->y, sol->z, 1e-9));
+    free_presolver(presolver);
+    free_settings(stgs);
+    flp_free(&p);
+    flp_free(&b);
+    return 0;
+}
+
 static const char *all_tests_fold(void)
 {
     mu_run_test(test_fold_sides, counter_fold);
@@ -1155,6 +1350,11 @@ static const char *all_tests_fold(void)
     mu_run_test(test_fold_apply_random, counter_fold);
     mu_run_test(test_fold_postsolve_lift, counter_fold);
     mu_run_test(test_fold_postsolve_class_sizes, counter_fold);
+    mu_run_test(test_fold_presolver_lift, counter_fold);
+    mu_run_test(test_fold_refuses_map_to_reduced, counter_fold);
+    mu_run_test(test_fold_refuses_primal_ray, counter_fold);
+    mu_run_test(test_fold_refuses_dual_ray, counter_fold);
+    mu_run_test(test_fold_presolver_full_settings, counter_fold);
     return 0;
 }
 

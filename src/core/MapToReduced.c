@@ -223,6 +223,13 @@ void map_original_sol_to_reduced(Presolver *presolver, const double *x,
     size_t n_rows_orig = sol->dim_y;
     double *work;
 
+    if (data->work->fold_maps)
+    {
+        fprintf(stderr, "PSLP error: map_original_sol_to_reduced is not supported "
+                        "with lp_fold yet! Outputs are left untouched. \n");
+        return;
+    }
+
     if (x_red && !x)
     {
         fprintf(stderr,
