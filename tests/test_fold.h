@@ -7,8 +7,10 @@
 #include "fold.h"
 #include "fold_apply.h"
 #include "fold_internal.h"
+#include "fold_postsolve.h"
 #include "fold_ref.h"
 #include "glbopts.h"
+#include "kkt.h"
 #include "minunit.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -1019,6 +1021,120 @@ static const char *test_fold_apply_random(void)
     return 0;
 }
 
+/* The folded problem of r as an LP, for the KKT checks. */
+static FoldTestLP folded_lp(const FoldApplyResult *r)
+{
+    const Matrix *B = r->folded;
+    FoldTestLP p = flp_alloc((int) B->m, (int) B->n, (int) B->nnz);
+    int pos = 0;
+    for (int i = 0; i < p.m; i++)
+    {
+        p.Ap[i] = pos;
+        for (int k = B->p[i].start; k < B->p[i].end; k++)
+        {
+            p.Ai[pos] = B->i[k];
+            p.Ax[pos] = B->x[k];
+            pos++;
+        }
+        p.lhs[i] = r->lhs[i];
+        p.rhs[i] = r->rhs[i];
+    }
+    p.Ap[p.m] = pos;
+    for (int j = 0; j < p.n; j++)
+    {
+        p.lb[j] = r->bounds[j].lb;
+        p.ub[j] = r->bounds[j].ub;
+        p.c[j] = r->c[j];
+    }
+    return p;
+}
+
+static PresolvedProblem lp_problem(FoldTestLP *p)
+{
+    return problem_from_csr(p->Ax, p->Ai, p->Ap, p->m, p->n, p->nnz, p->lhs, p->rhs,
+                            p->lb, p->ub, p->c);
+}
+
+/* Three copies of  min -x0 - 2 x1  s.t.  x0 + x1 <= 1,  0 <= x <= 1  fold to
+   x_f0 + x_f1 <= 1 with costs (-3, -6), whose KKT point x_f = (0, 1),
+   y_f = -3, z_f = (0, -3) lifts to x = (0, 1), y = -1, z = (0, -1) per copy. */
+static const char *test_fold_postsolve_lift(void)
+{
+    static const int Ap[2] = {0, 2}, Ai[2] = {0, 1};
+    static const double Ax[2] = {1, 1};
+    FoldTestLP b = flp_new(1, 2, 2, Ap, Ai, Ax);
+    flp_fill_rows(&b, -INF, 1);
+    flp_fill_cols(&b, 0, 1, -1);
+    b.c[1] = -2;
+    FoldTestLP p = flp_replicate(&b, 3);
+    FoldApplyResult r = run_apply(&p);
+    mu_assert("expected foldable", r.reason == FOLD_FOLDABLE);
+    FoldTestLP f = folded_lp(&r);
+    mu_assert("folded 1 x 2", f.m == 1 && f.n == 2 && f.nnz == 2);
+    mu_assert("folded costs", f.c[0] == -3.0 && f.c[1] == -6.0);
+
+    double x_f[2] = {0, 1}, y_f[1] = {-3}, z_f[2] = {0, -3};
+    PresolvedProblem folded = lp_problem(&f);
+    mu_assert("folded point is KKT", is_kkt_point(&folded, x_f, y_f, z_f, 1e-9));
+    double x[6], y[3], z[6];
+    fold_postsolve(&r.maps, p.m, p.n, x_f, y_f, z_f, x, y, z);
+    for (int j = 0; j < 6; j++)
+    {
+        mu_assert("x copied", x[j] == (double) (j % 2));
+        mu_assert("z divided by the column class size",
+                  z[j] == (j % 2 ? -1.0 : 0.0));
+    }
+    for (int i = 0; i < 3; i++)
+    {
+        mu_assert("y divided by the row class size", y[i] == -1.0);
+    }
+    PresolvedProblem original = lp_problem(&p);
+    mu_assert("lifted point is KKT", is_kkt_point(&original, x, y, z, 1e-9));
+    flp_free(&f);
+    apply_result_free(&r);
+    flp_free(&p);
+    flp_free(&b);
+    return 0;
+}
+
+/* Two equal rows x0 + x1 + x2 = 1.5 with 0 <= x <= 0.5 and costs -1 fold to
+   3 x_f = 1.5 with cost -3. The KKT point x_f = 0.5, y_f = -0.5, z_f = -1.5
+   lifts with y divided by 2 and z by 3. */
+static const char *test_fold_postsolve_class_sizes(void)
+{
+    static const int Ap[3] = {0, 3, 6}, Ai[6] = {0, 1, 2, 0, 1, 2};
+    static const double Ax[6] = {1, 1, 1, 1, 1, 1};
+    FoldTestLP p = flp_new(2, 3, 6, Ap, Ai, Ax);
+    flp_fill_rows(&p, 1.5, 1.5);
+    flp_fill_cols(&p, 0, 0.5, -1);
+    FoldApplyResult r = run_apply(&p);
+    mu_assert("expected foldable", r.reason == FOLD_FOLDABLE);
+    FoldTestLP f = folded_lp(&r);
+    mu_assert("folded 1 x 1", f.m == 1 && f.n == 1 && f.nnz == 1);
+    mu_assert("folded data", f.Ax[0] == 3.0 && f.c[0] == -3.0);
+
+    double x_f[1] = {0.5}, y_f[1] = {-0.5}, z_f[1] = {-1.5};
+    PresolvedProblem folded = lp_problem(&f);
+    mu_assert("folded point is KKT", is_kkt_point(&folded, x_f, y_f, z_f, 1e-9));
+    double x[3], y[2], z[3];
+    fold_postsolve(&r.maps, p.m, p.n, x_f, y_f, z_f, x, y, z);
+    for (int j = 0; j < 3; j++)
+    {
+        mu_assert("x copied", x[j] == 0.5);
+        mu_assert("z divided by the column class size", z[j] == -0.5);
+    }
+    for (int i = 0; i < 2; i++)
+    {
+        mu_assert("y divided by the row class size", y[i] == -0.25);
+    }
+    PresolvedProblem original = lp_problem(&p);
+    mu_assert("lifted point is KKT", is_kkt_point(&original, x, y, z, 1e-9));
+    flp_free(&f);
+    apply_result_free(&r);
+    flp_free(&p);
+    return 0;
+}
+
 static const char *all_tests_fold(void)
 {
     mu_run_test(test_fold_sides, counter_fold);
@@ -1037,6 +1153,8 @@ static const char *all_tests_fold(void)
     mu_run_test(test_fold_apply_column_sum, counter_fold);
     mu_run_test(test_fold_apply_exact_zero, counter_fold);
     mu_run_test(test_fold_apply_random, counter_fold);
+    mu_run_test(test_fold_postsolve_lift, counter_fold);
+    mu_run_test(test_fold_postsolve_class_sizes, counter_fold);
     return 0;
 }
 
