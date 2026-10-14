@@ -30,4 +30,15 @@ static inline uint64_t value_bits(double value)
     return bits == 0x8000000000000000ULL ? 0 : bits;
 }
 
+/* The splitmix64 finaliser. */
+static inline uint64_t mix(uint64_t x)
+{
+    x ^= x >> 30;
+    x *= 0xbf58476d1ce4e5b9ULL;
+    x ^= x >> 27;
+    x *= 0x94d049bb133111ebULL;
+    x ^= x >> 31;
+    return x;
+}
+
 #endif // HASH_H

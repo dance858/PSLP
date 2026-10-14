@@ -25,7 +25,7 @@
 #include "Memory_wrapper.h"
 #include "Timer.h"
 #include "fold_internal.h"
-#include <stdlib.h>
+#include "hash.h"
 #include <string.h>
 
 const char *fold_reason_string(FoldReason reason)
@@ -40,6 +40,8 @@ const char *fold_reason_string(FoldReason reason)
             return "limit reached";
         case FOLD_FAILED:
             return "failed";
+        case FOLD_COLLISION:
+            return "hash collision";
     }
     return "unknown";
 }
@@ -53,16 +55,13 @@ FoldWorkspace *fold_workspace_new(const Matrix *A, const Matrix *AT)
     }
     size_t n_lines = A->m > A->n ? A->m : A->n;
     work->refine = colour_refinement_new(A, AT);
-    work->rows = (RowData *) ps_malloc(A->m + 1, sizeof(RowData));
-    work->cols = (ColData *) ps_malloc(A->n + 1, sizeof(ColData));
     work->row_colours = (uint64_t *) ps_malloc(A->m + 1, sizeof(uint64_t));
     work->col_colours = (uint64_t *) ps_malloc(A->n + 1, sizeof(uint64_t));
     work->row_classes = (int *) ps_malloc(A->m + 1, sizeof(int));
     work->col_classes = (int *) ps_malloc(A->n + 1, sizeof(int));
     work->scratch = (int *) ps_malloc(n_lines + 1, sizeof(int));
-    if (!work->refine || !work->rows || !work->cols || !work->row_colours ||
-        !work->col_colours || !work->row_classes || !work->col_classes ||
-        !work->scratch)
+    if (!work->refine || !work->row_colours || !work->col_colours ||
+        !work->row_classes || !work->col_classes || !work->scratch)
     {
         fold_workspace_free(work);
         return NULL;
@@ -77,8 +76,6 @@ void fold_workspace_free(FoldWorkspace *work)
         return;
     }
     colour_refinement_free(work->refine);
-    PS_FREE(work->rows);
-    PS_FREE(work->cols);
     PS_FREE(work->row_colours);
     PS_FREE(work->col_colours);
     PS_FREE(work->row_classes);
@@ -124,99 +121,23 @@ void fold_maps_free(FoldMaps *maps)
     PS_FREE(maps);
 }
 
-/* -1, 0 or 1 as a is below, equal to or above b; -0.0 equals 0.0. */
-static int compare_doubles(double a, double b)
-{
-    return (a > b) - (a < b);
-}
-
-/* Orders rows by lhs, then by rhs. Returns 0 only when both are equal. */
-static int compare_row_data(const void *a, const void *b)
-{
-    const RowData *row_a = (const RowData *) a;
-    const RowData *row_b = (const RowData *) b;
-
-    int cmp_lhs = compare_doubles(row_a->lhs, row_b->lhs);
-    if (cmp_lhs != 0)
-    {
-        return cmp_lhs;
-    }
-
-    return compare_doubles(row_a->rhs, row_b->rhs);
-}
-
-/* Orders columns by lb, then ub, then c. Returns 0 only when all are equal. */
-static int compare_col_data(const void *a, const void *b)
-{
-    const ColData *col_a = (const ColData *) a;
-    const ColData *col_b = (const ColData *) b;
-
-    int cmp_lb = compare_doubles(col_a->lb, col_b->lb);
-    if (cmp_lb != 0)
-    {
-        return cmp_lb;
-    }
-
-    int cmp_ub = compare_doubles(col_a->ub, col_b->ub);
-    if (cmp_ub != 0)
-    {
-        return cmp_ub;
-    }
-
-    return compare_doubles(col_a->c, col_b->c);
-}
-
-/* Sort rows so that rows with equal (lhs, rhs) get the same colour. */
-static void colour_rows(RowData *rows, int n_rows, uint64_t *colours)
-{
-    qsort(rows, (size_t) n_rows, sizeof(RowData), compare_row_data);
-    uint64_t colour = 0;
-    for (int ii = 0; ii < n_rows; ii++)
-    {
-        if (ii > 0 && compare_row_data(&rows[ii - 1], &rows[ii]) != 0)
-        {
-            colour++;
-        }
-        colours[rows[ii].row] = colour;
-    }
-}
-
-/* Sort columns so that columns with equal (lb, ub, c) get the same colour. */
-static void colour_cols(ColData *cols, int n_cols, uint64_t *colours)
-{
-    qsort(cols, (size_t) n_cols, sizeof(ColData), compare_col_data);
-    uint64_t colour = 0;
-    for (int ii = 0; ii < n_cols; ii++)
-    {
-        if (ii > 0 && compare_col_data(&cols[ii - 1], &cols[ii]) != 0)
-        {
-            colour++;
-        }
-        colours[cols[ii].col] = colour;
-    }
-}
-
 /* Initialise the start colours for the fold. */
 void fold_start_colours(FoldWorkspace *work, int n_rows, int n_cols,
                         const double *lhs, const double *rhs, const Bound *bounds,
                         const double *c)
 {
-
-    /* assign initial row colours */
     for (int row = 0; row < n_rows; row++)
     {
-        RowData data = {lhs[row], rhs[row], row};
-        work->rows[row] = data;
+        work->row_colours[row] =
+            mix(value_bits(lhs[row]) ^ mix(value_bits(rhs[row])));
     }
-    colour_rows(work->rows, n_rows, work->row_colours);
 
-    /* assign initial column colours */
     for (int col = 0; col < n_cols; col++)
     {
-        ColData data = {bounds[col].lb, bounds[col].ub, c[col], col};
-        work->cols[col] = data;
+        work->col_colours[col] =
+            mix(value_bits(bounds[col].lb) ^
+                mix(value_bits(bounds[col].ub) ^ mix(value_bits(c[col]))));
     }
-    colour_cols(work->cols, n_cols, work->col_colours);
 }
 
 /* Numbers the classes 0, 1, 2, ... in the order of their representatives,
@@ -269,7 +190,31 @@ static void extract_maps(const FoldWorkspace *work, int n_rows, int n_cols,
                        maps->folded_col, maps->col_class_size);
 }
 
-/* Colours, refines, gates and extracts the maps. */
+bool fold_check(const FoldMaps *maps, int n_rows, int n_cols, const double *lhs,
+                const double *rhs, const Bound *bounds, const double *c)
+{
+    for (int row = 0; row < n_rows; row++)
+    {
+        int rep = maps->row_rep[row];
+        if (lhs[row] != lhs[rep] || rhs[row] != rhs[rep])
+        {
+            return false;
+        }
+    }
+
+    for (int col = 0; col < n_cols; col++)
+    {
+        int rep = maps->col_rep[col];
+        if (bounds[col].lb != bounds[rep].lb || bounds[col].ub != bounds[rep].ub ||
+            c[col] != c[rep])
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* Colours, refines, gates, extracts the maps and checks them. */
 static FoldReason find_fold(FoldWorkspace *work, const Matrix *A, const double *lhs,
                             const double *rhs, const Bound *bounds, const double *c,
                             const FoldOptions *options, FoldMaps *maps,
@@ -311,6 +256,10 @@ static FoldReason find_fold(FoldWorkspace *work, const Matrix *A, const double *
     //         extract the maps of the refined partition
     // --------------------------------------------------------------------
     extract_maps(work, n_rows, n_cols, maps);
+    if (!fold_check(maps, n_rows, n_cols, lhs, rhs, bounds, c))
+    {
+        return FOLD_COLLISION;
+    }
     return FOLD_FOLDABLE;
 }
 

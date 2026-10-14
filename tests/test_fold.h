@@ -792,6 +792,46 @@ static const char *test_fold_verify_other_end(void)
     return 0;
 }
 
+/* Two identical blocks, the second with -0.0 for the lower bound 0.0 of its
+   columns: the fold passes the check. Changing the line data of a line that is
+   not a representative makes the check fail. */
+static const char *test_fold_check(void)
+{
+    FoldTestLP b = base_block();
+    FoldTestLP p = flp_replicate(&b, 2);
+    p.lb[2] = -0.0;
+    p.lb[3] = -0.0;
+    FoldOptions options = fold_test_options(0.0);
+    FoldMaps *maps = NULL;
+    FoldStats stats;
+    mu_assert("expected foldable",
+              run_fold(&p, &options, &maps, &stats) == FOLD_FOLDABLE);
+    mu_assert("row 2 should be represented by row 0", maps->row_rep[2] == 0);
+    mu_assert("column 3 should be represented by column 1", maps->col_rep[3] == 1);
+
+    Bound bounds[4];
+    for (int j = 0; j < 4; j++)
+    {
+        bounds[j].lb = p.lb[j];
+        bounds[j].ub = p.ub[j];
+    }
+    mu_assert("the fold should pass the check",
+              fold_check(maps, 4, 4, p.lhs, p.rhs, bounds, p.c));
+
+    p.rhs[2] += 1.0;
+    mu_assert("a row with a different rhs must fail the check",
+              !fold_check(maps, 4, 4, p.lhs, p.rhs, bounds, p.c));
+    p.rhs[2] -= 1.0;
+
+    bounds[3].ub += 1.0;
+    mu_assert("a column with a different ub must fail the check",
+              !fold_check(maps, 4, 4, p.lhs, p.rhs, bounds, p.c));
+    fold_maps_free(maps);
+    flp_free(&p);
+    flp_free(&b);
+    return 0;
+}
+
 /* ---- apply ----------------------------------------------------------------- */
 
 /* The folded problem of P, with the line data folded on copies of P's. */
@@ -1378,6 +1418,7 @@ static const char *all_tests_fold(void)
     mu_run_test(test_fold_large, counter_fold);
     mu_run_test(test_fold_verify_entries, counter_fold);
     mu_run_test(test_fold_verify_other_end, counter_fold);
+    mu_run_test(test_fold_check, counter_fold);
     mu_run_test(test_fold_apply_blocks, counter_fold);
     mu_run_test(test_fold_apply_column_sum, counter_fold);
     mu_run_test(test_fold_apply_exact_zero, counter_fold);

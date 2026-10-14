@@ -19,39 +19,21 @@
 #ifndef FOLD_INTERNAL_H
 #define FOLD_INTERNAL_H
 
-/* The workspace and the first step of fold_detect, exposed for the unit
-   tests. */
+/* The workspace, the first step and the check of fold_detect, exposed for
+   the unit tests. */
 
 #include "Bounds.h"
 #include "colour_refinement.h"
+#include "fold.h"
 #include <stdbool.h>
 #include <stdint.h>
 
 struct Matrix;
 
-/* The line data of a row, with the row for the sort. */
-typedef struct RowData
-{
-    double lhs;
-    double rhs;
-    int row;
-} RowData;
-
-/* The line data of a column, with the column for the sort. */
-typedef struct ColData
-{
-    double lb;
-    double ub;
-    double c;
-    int col;
-} ColData;
-
 /* Everything the fold allocates, apart from the maps. */
 typedef struct FoldWorkspace
 {
     ColourRefinement *refine;
-    RowData *rows;         /* size: n_rows, for the start colours. */
-    ColData *cols;         /* size: n_cols, for the start colours. */
     uint64_t *row_colours; /* size: n_rows, the start colours of the rows. */
     uint64_t *col_colours; /* size: n_cols, the start colours of the columns. */
     int *row_classes;      /* size: n_rows, the refined classes of the rows. */
@@ -63,10 +45,15 @@ typedef struct FoldWorkspace
 FoldWorkspace *fold_workspace_new(const struct Matrix *A, const struct Matrix *AT);
 void fold_workspace_free(FoldWorkspace *work);
 
-/* Start colours from the line data: rows with equal (lhs, rhs) get one colour,
-   columns with equal (lb, ub, c) likewise. */
+/* Start colours from the line data: a hash of (lhs, rhs) for a row and of
+   (lb, ub, c) for a column. Lines with equal data get one colour. Lines with
+   different data may share one. */
 void fold_start_colours(FoldWorkspace *work, int n_rows, int n_cols,
                         const double *lhs, const double *rhs, const Bound *bounds,
                         const double *c);
+
+/* True when every line has the line data of its representative. */
+bool fold_check(const FoldMaps *maps, int n_rows, int n_cols, const double *lhs,
+                const double *rhs, const Bound *bounds, const double *c);
 
 #endif // FOLD_INTERNAL_H
