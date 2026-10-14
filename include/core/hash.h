@@ -41,4 +41,16 @@ static inline uint64_t mix(uint64_t x)
     return x;
 }
 
+/* Hash of two values. */
+static inline uint64_t hash_two_values(double a, double b)
+{
+    return mix(value_bits(a) ^ mix(value_bits(b)));
+}
+
+/* Hash of three values. */
+static inline uint64_t hash_three_values(double a, double b, double c)
+{
+    return mix(value_bits(a) ^ hash_two_values(b, c));
+}
+
 #endif // HASH_H

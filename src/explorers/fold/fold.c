@@ -128,15 +128,13 @@ void fold_start_colours(FoldWorkspace *work, int n_rows, int n_cols,
 {
     for (int row = 0; row < n_rows; row++)
     {
-        work->row_colours[row] =
-            mix(value_bits(lhs[row]) ^ mix(value_bits(rhs[row])));
+        work->row_colours[row] = hash_two_values(lhs[row], rhs[row]);
     }
 
     for (int col = 0; col < n_cols; col++)
     {
         work->col_colours[col] =
-            mix(value_bits(bounds[col].lb) ^
-                mix(value_bits(bounds[col].ub) ^ mix(value_bits(c[col]))));
+            hash_three_values(bounds[col].lb, bounds[col].ub, c[col]);
     }
 }
 
