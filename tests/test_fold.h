@@ -988,6 +988,30 @@ static const char *test_fold_apply_exact_zero(void)
     return 0;
 }
 
+/* Rows x1 + x2 and x0 + x1 fold to one row; columns 0 and 2 form folded
+   column 0 and column 1 is folded column 1. The representative row touches
+   folded column 1 before folded column 0, so its entries need sorting. */
+static const char *test_fold_apply_unsorted_row(void)
+{
+    static const int Ap[3] = {0, 2, 4}, Ai[4] = {1, 2, 0, 1};
+    static const double Ax[4] = {1, 1, 1, 1};
+    FoldTestLP p = flp_new(2, 3, 4, Ap, Ai, Ax);
+    flp_fill_rows(&p, -INF, 1);
+    flp_fill_cols(&p, 0, 1, 1);
+    p.c[1] = 2;
+    FoldApplyResult r = run_apply(&p);
+    mu_assert("expected foldable", r.reason == FOLD_FOLDABLE);
+    mu_assert("1 x 2 with two entries",
+              r.folded->m == 1 && r.folded->n == 2 && r.folded->nnz == 2);
+    mu_assert("sorted columns", r.folded->i[r.folded->p[0].start] == 0 &&
+                                    r.folded->i[r.folded->p[0].start + 1] == 1);
+    mu_assert("coefficients", r.folded->x[r.folded->p[0].start] == 1 &&
+                                  r.folded->x[r.folded->p[0].start + 1] == 1);
+    apply_result_free(&r);
+    flp_free(&p);
+    return 0;
+}
+
 /* Random blocks without symmetry of their own, replicated: the folded problem
    is the block with the costs scaled by the number of copies. The draws are
    sequenced explicitly. */
@@ -1357,6 +1381,7 @@ static const char *all_tests_fold(void)
     mu_run_test(test_fold_apply_blocks, counter_fold);
     mu_run_test(test_fold_apply_column_sum, counter_fold);
     mu_run_test(test_fold_apply_exact_zero, counter_fold);
+    mu_run_test(test_fold_apply_unsorted_row, counter_fold);
     mu_run_test(test_fold_apply_random, counter_fold);
     mu_run_test(test_fold_postsolve_lift, counter_fold);
     mu_run_test(test_fold_postsolve_class_sizes, counter_fold);

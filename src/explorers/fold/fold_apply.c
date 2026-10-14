@@ -17,54 +17,104 @@
  */
 
 /* Builds the folded problem into a new matrix. The entries of a representative
-   row are sorted by folded column and each run of one folded column is summed.
-   The line data is compacted only once the matrix is complete. */
+   row are summed by folded column in an accumulator. The line data is compacted
+   only once the matrix is complete. */
 
 #include "fold_apply.h"
 #include "Memory_wrapper.h"
 #include "Numerics.h"
 #include <stdlib.h>
 
-typedef struct FoldEntry
+/* Sums the entries of one row by folded column. stamp[col] is the folded row
+   that last touched the column, so nothing is cleared between rows. */
+typedef struct RowAccumulator
 {
-    int col; /* Folded column. */
-    double val;
-} FoldEntry;
+    int *stamp;    /* size: n_cols_folded, -1 at the start. */
+    double *value; /* size: n_cols_folded. */
+    int *touched;  /* size: longest representative row, in first-touch order. */
+} RowAccumulator;
 
-static int compare_entries(const void *a, const void *b)
+static void row_accumulator_free(RowAccumulator *acc)
 {
-    const FoldEntry *first = a;
-    const FoldEntry *second = b;
-    return (first->col > second->col) - (first->col < second->col);
+    if (!acc)
+    {
+        return;
+    }
+    PS_FREE(acc->stamp);
+    PS_FREE(acc->value);
+    PS_FREE(acc->touched);
+    PS_FREE(acc);
 }
 
-/* Writes the folded row of the representative 'row', its entries summed over
-   each column class it touches, without exact-zero sums, and returns the count. */
-static int fold_row(const Matrix *A, int row, const FoldMaps *maps,
-                    FoldEntry *entries, int *out_index, double *out_value)
+static RowAccumulator *row_accumulator_new(int n_cols_folded, int max_len)
 {
-    int start = A->p[row].start, n_entries = A->p[row].end - start;
-    for (int k = 0; k < n_entries; k++)
+    RowAccumulator *acc = (RowAccumulator *) ps_calloc(1, sizeof(RowAccumulator));
+    if (!acc)
     {
-        entries[k].col = maps->folded_col[A->i[start + k]];
-        entries[k].val = A->x[start + k];
+        return NULL;
     }
-    qsort(entries, (size_t) n_entries, sizeof(FoldEntry), compare_entries);
-
-    int count = 0, idx = 0;
-    while (idx < n_entries)
+    acc->stamp = (int *) ps_malloc((size_t) n_cols_folded + 1, sizeof(int));
+    acc->value = (double *) ps_malloc((size_t) n_cols_folded + 1, sizeof(double));
+    acc->touched = (int *) ps_malloc((size_t) max_len + 1, sizeof(int));
+    if (!acc->stamp || !acc->value || !acc->touched)
     {
-        int col = entries[idx].col;
-        double sum = 0.0;
-        while (idx < n_entries && entries[idx].col == col)
+        row_accumulator_free(acc);
+        return NULL;
+    }
+    for (int col = 0; col < n_cols_folded; col++)
+    {
+        acc->stamp[col] = -1;
+    }
+    return acc;
+}
+
+static int compare_ints(const void *a, const void *b)
+{
+    int first = *(const int *) a;
+    int second = *(const int *) b;
+    return (first > second) - (first < second);
+}
+
+/* Writes the folded row 'folded' of the representative 'row': its entries
+   summed over each column class it touches, sorted by folded column, without
+   exact-zero sums. Returns the count. */
+static int fold_row(const Matrix *A, int row, int folded, const FoldMaps *maps,
+                    RowAccumulator *acc, int *out_index, double *out_value)
+{
+    int n_touched = 0;
+    for (int idx = A->p[row].start; idx < A->p[row].end; idx++)
+    {
+        int col = maps->folded_col[A->i[idx]];
+        if (acc->stamp[col] != folded)
         {
-            sum += entries[idx].val;
-            idx++;
+            acc->stamp[col] = folded;
+            acc->value[col] = A->x[idx];
+            acc->touched[n_touched++] = col;
         }
-        if (sum != 0.0)
+        else
+        {
+            acc->value[col] += A->x[idx];
+        }
+    }
+
+    /* The touched columns are nearly always ascending already. */
+    for (int ii = 1; ii < n_touched; ii++)
+    {
+        if (acc->touched[ii] < acc->touched[ii - 1])
+        {
+            qsort(acc->touched, (size_t) n_touched, sizeof(int), compare_ints);
+            break;
+        }
+    }
+
+    int count = 0;
+    for (int ii = 0; ii < n_touched; ii++)
+    {
+        int col = acc->touched[ii];
+        if (acc->value[col] != 0.0)
         {
             out_index[count] = col;
-            out_value[count] = sum;
+            out_value[count] = acc->value[col];
             count++;
         }
     }
@@ -126,7 +176,7 @@ FoldReason fold_apply(const Matrix *A, double *lhs, double *rhs, RowTag *row_tag
     size_t nnz_max = 0;
     int max_len = 0, len, new_idx = 0, nnz = 0;
     Matrix *A_new;
-    FoldEntry *entries;
+    RowAccumulator *acc;
     *folded = NULL;
 
     // ----------------------------------------------------------------------
@@ -147,11 +197,11 @@ FoldReason fold_apply(const Matrix *A, double *lhs, double *rhs, RowTag *row_tag
     // ----------------------------------------------------------------------
     A_new = matrix_alloc((size_t) maps->n_rows_folded, (size_t) maps->n_cols_folded,
                          nnz_max);
-    entries = ps_malloc((size_t) max_len + 1, sizeof(FoldEntry));
-    if (!A_new || !entries)
+    acc = row_accumulator_new(maps->n_cols_folded, max_len);
+    if (!A_new || !acc)
     {
         free_matrix(A_new);
-        PS_FREE(entries);
+        row_accumulator_free(acc);
         return FOLD_FAILED;
     }
 
@@ -163,7 +213,8 @@ FoldReason fold_apply(const Matrix *A, double *lhs, double *rhs, RowTag *row_tag
         if (maps->row_rep[row] == row)
         {
             A_new->p[new_idx].start = nnz;
-            nnz += fold_row(A, row, maps, entries, A_new->i + nnz, A_new->x + nnz);
+            nnz +=
+                fold_row(A, row, new_idx, maps, acc, A_new->i + nnz, A_new->x + nnz);
             A_new->p[new_idx].end = nnz;
             new_idx++;
         }
@@ -171,7 +222,7 @@ FoldReason fold_apply(const Matrix *A, double *lhs, double *rhs, RowTag *row_tag
     A_new->p[new_idx].start = nnz;
     A_new->p[new_idx].end = nnz;
     A_new->nnz = (size_t) nnz;
-    PS_FREE(entries);
+    row_accumulator_free(acc);
 
     // ----------------------------------------------------------------------
     //              fold the row sides, bounds, and objective
