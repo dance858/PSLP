@@ -85,11 +85,7 @@ void free_work(Work *work)
     PS_FREE(work->mappings->cols);
     PS_FREE(work->mappings->rows);
     PS_FREE(work->mappings);
-    if (work->fold_maps)
-    {
-        fold_maps_free(work->fold_maps);
-        PS_FREE(work->fold_maps);
-    }
+    fold_maps_free(work->fold_maps);
     free_solution(work->folded_sol);
     PS_FREE(work);
 }

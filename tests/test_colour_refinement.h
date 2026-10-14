@@ -10,13 +10,16 @@
 
 static int counter_colour_refinement = 0;
 
-/* A graph for the refinement: the matrix and its transpose. */
+/* A graph for the refinement: the matrix and its transpose, with the classes
+   of the last run. */
 typedef struct RefineGraph
 {
     Matrix *A;
     Matrix *AT;
     int *work;
     ColourRefinement *refine;
+    int *row_classes;
+    int *col_classes;
 } RefineGraph;
 
 static ColourRefinementOptions refine_test_options(void)
@@ -30,33 +33,33 @@ static ColourRefinementOptions refine_test_options(void)
    defaults). */
 static ColourRefinementResult
 graph_refine(RefineGraph *graph, int m, int n, int nnz, const int *Ap, const int *Ai,
-             const double *Ax, const uint64_t *row_colours,
-             const uint64_t *col_colours, ColourRefinementStats *stats,
-             const ColourRefinementOptions *options)
+             const double *Ax, const int *row_colours, const int *col_colours,
+             ColourRefinementStats *stats, const ColourRefinementOptions *options)
 {
     memset(graph, 0, sizeof(*graph));
     graph->A = matrix_new(Ax, Ai, Ap, (size_t) m, (size_t) n, (size_t) nnz);
     graph->work = (int *) calloc((size_t) n + 1, sizeof(int));
     graph->AT = transpose(graph->A, graph->work, 0);
     graph->refine = colour_refinement_new(graph->A, graph->AT);
-    uint64_t *rows = colour_refinement_row_colours(graph->refine);
-    uint64_t *cols = colour_refinement_col_colours(graph->refine);
-    for (int ii = 0; ii < m; ii++)
-    {
-        rows[ii] = row_colours ? row_colours[ii] : 0;
-    }
-    for (int jj = 0; jj < n; jj++)
-    {
-        cols[jj] = col_colours ? col_colours[jj] : 0;
-    }
+    graph->row_classes = (int *) calloc((size_t) m + 1, sizeof(int));
+    graph->col_classes = (int *) calloc((size_t) n + 1, sizeof(int));
+    int *zero_rows = (int *) calloc((size_t) m + 1, sizeof(int));
+    int *zero_cols = (int *) calloc((size_t) n + 1, sizeof(int));
     ColourRefinementOptions defaults = refine_test_options();
-    return colour_refinement_run(graph->refine, options ? options : &defaults,
-                                 stats);
+    ColourRefinementResult result = colour_refinement_run(
+        graph->refine, row_colours ? row_colours : zero_rows,
+        col_colours ? col_colours : zero_cols, options ? options : &defaults,
+        graph->row_classes, graph->col_classes, stats);
+    free(zero_rows);
+    free(zero_cols);
+    return result;
 }
 
 static void graph_free(RefineGraph *graph)
 {
     colour_refinement_free(graph->refine);
+    free(graph->row_classes);
+    free(graph->col_classes);
     free(graph->work);
     free_matrix(graph->AT);
     free_matrix(graph->A);
@@ -74,30 +77,25 @@ static const char *test_refine_blocks(void)
     mu_assert("converged",
               graph_refine(&graph, 4, 4, 8, blocks_Ap, blocks_Ai, blocks_Ax, NULL,
                            NULL, &stats, NULL) == COLOUR_REFINEMENT_CONVERGED);
-    const uint32_t *rows = colour_refinement_row_classes(graph.refine);
-    const uint32_t *cols = colour_refinement_col_classes(graph.refine);
-    mu_assert("two row classes", colour_refinement_n_row_classes(graph.refine) == 2);
-    mu_assert("two column classes",
-              colour_refinement_n_col_classes(graph.refine) == 2);
+    int *rows = graph.row_classes;
+    const int *cols = graph.col_classes;
+    mu_assert("two row classes", stats.n_row_classes == 2);
+    mu_assert("two column classes", stats.n_col_classes == 2);
     mu_assert("rows 0 and 2 together",
               rows[0] == rows[2] && rows[1] == rows[3] && rows[0] != rows[1]);
     mu_assert("columns 0 and 2 together",
               cols[0] == cols[2] && cols[1] == cols[3] && cols[0] != cols[1]);
     /* Each of the four classes has two lines of two entries. */
-    mu_assert("duplicate entries",
-              colour_refinement_duplicate_entries(graph.refine) == 8);
+    mu_assert("duplicate entries", stats.duplicate_entries == 8);
 
-    int scratch[4], ids[4];
-    colour_refinement_lowest_member_ids(graph.refine, true, scratch, ids);
-    mu_assert("lowest member ids",
-              ids[0] == 0 && ids[1] == 1 && ids[2] == 0 && ids[3] == 1);
-    mu_assert("verified", colour_refinement_verify(graph.refine));
+    mu_assert("verified", colour_refinement_verify(graph.refine, graph.row_classes,
+                                                   graph.col_classes));
 
     /* Row 1 moved into the class of row 0 has different entries. */
-    uint32_t *tampered = (uint32_t *) rows;
-    tampered[1] = tampered[0];
+    rows[1] = rows[0];
     mu_assert("tampered partition rejected",
-              !colour_refinement_verify(graph.refine));
+              !colour_refinement_verify(graph.refine, graph.row_classes,
+                                        graph.col_classes));
     graph_free(&graph);
     return 0;
 }
@@ -113,12 +111,9 @@ static const char *test_refine_edge_label(void)
     mu_assert("converged",
               graph_refine(&graph, 4, 4, 8, blocks_Ap, blocks_Ai, Ax, NULL, NULL,
                            &stats, NULL) == COLOUR_REFINEMENT_CONVERGED);
-    mu_assert("four row classes",
-              colour_refinement_n_row_classes(graph.refine) == 4);
-    mu_assert("four column classes",
-              colour_refinement_n_col_classes(graph.refine) == 4);
-    mu_assert("no duplicate entries",
-              colour_refinement_duplicate_entries(graph.refine) == 0);
+    mu_assert("four row classes", stats.n_row_classes == 4);
+    mu_assert("four column classes", stats.n_col_classes == 4);
+    mu_assert("no duplicate entries", stats.duplicate_entries == 0);
     graph_free(&graph);
     return 0;
 }
@@ -126,33 +121,30 @@ static const char *test_refine_edge_label(void)
 /* Start colours split the blocks; -0.0 and 0.0 are one label. */
 static const char *test_refine_start_colours(void)
 {
-    uint64_t row_colours[4] = {7, 7, 9, 9};
+    int row_colours[4] = {7, 7, 9, 9};
     RefineGraph graph;
     ColourRefinementStats stats;
     mu_assert("converged", graph_refine(&graph, 4, 4, 8, blocks_Ap, blocks_Ai,
                                         blocks_Ax, row_colours, NULL, &stats,
                                         NULL) == COLOUR_REFINEMENT_CONVERGED);
-    mu_assert("four row classes",
-              colour_refinement_n_row_classes(graph.refine) == 4);
+    mu_assert("four row classes", stats.n_row_classes == 4);
     graph_free(&graph);
 
-    /* All 64 bits of a colour count. */
-    uint64_t bit_colours[4] = {0, 0, 1, 1};
+    /* Every bit of a colour counts. */
+    int bit_colours[4] = {0, 0, 1, 1};
     mu_assert("bit 0 splits", graph_refine(&graph, 4, 4, 8, blocks_Ap, blocks_Ai,
                                            blocks_Ax, bit_colours, NULL, &stats,
                                            NULL) == COLOUR_REFINEMENT_CONVERGED);
-    mu_assert("four row classes",
-              colour_refinement_n_row_classes(graph.refine) == 4);
+    mu_assert("four row classes", stats.n_row_classes == 4);
     graph_free(&graph);
 
     /* A colour shared by no other line gives a singleton class. */
-    uint64_t mixed_colours[4] = {0, 0, 2, 1};
+    int mixed_colours[4] = {0, 0, 2, 1};
     mu_assert("singleton colours",
               graph_refine(&graph, 4, 4, 8, blocks_Ap, blocks_Ai, blocks_Ax,
                            mixed_colours, NULL, &stats,
                            NULL) == COLOUR_REFINEMENT_CONVERGED);
-    mu_assert("four row classes",
-              colour_refinement_n_row_classes(graph.refine) == 4);
+    mu_assert("four row classes", stats.n_row_classes == 4);
     graph_free(&graph);
 
     double Ax[8];
@@ -162,7 +154,7 @@ static const char *test_refine_start_colours(void)
     mu_assert("signed zeros agree",
               graph_refine(&graph, 4, 4, 8, blocks_Ap, blocks_Ai, Ax, NULL, NULL,
                            &stats, NULL) == COLOUR_REFINEMENT_CONVERGED);
-    mu_assert("two row classes", colour_refinement_n_row_classes(graph.refine) == 2);
+    mu_assert("two row classes", stats.n_row_classes == 2);
 
     graph_free(&graph);
     return 0;
@@ -192,7 +184,7 @@ static const char *test_refine_path(void)
     mu_assert("converged",
               graph_refine(&graph, 8, 8, nnz, Ap, Ai, Ax, NULL, NULL, &stats,
                            NULL) == COLOUR_REFINEMENT_CONVERGED);
-    mu_assert("a class per row", colour_refinement_n_row_classes(graph.refine) == 8);
+    mu_assert("a class per row", stats.n_row_classes == 8);
     mu_assert("several rounds", stats.rounds >= 2);
     graph_free(&graph);
 
@@ -202,9 +194,11 @@ static const char *test_refine_path(void)
               graph_refine(&graph, 8, 8, nnz, Ap, Ai, Ax, NULL, NULL, &stats,
                            &round_limit) == COLOUR_REFINEMENT_NOT_CONVERGED);
     mu_assert("one round", stats.rounds == 1);
-    int n_row_classes = colour_refinement_n_row_classes(graph.refine);
+    int n_row_classes = stats.n_row_classes;
     mu_assert("partly refined", n_row_classes >= 2 && n_row_classes < 8);
-    mu_assert("not equitable yet", !colour_refinement_verify(graph.refine));
+    mu_assert("not equitable yet",
+              !colour_refinement_verify(graph.refine, graph.row_classes,
+                                        graph.col_classes));
     graph_free(&graph);
 
     /* A round touches the entries of both sides, 2 nnz. */
@@ -228,11 +222,10 @@ static const char *test_refine_empty(void)
     mu_assert("converged",
               graph_refine(&graph, 3, 2, 4, Ap, Ai, Ax, NULL, NULL, &stats, NULL) ==
                   COLOUR_REFINEMENT_CONVERGED);
-    const uint32_t *rows = colour_refinement_row_classes(graph.refine);
-    mu_assert("two row classes", colour_refinement_n_row_classes(graph.refine) == 2);
+    const int *rows = graph.row_classes;
+    mu_assert("two row classes", stats.n_row_classes == 2);
     mu_assert("rows 0 and 2 together", rows[0] == rows[2] && rows[0] != rows[1]);
-    mu_assert("duplicate entries",
-              colour_refinement_duplicate_entries(graph.refine) == 2);
+    mu_assert("duplicate entries", stats.duplicate_entries == 2);
     graph_free(&graph);
 
     /* No rows at all. */
@@ -240,9 +233,8 @@ static const char *test_refine_empty(void)
     mu_assert("converged",
               graph_refine(&graph, 0, 2, 0, none_Ap, Ai, Ax, NULL, NULL, &stats,
                            NULL) == COLOUR_REFINEMENT_CONVERGED);
-    mu_assert("no row classes", colour_refinement_n_row_classes(graph.refine) == 0);
-    mu_assert("one column class",
-              colour_refinement_n_col_classes(graph.refine) == 1);
+    mu_assert("no row classes", stats.n_row_classes == 0);
+    mu_assert("one column class", stats.n_col_classes == 1);
     graph_free(&graph);
     return 0;
 }
@@ -281,26 +273,25 @@ static const char *test_refine_large(void)
     double *Ax;
     replicate_blocks(copies, &Ap, &Ai, &Ax);
     /* Odd copies differ in a column colour, so the classes are not trivial. */
-    uint64_t *row_colours = (uint64_t *) malloc((size_t) m * sizeof(uint64_t));
-    uint64_t *col_colours = (uint64_t *) malloc((size_t) m * sizeof(uint64_t));
+    int *row_colours = (int *) malloc((size_t) m * sizeof(int));
+    int *col_colours = (int *) malloc((size_t) m * sizeof(int));
     for (int jj = 0; jj < m; jj++)
     {
-        col_colours[jj] = (uint64_t) ((jj / 2) % 2);
+        col_colours[jj] = (jj / 2) % 2;
     }
     for (int many_groups = 0; many_groups <= 1; many_groups++)
     {
         /* Rows 5000 apart agree in colour, block row and column colours. */
         for (int ii = 0; ii < m; ii++)
         {
-            row_colours[ii] = many_groups ? (uint64_t) (ii % 5000) : 0;
+            row_colours[ii] = many_groups ? ii % 5000 : 0;
         }
         RefineGraph graph;
         ColourRefinementStats stats;
         mu_assert("converged", graph_refine(&graph, m, m, nnz, Ap, Ai, Ax,
                                             row_colours, col_colours, &stats,
                                             NULL) == COLOUR_REFINEMENT_CONVERGED);
-        mu_assert("row classes", colour_refinement_n_row_classes(graph.refine) ==
-                                     (many_groups ? 5000 : 4));
+        mu_assert("row classes", stats.n_row_classes == (many_groups ? 5000 : 4));
         graph_free(&graph);
     }
     free(col_colours);

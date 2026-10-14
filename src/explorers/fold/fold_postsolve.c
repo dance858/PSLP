@@ -24,13 +24,13 @@ void fold_postsolve(const FoldMaps *maps, int n_rows, int n_cols,
 {
     for (int col = 0; col < n_cols; ++col)
     {
-        int folded_col = maps->col_fold_index[col];
+        int folded_col = maps->folded_col[col];
         x[col] = x_folded[folded_col];
         z[col] = z_folded[folded_col] / maps->col_class_size[folded_col];
     }
     for (int row = 0; row < n_rows; ++row)
     {
-        int folded_row = maps->row_fold_index[row];
+        int folded_row = maps->folded_row[row];
         y[row] = y_folded[folded_row] / maps->row_class_size[folded_row];
     }
 }

@@ -242,27 +242,26 @@ static void print_fold_message(bool applied, FoldReason reason,
 
 /* Finds and applies the fold. Returns true when the problem was folded: *A is
    then the folded matrix (the given one freed), the line data is compacted in
-   place and 'maps' holds the maps; the caller rebuilds AT. Otherwise nothing
-   is touched and 'maps' is empty. */
+   place and *maps holds the maps; the caller rebuilds AT. Otherwise nothing
+   is touched and *maps is NULL. */
 static bool run_fold(Matrix **A, const Matrix *AT, double *lhs, double *rhs,
                      RowTag *row_tags, Bound *bounds, ColTag *col_tags, double *c,
-                     bool verbose, FoldMaps *maps)
+                     bool verbose, FoldMaps **maps)
 {
     FoldOptions options;
     options.min_reduction = LP_FOLD_MIN_REDUCTION;
     options.work_budget = LP_FOLD_WORK_BUDGET;
     options.max_rounds = LP_FOLD_MAX_ROUNDS;
-    options.max_memory = 0.0;
 
     size_t n_rows = (*A)->m, n_cols = (*A)->n, nnz = (*A)->nnz;
     FoldStats stats;
     Matrix *folded = NULL;
     FoldReason reason =
-        fold_problem(*A, AT, lhs, rhs, bounds, c, &options, maps, &stats);
+        fold_detect(*A, AT, lhs, rhs, bounds, c, &options, maps, &stats);
     if (reason == FOLD_FOLDABLE)
     {
         reason =
-            fold_apply(*A, lhs, rhs, row_tags, bounds, col_tags, c, maps, &folded);
+            fold_apply(*A, lhs, rhs, row_tags, bounds, col_tags, c, *maps, &folded);
     }
     bool applied = reason == FOLD_FOLDABLE;
     if (applied)
@@ -272,7 +271,8 @@ static bool run_fold(Matrix **A, const Matrix *AT, double *lhs, double *rhs,
     }
     else
     {
-        fold_maps_free(maps);
+        fold_maps_free(*maps);
+        *maps = NULL;
     }
 
     if (verbose)
@@ -374,10 +374,8 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     if (stgs->lp_fold)
     {
         clock_gettime(CLOCK_MONOTONIC, &fold_timer.start);
-        work->fold_maps = (FoldMaps *) ps_calloc(1, sizeof(FoldMaps));
-        if (!work->fold_maps) goto cleanup;
         if (run_fold(&A, AT, lhs_copy, rhs_copy, row_tags, bounds, col_tags, c_copy,
-                     stgs->verbose, work->fold_maps))
+                     stgs->verbose, &work->fold_maps))
         {
             free_matrix(AT);
             AT = transpose(A, work->iwork_n_cols,
@@ -386,10 +384,6 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
             /* postsolve replays the records into the folded dimensions */
             work->folded_sol = new_solution(A->m, A->n);
             if (!work->folded_sol) goto cleanup;
-        }
-        else
-        {
-            PS_FREE(work->fold_maps);
         }
         clock_gettime(CLOCK_MONOTONIC, &fold_timer.end);
         fold_time = GET_ELAPSED_SECONDS(fold_timer);

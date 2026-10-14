@@ -37,8 +37,7 @@ typedef struct RefineSide
     const int *index; /* The line on the other side of each entry. */
     const double *values;
     int n_entries;
-    uint64_t *colour; /* Start colours, written by the caller. */
-    uint32_t *class_id;
+    int *class_id;
     int n_classes;
     int duplicate_entries;
 } RefineSide;
@@ -58,8 +57,8 @@ struct ColourRefinement
     RefineSide cols;
     RefineKey *keys;     /* Of the larger side. */
     uint64_t *signature; /* Of the side with more entries. */
-    uint32_t *row_copy;  /* Class ids refined by verify. */
-    uint32_t *col_copy;
+    int *row_copy;       /* Class ids refined by verify. */
+    int *col_copy;
 };
 
 /* Bit pattern of a value with -0.0 read as 0.0. */
@@ -122,7 +121,7 @@ static int assign_classes(RefineSide *side, RefineKey *keys)
         {
             duplicate_entries += keys[ii].count;
         }
-        side->class_id[keys[ii].line] = (uint32_t) (n_classes - 1);
+        side->class_id[keys[ii].line] = n_classes - 1;
     }
     side->n_classes = n_classes;
     side->duplicate_entries = duplicate_entries;
@@ -130,11 +129,12 @@ static int assign_classes(RefineSide *side, RefineKey *keys)
 }
 
 /* Groups the lines by start colour and number of entries. */
-static void group_side(RefineSide *side, RefineKey *keys)
+static void group_side(RefineSide *side, const int *colours, RefineKey *keys)
 {
     for (int line = 0; line < side->n_lines; line++)
     {
-        RefineKey key = {side->colour[line], line_count(side, line), line, NULL};
+        RefineKey key = {(uint64_t) colours[line], line_count(side, line), line,
+                         NULL};
         keys[line] = key;
     }
     assign_classes(side, keys);
@@ -142,18 +142,18 @@ static void group_side(RefineSide *side, RefineKey *keys)
 
 /* Splits the classes of a side by the classes of the other side. Returns the
    number of classes before the split. */
-static int refine_side(RefineSide *side, const uint32_t *other_class,
-                       RefineKey *keys, uint64_t *signature)
+static int refine_side(RefineSide *side, const int *other_class, RefineKey *keys,
+                       uint64_t *signature)
 {
     uint64_t *pair = signature;
     for (int line = 0; line < side->n_lines; line++)
     {
         int count = line_count(side, line);
-        RefineKey key = {side->class_id[line], count, line, pair};
+        RefineKey key = {(uint64_t) side->class_id[line], count, line, pair};
         keys[line] = key;
         for (int idx = side->ranges[line].start; idx < side->ranges[line].end; idx++)
         {
-            *pair++ = other_class[side->index[idx]];
+            *pair++ = (uint64_t) other_class[side->index[idx]];
             *pair++ = value_bits(side->values[idx]);
         }
         qsort(pair - 2 * count, (size_t) count, 2 * sizeof(uint64_t), compare_pair);
@@ -162,7 +162,10 @@ static int refine_side(RefineSide *side, const uint32_t *other_class,
 }
 
 ColourRefinementResult colour_refinement_run(ColourRefinement *refine,
+                                             const int *row_colours,
+                                             const int *col_colours,
                                              const ColourRefinementOptions *options,
+                                             int *row_classes, int *col_classes,
                                              ColourRefinementStats *stats)
 {
     RefineSide *rows = &refine->rows;
@@ -170,8 +173,8 @@ ColourRefinementResult colour_refinement_run(ColourRefinement *refine,
     ColourRefinementResult result = COLOUR_REFINEMENT_NOT_CONVERGED;
     int rounds = 0;
     double work = 0;
-    group_side(rows, refine->keys);
-    group_side(cols, refine->keys);
+    group_side(rows, row_colours, refine->keys);
+    group_side(cols, col_colours, refine->keys);
     while (rounds < options->max_rounds && work <= options->work_budget)
     {
         int n_row_classes = rows->n_classes;
@@ -187,92 +190,32 @@ ColourRefinementResult colour_refinement_run(ColourRefinement *refine,
             break;
         }
     }
+    memcpy(row_classes, rows->class_id, (size_t) rows->n_lines * sizeof(int));
+    memcpy(col_classes, cols->class_id, (size_t) cols->n_lines * sizeof(int));
     stats->rounds = rounds;
     stats->work = work;
+    stats->n_row_classes = rows->n_classes;
+    stats->n_col_classes = cols->n_classes;
+    stats->duplicate_entries = rows->duplicate_entries + cols->duplicate_entries;
     return result;
 }
 
-bool colour_refinement_verify(ColourRefinement *refine)
+bool colour_refinement_verify(ColourRefinement *refine, const int *row_classes,
+                              const int *col_classes)
 {
-    /* Copies of both sides are refined against the original classes. The
+    /* Copies of both sides are refined against the given classes. The
        partition is equitable when no class splits, whatever the ids. */
     RefineSide rows = refine->rows;
     RefineSide cols = refine->cols;
     rows.class_id = refine->row_copy;
     cols.class_id = refine->col_copy;
-    memcpy(rows.class_id, refine->rows.class_id,
-           (size_t) rows.n_lines * sizeof(uint32_t));
-    memcpy(cols.class_id, refine->cols.class_id,
-           (size_t) cols.n_lines * sizeof(uint32_t));
+    memcpy(rows.class_id, row_classes, (size_t) rows.n_lines * sizeof(int));
+    memcpy(cols.class_id, col_classes, (size_t) cols.n_lines * sizeof(int));
     int n_row_classes =
-        refine_side(&rows, refine->cols.class_id, refine->keys, refine->signature);
+        refine_side(&rows, col_classes, refine->keys, refine->signature);
     int n_col_classes =
-        refine_side(&cols, refine->rows.class_id, refine->keys, refine->signature);
+        refine_side(&cols, row_classes, refine->keys, refine->signature);
     return rows.n_classes == n_row_classes && cols.n_classes == n_col_classes;
-}
-
-const uint32_t *colour_refinement_row_classes(const ColourRefinement *refine)
-{
-    return refine->rows.class_id;
-}
-
-const uint32_t *colour_refinement_col_classes(const ColourRefinement *refine)
-{
-    return refine->cols.class_id;
-}
-
-int colour_refinement_n_row_classes(const ColourRefinement *refine)
-{
-    return refine->rows.n_classes;
-}
-
-int colour_refinement_n_col_classes(const ColourRefinement *refine)
-{
-    return refine->cols.n_classes;
-}
-
-uint64_t *colour_refinement_row_colours(ColourRefinement *refine)
-{
-    return refine->rows.colour;
-}
-
-uint64_t *colour_refinement_col_colours(ColourRefinement *refine)
-{
-    return refine->cols.colour;
-}
-
-int colour_refinement_duplicate_entries(const ColourRefinement *refine)
-{
-    return refine->rows.duplicate_entries + refine->cols.duplicate_entries;
-}
-
-void colour_refinement_lowest_member_ids(const ColourRefinement *refine, bool rows,
-                                         int *scratch, int *ids)
-{
-    const RefineSide *side = rows ? &refine->rows : &refine->cols;
-    for (int class_index = 0; class_index < side->n_classes; class_index++)
-    {
-        scratch[class_index] = -1;
-    }
-    for (int line = 0; line < side->n_lines; line++)
-    {
-        uint32_t class_index = side->class_id[line];
-        if (scratch[class_index] < 0)
-        {
-            scratch[class_index] = line;
-        }
-        ids[line] = scratch[class_index];
-    }
-}
-
-double colour_refinement_memory_estimate(size_t n_rows, size_t n_cols, size_t nnz)
-{
-    double lines = (double) n_rows + (double) n_cols;
-    double larger = (double) (n_rows > n_cols ? n_rows : n_cols);
-    /* Colour, class id and its copy per line; a key per line of the larger
-       side; a signature pair per entry. */
-    return (sizeof(uint64_t) + 2 * sizeof(uint32_t)) * lines +
-           sizeof(RefineKey) * larger + 2 * sizeof(uint64_t) * (double) nnz;
 }
 
 static bool side_new(RefineSide *side, const Matrix *M)
@@ -286,13 +229,10 @@ static bool side_new(RefineSide *side, const Matrix *M)
     {
         side->n_entries += line_count(side, line);
     }
-    side->colour =
-        (uint64_t *) ps_calloc((size_t) side->n_lines + 1, sizeof(uint64_t));
-    side->class_id =
-        (uint32_t *) ps_calloc((size_t) side->n_lines + 1, sizeof(uint32_t));
+    side->class_id = (int *) ps_calloc((size_t) side->n_lines + 1, sizeof(int));
     side->n_classes = 0;
     side->duplicate_entries = 0;
-    return side->colour && side->class_id;
+    return side->class_id;
 }
 
 ColourRefinement *colour_refinement_new(const Matrix *A, const Matrix *AT)
@@ -315,8 +255,8 @@ ColourRefinement *colour_refinement_new(const Matrix *A, const Matrix *AT)
     refine->keys = (RefineKey *) ps_malloc((size_t) n_lines + 1, sizeof(RefineKey));
     refine->signature =
         (uint64_t *) ps_malloc(2 * (size_t) n_entries + 1, sizeof(uint64_t));
-    refine->row_copy = (uint32_t *) ps_malloc(A->m + 1, sizeof(uint32_t));
-    refine->col_copy = (uint32_t *) ps_malloc(A->n + 1, sizeof(uint32_t));
+    refine->row_copy = (int *) ps_malloc(A->m + 1, sizeof(int));
+    refine->col_copy = (int *) ps_malloc(A->n + 1, sizeof(int));
     if (!refine->keys || !refine->signature || !refine->row_copy ||
         !refine->col_copy)
     {
@@ -332,9 +272,7 @@ void colour_refinement_free(ColourRefinement *refine)
     {
         return;
     }
-    PS_FREE(refine->rows.colour);
     PS_FREE(refine->rows.class_id);
-    PS_FREE(refine->cols.colour);
     PS_FREE(refine->cols.class_id);
     PS_FREE(refine->keys);
     PS_FREE(refine->signature);

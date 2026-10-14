@@ -148,13 +148,12 @@ static FoldOptions fold_test_options(double min_reduction)
     options.min_reduction = min_reduction;
     options.work_budget = 100.0;
     options.max_rounds = 8192;
-    options.max_memory = 0.0;
     return options;
 }
 
 /* Runs the fold on P. */
 static FoldReason run_fold(const FoldTestLP *P, const FoldOptions *options,
-                           FoldMaps *maps, FoldStats *stats)
+                           FoldMaps **maps, FoldStats *stats)
 {
     Matrix *A = matrix_new(P->Ax, P->Ai, P->Ap, (size_t) P->m, (size_t) P->n,
                            (size_t) P->nnz);
@@ -167,7 +166,7 @@ static FoldReason run_fold(const FoldTestLP *P, const FoldOptions *options,
         bounds[j].ub = P->ub[j];
     }
     FoldReason reason =
-        fold_problem(A, AT, P->lhs, P->rhs, bounds, P->c, options, maps, stats);
+        fold_detect(A, AT, P->lhs, P->rhs, bounds, P->c, options, maps, stats);
     free(bounds);
     free(work);
     free_matrix(AT);
@@ -178,15 +177,15 @@ static FoldReason run_fold(const FoldTestLP *P, const FoldOptions *options,
 /* NULL if the fold's partition (with the gate off) equals the reference's. The
    maps are handed back through 'maps_out' when given, else freed. */
 static const char *compare_with_ref(const FoldTestLP *P, FoldReason *reason_out,
-                                    FoldStats *stats, FoldMaps *maps_out)
+                                    FoldStats *stats, FoldMaps **maps_out)
 {
     FoldOptions options = fold_test_options(0.0);
-    FoldMaps maps;
+    FoldMaps *maps = NULL;
     FoldReason reason = run_fold(P, &options, &maps, stats);
     *reason_out = reason;
     if (reason != FOLD_FOLDABLE && reason != FOLD_NOTHING)
     {
-        fold_maps_free(&maps);
+        fold_maps_free(maps);
         snprintf(fold_errbuf, sizeof(fold_errbuf),
                  "unexpected reason %s (%d rounds, work %.1f)",
                  fold_reason_string(reason), stats->rounds, stats->work);
@@ -202,35 +201,50 @@ static const char *compare_with_ref(const FoldTestLP *P, FoldReason *reason_out,
     {
         err = "reference did not converge";
     }
+    /* A fold that removes no entries is not made: the reference may then only
+       merge lines without entries. */
     if (!err && reason == FOLD_NOTHING)
     {
+        int *col_count = (int *) calloc((size_t) P->n + 1, sizeof(int));
+        for (int k = 0; k < P->nnz; k++)
+        {
+            col_count[P->Ai[k]]++;
+        }
         for (int i = 0; i < P->m && !err; i++)
         {
-            if (row_ref[i] != i) err = "reference has a row class, fold has none";
+            bool empty = P->Ap[i + 1] == P->Ap[i];
+            if (row_ref[i] != i && !empty)
+            {
+                err = "reference merges a row with entries, fold has none";
+            }
         }
         for (int j = 0; j < P->n && !err; j++)
         {
-            if (col_ref[j] != j) err = "reference has a column class, fold has none";
+            if (col_ref[j] != j && col_count[j] > 0)
+            {
+                err = "reference merges a column with entries, fold has none";
+            }
         }
+        free(col_count);
     }
     if (!err && reason == FOLD_FOLDABLE)
     {
         for (int i = 0; i < P->m && !err; i++)
         {
-            if (maps.row_class[i] != row_ref[i])
+            if (maps->row_rep[i] != row_ref[i])
             {
                 snprintf(fold_errbuf, sizeof(fold_errbuf),
-                         "row %d: fold class %d, reference %d", i, maps.row_class[i],
+                         "row %d: fold class %d, reference %d", i, maps->row_rep[i],
                          row_ref[i]);
                 err = fold_errbuf;
             }
         }
         for (int j = 0; j < P->n && !err; j++)
         {
-            if (maps.col_class[j] != col_ref[j])
+            if (maps->col_rep[j] != col_ref[j])
             {
                 snprintf(fold_errbuf, sizeof(fold_errbuf),
-                         "col %d: fold class %d, reference %d", j, maps.col_class[j],
+                         "col %d: fold class %d, reference %d", j, maps->col_rep[j],
                          col_ref[j]);
                 err = fold_errbuf;
             }
@@ -244,7 +258,7 @@ static const char *compare_with_ref(const FoldTestLP *P, FoldReason *reason_out,
     }
     else
     {
-        fold_maps_free(&maps);
+        fold_maps_free(maps);
     }
     return err;
 }
@@ -282,14 +296,13 @@ static const char *test_fold_sides(void)
     flp_fill_cols(&p, 0, INF, 1);
     FoldReason reason;
     FoldStats stats;
-    FoldMaps maps;
+    FoldMaps *maps = NULL;
     const char *err = compare_with_ref(&p, &reason, &stats, &maps);
     mu_assert(err ? err : "", err == NULL);
     mu_assert("expected foldable", reason == FOLD_FOLDABLE);
     mu_assert("rows should be singletons, columns one class",
-              maps.n_rows_folded == 2 && maps.n_cols_folded == 1);
-    mu_assert("removable entries", maps.removable_entries == 2);
-    fold_maps_free(&maps);
+              maps->n_rows_folded == 2 && maps->n_cols_folded == 1);
+    fold_maps_free(maps);
     flp_free(&p);
     return 0;
 }
@@ -301,17 +314,16 @@ static const char *test_fold_symmetric_blocks(void)
     FoldTestLP p = flp_replicate(&b, 2);
     FoldReason reason;
     FoldStats stats;
-    FoldMaps maps;
+    FoldMaps *maps = NULL;
     const char *err = compare_with_ref(&p, &reason, &stats, &maps);
     mu_assert(err ? err : "", err == NULL);
     mu_assert("expected foldable", reason == FOLD_FOLDABLE);
     mu_assert("expected 2 x 2 folded",
-              maps.n_rows_folded == 2 && maps.n_cols_folded == 2);
+              maps->n_rows_folded == 2 && maps->n_cols_folded == 2);
     mu_assert("expected ids {0,1,0,1}",
-              maps.row_class[2] == 0 && maps.row_class[3] == 1 &&
-                  maps.col_class[2] == 0 && maps.col_class[3] == 1);
-    mu_assert("removable entries", maps.removable_entries == 8);
-    fold_maps_free(&maps);
+              maps->row_rep[2] == 0 && maps->row_rep[3] == 1 &&
+                  maps->col_rep[2] == 0 && maps->col_rep[3] == 1);
+    fold_maps_free(maps);
     flp_free(&p);
     flp_free(&b);
     return 0;
@@ -365,11 +377,23 @@ static const char *test_fold_degenerate(void)
     flp_fill_rows(&q, -INF, 1);
     flp_fill_cols(&q, 0, 1, 1);
     FoldOptions options = fold_test_options(0.0);
-    FoldMaps maps;
+    FoldMaps *maps = NULL;
     reason = run_fold(&q, &options, &maps, &stats);
     mu_assert("expected nothing to fold for nnz == 0", reason == FOLD_NOTHING);
-    mu_assert("maps empty", maps.row_class == NULL && maps.col_class == NULL);
+    mu_assert("maps empty", maps == NULL);
     flp_free(&q);
+
+    /* No rows, or no columns: runs through and folds nothing. */
+    FoldTestLP no_rows = flp_alloc(0, 2, 0);
+    flp_fill_cols(&no_rows, 0, 1, 1);
+    reason = run_fold(&no_rows, &options, &maps, &stats);
+    mu_assert("expected nothing to fold without rows", reason == FOLD_NOTHING);
+    flp_free(&no_rows);
+    FoldTestLP no_cols = flp_alloc(2, 0, 0);
+    flp_fill_rows(&no_cols, -INF, 1);
+    reason = run_fold(&no_cols, &options, &maps, &stats);
+    mu_assert("expected nothing to fold without columns", reason == FOLD_NOTHING);
+    flp_free(&no_cols);
     return 0;
 }
 
@@ -408,12 +432,12 @@ static const char *test_fold_not_converged(void)
     FoldTestLP p = staircase(64);
     FoldOptions options = fold_test_options(0.0);
     options.max_rounds = 4;
-    FoldMaps maps;
+    FoldMaps *maps = NULL;
     FoldStats stats;
     FoldReason reason = run_fold(&p, &options, &maps, &stats);
     mu_assert("expected the round limit", reason == FOLD_LIMIT);
     mu_assert("expected exactly 4 rounds", stats.rounds == 4);
-    mu_assert("maps empty", maps.row_class == NULL);
+    mu_assert("maps empty", maps == NULL);
 
     options = fold_test_options(0.0);
     options.work_budget = 0.5;
@@ -449,12 +473,13 @@ static const char *test_fold_one_sided(void)
     flp_fill_cols(&p, 0, INF, 1);
     FoldReason reason;
     FoldStats stats;
-    FoldMaps maps;
+    FoldMaps *maps = NULL;
     const char *err = compare_with_ref(&p, &reason, &stats, &maps);
     mu_assert(err ? err : "", err == NULL);
     mu_assert("expected foldable", reason == FOLD_FOLDABLE);
-    mu_assert("expected 3 x 1", maps.n_rows_folded == 3 && maps.n_cols_folded == 1);
-    fold_maps_free(&maps);
+    mu_assert("expected 3 x 1",
+              maps->n_rows_folded == 3 && maps->n_cols_folded == 1);
+    fold_maps_free(maps);
     flp_free(&p);
 
     FoldTestLP q = flp_alloc(2, 3, 6);
@@ -477,8 +502,9 @@ static const char *test_fold_one_sided(void)
     err = compare_with_ref(&q, &reason, &stats, &maps);
     mu_assert(err ? err : "", err == NULL);
     mu_assert("expected foldable", reason == FOLD_FOLDABLE);
-    mu_assert("expected 1 x 3", maps.n_rows_folded == 1 && maps.n_cols_folded == 3);
-    fold_maps_free(&maps);
+    mu_assert("expected 1 x 3",
+              maps->n_rows_folded == 1 && maps->n_cols_folded == 3);
+    fold_maps_free(maps);
     flp_free(&q);
     return 0;
 }
@@ -504,16 +530,15 @@ static const char *test_fold_gate(void)
     }
     p.Ap[p.m] = p.nnz;
     FoldOptions options = fold_test_options(0.01);
-    FoldMaps maps;
+    FoldMaps *maps = NULL;
     FoldStats stats;
     FoldReason reason = run_fold(&p, &options, &maps, &stats);
     mu_assert("expected nothing to fold below the gate", reason == FOLD_NOTHING);
-    mu_assert("maps empty", maps.row_class == NULL);
+    mu_assert("maps empty", maps == NULL);
     options.min_reduction = 0.0;
     reason = run_fold(&p, &options, &maps, &stats);
     mu_assert("expected foldable", reason == FOLD_FOLDABLE);
-    mu_assert("removable entries", maps.removable_entries == 8);
-    fold_maps_free(&maps);
+    fold_maps_free(maps);
     flp_free(&p);
     flp_free(&r);
     flp_free(&b);
@@ -655,7 +680,7 @@ typedef struct FoldVerifyFixture
     Matrix *AT;
     int *work;
     Bound *bounds;
-    FoldWorkspace workspace;
+    FoldWorkspace *workspace;
 } FoldVerifyFixture;
 
 static bool fixture_new(FoldVerifyFixture *fx, const FoldTestLP *P)
@@ -671,20 +696,23 @@ static bool fixture_new(FoldVerifyFixture *fx, const FoldTestLP *P)
         fx->bounds[j].lb = P->lb[j];
         fx->bounds[j].ub = P->ub[j];
     }
-    if (!fold_workspace_new(&fx->workspace, fx->A, fx->AT))
+    fx->workspace = fold_workspace_new(fx->A, fx->AT);
+    if (!fx->workspace)
     {
         return false;
     }
-    fold_start_colours(&fx->workspace, P->m, P->n, P->lhs, P->rhs, fx->bounds, P->c);
+    fold_start_colours(fx->workspace, P->m, P->n, P->lhs, P->rhs, fx->bounds, P->c);
     ColourRefinementOptions options = {100.0, 8192};
     ColourRefinementStats stats;
-    return colour_refinement_run(fx->workspace.refine, &options, &stats) ==
-           COLOUR_REFINEMENT_CONVERGED;
+    return colour_refinement_run(
+               fx->workspace->refine, fx->workspace->row_colours,
+               fx->workspace->col_colours, &options, fx->workspace->row_classes,
+               fx->workspace->col_classes, &stats) == COLOUR_REFINEMENT_CONVERGED;
 }
 
 static void fixture_free(FoldVerifyFixture *fx)
 {
-    fold_workspace_free(&fx->workspace);
+    fold_workspace_free(fx->workspace);
     free(fx->bounds);
     free(fx->work);
     free_matrix(fx->AT);
@@ -692,14 +720,22 @@ static void fixture_free(FoldVerifyFixture *fx)
 }
 
 /* The class ids, writable so that a test can tamper with the partition. */
-static uint32_t *fixture_row_ids(const FoldVerifyFixture *fx)
+static int *fixture_row_ids(const FoldVerifyFixture *fx)
 {
-    return (uint32_t *) colour_refinement_row_classes(fx->workspace.refine);
+    return fx->workspace->row_classes;
 }
 
-static uint32_t *fixture_col_ids(const FoldVerifyFixture *fx)
+static int *fixture_col_ids(const FoldVerifyFixture *fx)
 {
-    return (uint32_t *) colour_refinement_col_classes(fx->workspace.refine);
+    return fx->workspace->col_classes;
+}
+
+/* Whether the fixture's current partition is equitable. */
+static bool fixture_verify(FoldVerifyFixture *fx)
+{
+    return colour_refinement_verify(fx->workspace->refine,
+                                    fx->workspace->row_classes,
+                                    fx->workspace->col_classes);
 }
 
 /* Two identical blocks: the refined partition verifies; moving one row of
@@ -711,22 +747,19 @@ static const char *test_fold_verify_entries(void)
     FoldTestLP p = flp_replicate(&b, 2);
     FoldVerifyFixture fx;
     mu_assert("refinement should find the blocks", fixture_new(&fx, &p));
-    mu_assert("refined partition should verify",
-              colour_refinement_verify(fx.workspace.refine));
+    mu_assert("refined partition should verify", fixture_verify(&fx));
     mu_assert("rows 0 and 2 should share a class",
               fixture_row_ids(&fx)[0] == fixture_row_ids(&fx)[2]);
 
-    uint32_t saved = fixture_row_ids(&fx)[1];
+    int saved = fixture_row_ids(&fx)[1];
     fixture_row_ids(&fx)[1] = fixture_row_ids(&fx)[0];
-    mu_assert("rows with different entries must be rejected",
-              !colour_refinement_verify(fx.workspace.refine));
+    mu_assert("rows with different entries must be rejected", !fixture_verify(&fx));
     fixture_row_ids(&fx)[1] = saved;
-    mu_assert("restored partition should verify",
-              colour_refinement_verify(fx.workspace.refine));
+    mu_assert("restored partition should verify", fixture_verify(&fx));
 
     fixture_col_ids(&fx)[1] = fixture_col_ids(&fx)[0];
     mu_assert("columns with different entries must be rejected",
-              !colour_refinement_verify(fx.workspace.refine));
+              !fixture_verify(&fx));
     fixture_free(&fx);
     flp_free(&p);
     flp_free(&b);
@@ -746,38 +779,16 @@ static const char *test_fold_verify_other_end(void)
     p.ub[1] = 11;
     FoldVerifyFixture fx;
     FoldOptions options = fold_test_options(0.0);
-    FoldMaps maps;
+    FoldMaps *maps = NULL;
     FoldStats stats;
     mu_assert("expected nothing to fold",
               run_fold(&p, &options, &maps, &stats) == FOLD_NOTHING);
     fixture_new(&fx, &p);
     fixture_row_ids(&fx)[1] = fixture_row_ids(&fx)[0];
     mu_assert("rows touching different column classes must be rejected",
-              !colour_refinement_verify(fx.workspace.refine));
+              !fixture_verify(&fx));
     fixture_free(&fx);
     flp_free(&p);
-    return 0;
-}
-
-/* A scratch limit below the estimate skips the fold with its own reason. */
-static const char *test_fold_memory_guard(void)
-{
-    FoldTestLP b = base_block();
-    FoldTestLP p = flp_replicate(&b, 3);
-    FoldOptions options = fold_test_options(0.0);
-    options.max_memory = 1.0;
-    FoldMaps maps;
-    FoldStats stats;
-    mu_assert("expected the memory limit",
-              run_fold(&p, &options, &maps, &stats) == FOLD_LIMIT);
-    mu_assert("maps empty", maps.row_class == NULL);
-    mu_assert("estimate reported", stats.memory_estimate > 1.0);
-    options.max_memory = 2.0 * stats.memory_estimate;
-    mu_assert("expected foldable",
-              run_fold(&p, &options, &maps, &stats) == FOLD_FOLDABLE);
-    fold_maps_free(&maps);
-    flp_free(&p);
-    flp_free(&b);
     return 0;
 }
 
@@ -792,7 +803,7 @@ typedef struct FoldApplyResult
     RowTag *row_tags;
     ColTag *col_tags;
     Bound *bounds;
-    FoldMaps maps;
+    FoldMaps *maps;
     FoldStats stats;
     FoldReason detect_reason;
     FoldReason reason;
@@ -808,7 +819,7 @@ static void apply_result_free(FoldApplyResult *r)
     free(r->row_tags);
     free(r->col_tags);
     free(r->bounds);
-    fold_maps_free(&r->maps);
+    fold_maps_free(r->maps);
 }
 
 static FoldApplyResult run_apply(const FoldTestLP *P)
@@ -839,13 +850,13 @@ static FoldApplyResult run_apply(const FoldTestLP *P)
         r.col_tags[j] = (ColTag) (j % 5);
     }
     FoldOptions options = fold_test_options(0.0);
-    r.reason = fold_problem(r.A, AT, r.lhs, r.rhs, r.bounds, r.c, &options, &r.maps,
-                            &r.stats);
+    r.reason = fold_detect(r.A, AT, r.lhs, r.rhs, r.bounds, r.c, &options, &r.maps,
+                           &r.stats);
     r.detect_reason = r.reason;
     if (r.reason == FOLD_FOLDABLE)
     {
         r.reason = fold_apply(r.A, r.lhs, r.rhs, r.row_tags, r.bounds, r.col_tags,
-                              r.c, &r.maps, &r.folded);
+                              r.c, r.maps, &r.folded);
     }
     free_matrix(AT);
     free(work);
@@ -922,9 +933,9 @@ static const char *test_fold_apply_blocks(void)
     mu_assert("column tags of the keepers",
               r.col_tags[0] == 0 && r.col_tags[1] == 1);
     mu_assert("class sizes",
-              r.maps.row_class_size[0] == 3 && r.maps.col_class_size[1] == 3);
+              r.maps->row_class_size[0] == 3 && r.maps->col_class_size[1] == 3);
     mu_assert("fold index of a member",
-              r.maps.row_fold_index[3] == 1 && r.maps.col_fold_index[4] == 0);
+              r.maps->folded_row[3] == 1 && r.maps->folded_col[4] == 0);
     mu_assert("row sentinel", r.folded->p[2].start == 4 && r.folded->p[2].end == 4);
     apply_result_free(&r);
     flp_free(&p);
@@ -989,11 +1000,11 @@ static const char *test_fold_apply_random(void)
         int n0 = 2 + (int) (fold_rnd() % 6);
         FoldTestLP b = random_block(m0, n0, 6, 3);
         FoldOptions options = fold_test_options(0.0);
-        FoldMaps maps;
+        FoldMaps *maps = NULL;
         FoldStats stats;
         FoldReason reason =
             b.nnz > 0 ? run_fold(&b, &options, &maps, &stats) : FOLD_FOLDABLE;
-        fold_maps_free(&maps);
+        fold_maps_free(maps);
         if (reason != FOLD_NOTHING)
         {
             flp_free(&b);
@@ -1086,7 +1097,7 @@ static const char *test_fold_postsolve_lift(void)
     PresolvedProblem folded = lp_problem(&f);
     mu_assert("folded point is KKT", is_kkt_point(&folded, x_f, y_f, z_f, 1e-9));
     double x[6], y[3], z[6];
-    fold_postsolve(&r.maps, p.m, p.n, x_f, y_f, z_f, x, y, z);
+    fold_postsolve(r.maps, p.m, p.n, x_f, y_f, z_f, x, y, z);
     for (int j = 0; j < 6; j++)
     {
         mu_assert("x copied", x[j] == (double) (j % 2));
@@ -1126,7 +1137,7 @@ static const char *test_fold_postsolve_class_sizes(void)
     PresolvedProblem folded = lp_problem(&f);
     mu_assert("folded point is KKT", is_kkt_point(&folded, x_f, y_f, z_f, 1e-9));
     double x[3], y[2], z[3];
-    fold_postsolve(&r.maps, p.m, p.n, x_f, y_f, z_f, x, y, z);
+    fold_postsolve(r.maps, p.m, p.n, x_f, y_f, z_f, x, y, z);
     for (int j = 0; j < 3; j++)
     {
         mu_assert("x copied", x[j] == 0.5);
@@ -1343,7 +1354,6 @@ static const char *all_tests_fold(void)
     mu_run_test(test_fold_large, counter_fold);
     mu_run_test(test_fold_verify_entries, counter_fold);
     mu_run_test(test_fold_verify_other_end, counter_fold);
-    mu_run_test(test_fold_memory_guard, counter_fold);
     mu_run_test(test_fold_apply_blocks, counter_fold);
     mu_run_test(test_fold_apply_column_sum, counter_fold);
     mu_run_test(test_fold_apply_exact_zero, counter_fold);

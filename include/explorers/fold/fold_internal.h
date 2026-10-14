@@ -19,34 +19,47 @@
 #ifndef FOLD_INTERNAL_H
 #define FOLD_INTERNAL_H
 
-/* The workspace and the first step of fold_problem, exposed for the unit
+/* The workspace and the first step of fold_detect, exposed for the unit
    tests. */
 
 #include "Bounds.h"
 #include "colour_refinement.h"
 #include <stdbool.h>
-#include <stdint.h>
 
 struct Matrix;
 
-/* The line data of a line as bit patterns, with the line for the sort. */
-typedef struct LineData
+/* The line data of a row, with the row for the sort. */
+typedef struct RowData
 {
-    uint64_t data[3]; /* (lhs, rhs, 0) of a row or (lb, ub, c) of a column. */
-    int line;
-} LineData;
+    double lhs;
+    double rhs;
+    int row;
+} RowData;
+
+/* The line data of a column, with the column for the sort. */
+typedef struct ColData
+{
+    double lb;
+    double ub;
+    double c;
+    int col;
+} ColData;
 
 /* Everything the fold allocates, apart from the maps. */
 typedef struct FoldWorkspace
 {
     ColourRefinement *refine;
-    LineData *lines; /* Of the larger side, for the colouring. */
-    int *scratch;    /* Of the larger side, for the lowest member ids. */
+    RowData *rows;    /* size: n_rows, for the start colours. */
+    ColData *cols;    /* size: n_cols, for the start colours. */
+    int *row_colours; /* size: n_rows, the start colours of the rows. */
+    int *col_colours; /* size: n_cols, the start colours of the columns. */
+    int *row_classes; /* size: n_rows, the refined classes of the rows. */
+    int *col_classes; /* size: n_cols, the refined classes of the columns. */
+    int *scratch;     /* size: max(n_rows, n_cols), the first line of each class. */
 } FoldWorkspace;
 
-/* False when an allocation fails. Freeing is safe either way. */
-bool fold_workspace_new(FoldWorkspace *work, const struct Matrix *A,
-                        const struct Matrix *AT);
+/* NULL when an allocation fails. Freeing NULL is safe. */
+FoldWorkspace *fold_workspace_new(const struct Matrix *A, const struct Matrix *AT);
 void fold_workspace_free(FoldWorkspace *work);
 
 /* Start colours from the line data: rows with equal (lhs, rhs) get one colour,

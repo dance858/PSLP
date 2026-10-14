@@ -22,19 +22,19 @@
 /* LP folding. Rows whose entries agree, class by class of the columns, and
    columns whose entries agree, class by class of the rows, form the coarsest
    equitable partition that refines the partition by line data (lhs, rhs) and
-   (lb, ub, c). Equality is bitwise. */
-
-#include <stddef.h>
+   (lb, ub, c). Values are equal when they compare equal as doubles; matrix
+   entries are compared by their bits, with -0.0 read as 0.0. Indices and line
+   counts are int, like the matrix indices. */
 
 struct Matrix;
 struct Bound;
 
 typedef enum FoldReason
 {
-    FOLD_FOLDABLE, /* Partition found and verified. */
-    FOLD_NOTHING,  /* Every line alone in its class, or too few removable entries. */
-    FOLD_LIMIT,    /* Work budget, round limit or memory limit reached. */
-    FOLD_FAILED /* The partition did not verify, or no memory for the workspace. */
+    FOLD_FOLDABLE, /* Partition found. */
+    FOLD_NOTHING,  /* No entries to remove, or fewer than min_reduction asks for. */
+    FOLD_LIMIT,    /* Work budget or round limit reached. */
+    FOLD_FAILED    /* No memory for the workspace. */
 } FoldReason;
 
 typedef struct FoldOptions
@@ -42,24 +42,30 @@ typedef struct FoldOptions
     double min_reduction; /* Removable-entry bound required, as a share of nnz. */
     double work_budget;   /* Work allowed, in multiples of nnz. */
     int max_rounds;
-    double max_memory; /* Bytes allowed, 0 for no limit. */
 } FoldOptions;
 
-/* Partition of the rows and columns. A class id is the lowest member index, so
-   a line whose class id equals its own index is the representative of its row
-   class or the keeper of its column class. The folded index of a line is the
-   rank of its class among the representatives (keepers) in ascending order. */
+/*  FoldMaps is used to keep track of the row and column classes.
+
+    * row_rep[i]:        idx of the row that represents the class of row i.
+    * col_rep[j]:        idx of the col that represents the class of col j.
+    * folded_row[i]:     idx of the folded row for the class of row i.
+    * folded_col[j]:     idx of the folded col for the class of col j.
+    * row_class_size[k]: number of rows in the class of folded row k.
+    * col_class_size[l]: number of cols in the class of folded col l.
+
+    The representative of a class is its lowest-indexed member, so row i is a
+    representative exactly when row_rep[i] == i (columns likewise).
+*/
 typedef struct FoldMaps
 {
-    int *row_class;      /* [n_rows] */
-    int *col_class;      /* [n_cols] */
-    int *row_fold_index; /* [n_rows] */
-    int *col_fold_index; /* [n_cols] */
-    int *row_class_size; /* [n_rows_folded] */
-    int *col_class_size; /* [n_cols_folded] */
+    int *row_rep;        /* size: n_rows */
+    int *col_rep;        /* size: n_cols */
+    int *folded_row;     /* size: n_rows */
+    int *folded_col;     /* size: n_cols */
+    int *row_class_size; /* size: n_rows_folded */
+    int *col_class_size; /* size: n_cols_folded */
     int n_rows_folded;
     int n_cols_folded;
-    int removable_entries; /* Upper bound, rows and columns counted separately. */
 } FoldMaps;
 
 typedef struct FoldStats
@@ -68,22 +74,19 @@ typedef struct FoldStats
     int rounds;
     double work; /* In multiples of nnz. */
     double time;
-    double memory_estimate; /* Bytes allocated by the fold. */
 } FoldStats;
 
-/* Finds the partition of (A, lhs, rhs, bounds, c) and verifies it exactly. AT
-   is the transpose of A. 'maps' is filled when the result is FOLD_FOLDABLE and
-   left with NULL arrays otherwise. */
-FoldReason fold_problem(const struct Matrix *A, const struct Matrix *AT,
-                        const double *lhs, const double *rhs,
-                        const struct Bound *bounds, const double *c,
-                        const FoldOptions *options, FoldMaps *maps,
-                        FoldStats *stats);
+/* Finds the partition of (A, lhs, rhs, bounds, c). AT is the transpose of A.
+   *maps is set to the maps when the result is FOLD_FOLDABLE and to NULL
+   otherwise. */
+FoldReason fold_detect(const struct Matrix *A, const struct Matrix *AT,
+                       const double *lhs, const double *rhs,
+                       const struct Bound *bounds, const double *c,
+                       const FoldOptions *options, FoldMaps **maps,
+                       FoldStats *stats);
 
+/* Freeing NULL is safe. */
 void fold_maps_free(FoldMaps *maps);
-
-/* Bytes fold_problem allocates. */
-double fold_memory_estimate(size_t n_rows, size_t n_cols, size_t nnz);
 
 const char *fold_reason_string(FoldReason reason);
 

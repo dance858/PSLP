@@ -58,6 +58,12 @@ typedef struct ColourRefinementStats
 {
     int rounds;
     double work; /* Entries touched, in multiples of nnz. */
+    int n_row_classes;
+    int n_col_classes;
+    /* Sum over the classes of both sides of (size - 1) times the entries of a
+       member line: the entries that duplicate those of another line of the
+       class. */
+    int duplicate_entries;
 } ColourRefinementStats;
 
 /* State and scratch for A and its transpose. Keeps pointers to both. NULL on
@@ -66,37 +72,21 @@ ColourRefinement *colour_refinement_new(const struct Matrix *A,
                                         const struct Matrix *AT);
 void colour_refinement_free(ColourRefinement *refine);
 
-/* Start colours, one per row and one per column, written by the caller before
-   the run. Lines with equal colours and equally many entries start in one
-   class. */
-uint64_t *colour_refinement_row_colours(ColourRefinement *refine);
-uint64_t *colour_refinement_col_colours(ColourRefinement *refine);
-
-/* Refines to a fixpoint or a limit, once per state. The class ids are valid
-   either way. */
+/* Refines from the start colours, one per row and one per column, to a
+   fixpoint or a limit. Lines with equal colours and equally many entries start
+   in one class. Writes the class id of every row and column, in
+   [0, n_row_classes) and [0, n_col_classes), and the counts into 'stats'. The
+   classes are valid whether or not the refinement converged. */
 ColourRefinementResult colour_refinement_run(ColourRefinement *refine,
+                                             const int *row_colours,
+                                             const int *col_colours,
                                              const ColourRefinementOptions *options,
+                                             int *row_classes, int *col_classes,
                                              ColourRefinementStats *stats);
 
-/* Class ids of the rows and of the columns, in [0, n_classes). */
-const uint32_t *colour_refinement_row_classes(const ColourRefinement *refine);
-const uint32_t *colour_refinement_col_classes(const ColourRefinement *refine);
-int colour_refinement_n_row_classes(const ColourRefinement *refine);
-int colour_refinement_n_col_classes(const ColourRefinement *refine);
-
-/* Sum over the classes of both sides of (size - 1) times the entries of a
-   member line: the entries that duplicate those of another line of the class. */
-int colour_refinement_duplicate_entries(const ColourRefinement *refine);
-
-/* Class ids of the rows (or the columns) as lowest member indices. 'scratch'
-   has n_classes entries. */
-void colour_refinement_lowest_member_ids(const ColourRefinement *refine, bool rows,
-                                         int *scratch, int *ids);
-
-/* True when the partition is equitable: one more round splits nothing. */
-bool colour_refinement_verify(ColourRefinement *refine);
-
-/* Bytes allocated by colour_refinement_new. */
-double colour_refinement_memory_estimate(size_t n_rows, size_t n_cols, size_t nnz);
+/* True when the partition (row_classes, col_classes) is equitable: refining it
+   once more splits no class. The ids may be any ints. */
+bool colour_refinement_verify(ColourRefinement *refine, const int *row_classes,
+                              const int *col_classes);
 
 #endif // COLOUR_REFINEMENT_H

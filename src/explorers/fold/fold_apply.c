@@ -46,7 +46,7 @@ static int fold_row(const Matrix *A, int row, const FoldMaps *maps,
     int start = A->p[row].start, n_entries = A->p[row].end - start;
     for (int k = 0; k < n_entries; k++)
     {
-        entries[k].col = maps->col_fold_index[A->i[start + k]];
+        entries[k].col = maps->folded_col[A->i[start + k]];
         entries[k].val = A->x[start + k];
     }
     qsort(entries, (size_t) n_entries, sizeof(FoldEntry), compare_entries);
@@ -78,7 +78,7 @@ static void fold_row_sides(const FoldMaps *maps, int n_rows, double *lhs,
     int idx = 0;
     for (int row = 0; row < n_rows; row++)
     {
-        if (maps->row_class[row] == row)
+        if (maps->row_rep[row] == row)
         {
             lhs[idx] = lhs[row];
             rhs[idx] = rhs[row];
@@ -95,7 +95,7 @@ static void fold_bounds(const FoldMaps *maps, int n_cols, Bound *bounds,
     int idx = 0;
     for (int col = 0; col < n_cols; col++)
     {
-        if (maps->col_class[col] == col)
+        if (maps->col_rep[col] == col)
         {
             bounds[idx] = bounds[col];
             col_tags[idx] = col_tags[col];
@@ -110,7 +110,7 @@ static void fold_objective(const FoldMaps *maps, int n_cols, double *c)
     int idx = 0;
     for (int col = 0; col < n_cols; col++)
     {
-        if (maps->col_class[col] == col)
+        if (maps->col_rep[col] == col)
         {
             c[idx] = maps->col_class_size[idx] * c[col];
             idx++;
@@ -129,10 +129,12 @@ FoldReason fold_apply(const Matrix *A, double *lhs, double *rhs, RowTag *row_tag
     FoldEntry *entries;
     *folded = NULL;
 
-    /* compute nnz bound on folded matrix and longest representative row */
+    // ----------------------------------------------------------------------
+    //   compute nnz bound on folded matrix and longest representative row
+    // ----------------------------------------------------------------------
     for (int row = 0; row < n_rows; row++)
     {
-        if (maps->row_class[row] == row)
+        if (maps->row_rep[row] == row)
         {
             len = A->p[row].end - A->p[row].start;
             nnz_max += (size_t) len;
@@ -140,7 +142,9 @@ FoldReason fold_apply(const Matrix *A, double *lhs, double *rhs, RowTag *row_tag
         }
     }
 
-    /* allocate folded matrix and temporary storage */
+    // ----------------------------------------------------------------------
+    //             allocate folded matrix and temporary storage
+    // ----------------------------------------------------------------------
     A_new = matrix_alloc((size_t) maps->n_rows_folded, (size_t) maps->n_cols_folded,
                          nnz_max);
     entries = ps_malloc((size_t) max_len + 1, sizeof(FoldEntry));
@@ -151,10 +155,12 @@ FoldReason fold_apply(const Matrix *A, double *lhs, double *rhs, RowTag *row_tag
         return FOLD_FAILED;
     }
 
-    /* fold the matrix */
+    // ----------------------------------------------------------------------
+    //     form the constraint matrix of the folded problem, row by row
+    // ----------------------------------------------------------------------
     for (int row = 0; row < n_rows; row++)
     {
-        if (maps->row_class[row] == row)
+        if (maps->row_rep[row] == row)
         {
             A_new->p[new_idx].start = nnz;
             nnz += fold_row(A, row, maps, entries, A_new->i + nnz, A_new->x + nnz);
@@ -167,7 +173,9 @@ FoldReason fold_apply(const Matrix *A, double *lhs, double *rhs, RowTag *row_tag
     A_new->nnz = (size_t) nnz;
     PS_FREE(entries);
 
-    /* fold the row sides, bounds, and objective */
+    // ----------------------------------------------------------------------
+    //              fold the row sides, bounds, and objective
+    // ----------------------------------------------------------------------
     fold_row_sides(maps, n_rows, lhs, rhs, row_tags);
     fold_bounds(maps, n_cols, bounds, col_tags);
     fold_objective(maps, n_cols, c);
