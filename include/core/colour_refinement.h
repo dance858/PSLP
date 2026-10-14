@@ -78,8 +78,8 @@ void colour_refinement_free(ColourRefinement *refine);
    [0, n_row_classes) and [0, n_col_classes), and the counts into 'stats'. The
    classes are valid whether or not the refinement converged. */
 ColourRefinementResult colour_refinement_run(ColourRefinement *refine,
-                                             const int *row_colours,
-                                             const int *col_colours,
+                                             const uint64_t *row_colours,
+                                             const uint64_t *col_colours,
                                              const ColourRefinementOptions *options,
                                              int *row_classes, int *col_classes,
                                              ColourRefinementStats *stats);

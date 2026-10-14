@@ -27,6 +27,7 @@
 #include "colour_refinement.h"
 #include "Matrix.h"
 #include "Memory_wrapper.h"
+#include "hash.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -60,14 +61,6 @@ struct ColourRefinement
     int *row_copy;       /* Class ids refined by verify. */
     int *col_copy;
 };
-
-/* Bit pattern of a value with -0.0 read as 0.0. */
-static uint64_t value_bits(double value)
-{
-    uint64_t bits;
-    memcpy(&bits, &value, sizeof(bits));
-    return bits == 0x8000000000000000ULL ? 0 : bits;
-}
 
 static int compare_pair(const void *a, const void *b)
 {
@@ -129,12 +122,11 @@ static int assign_classes(RefineSide *side, RefineKey *keys)
 }
 
 /* Groups the lines by start colour and number of entries. */
-static void group_side(RefineSide *side, const int *colours, RefineKey *keys)
+static void group_side(RefineSide *side, const uint64_t *colours, RefineKey *keys)
 {
     for (int line = 0; line < side->n_lines; line++)
     {
-        RefineKey key = {(uint64_t) colours[line], line_count(side, line), line,
-                         NULL};
+        RefineKey key = {colours[line], line_count(side, line), line, NULL};
         keys[line] = key;
     }
     assign_classes(side, keys);
@@ -162,8 +154,8 @@ static int refine_side(RefineSide *side, const int *other_class, RefineKey *keys
 }
 
 ColourRefinementResult colour_refinement_run(ColourRefinement *refine,
-                                             const int *row_colours,
-                                             const int *col_colours,
+                                             const uint64_t *row_colours,
+                                             const uint64_t *col_colours,
                                              const ColourRefinementOptions *options,
                                              int *row_classes, int *col_classes,
                                              ColourRefinementStats *stats)

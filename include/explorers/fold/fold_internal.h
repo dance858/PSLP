@@ -25,6 +25,7 @@
 #include "Bounds.h"
 #include "colour_refinement.h"
 #include <stdbool.h>
+#include <stdint.h>
 
 struct Matrix;
 
@@ -49,13 +50,13 @@ typedef struct ColData
 typedef struct FoldWorkspace
 {
     ColourRefinement *refine;
-    RowData *rows;    /* size: n_rows, for the start colours. */
-    ColData *cols;    /* size: n_cols, for the start colours. */
-    int *row_colours; /* size: n_rows, the start colours of the rows. */
-    int *col_colours; /* size: n_cols, the start colours of the columns. */
-    int *row_classes; /* size: n_rows, the refined classes of the rows. */
-    int *col_classes; /* size: n_cols, the refined classes of the columns. */
-    int *scratch;     /* size: max(n_rows, n_cols), the first line of each class. */
+    RowData *rows;         /* size: n_rows, for the start colours. */
+    ColData *cols;         /* size: n_cols, for the start colours. */
+    uint64_t *row_colours; /* size: n_rows, the start colours of the rows. */
+    uint64_t *col_colours; /* size: n_cols, the start colours of the columns. */
+    int *row_classes;      /* size: n_rows, the refined classes of the rows. */
+    int *col_classes;      /* size: n_cols, the refined classes of the columns. */
+    int *scratch; /* size: max(n_rows, n_cols), the first line of each class. */
 } FoldWorkspace;
 
 /* NULL when an allocation fails. Freeing NULL is safe. */

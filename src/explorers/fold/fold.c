@@ -55,8 +55,8 @@ FoldWorkspace *fold_workspace_new(const Matrix *A, const Matrix *AT)
     work->refine = colour_refinement_new(A, AT);
     work->rows = (RowData *) ps_malloc(A->m + 1, sizeof(RowData));
     work->cols = (ColData *) ps_malloc(A->n + 1, sizeof(ColData));
-    work->row_colours = (int *) ps_malloc(A->m + 1, sizeof(int));
-    work->col_colours = (int *) ps_malloc(A->n + 1, sizeof(int));
+    work->row_colours = (uint64_t *) ps_malloc(A->m + 1, sizeof(uint64_t));
+    work->col_colours = (uint64_t *) ps_malloc(A->n + 1, sizeof(uint64_t));
     work->row_classes = (int *) ps_malloc(A->m + 1, sizeof(int));
     work->col_classes = (int *) ps_malloc(A->n + 1, sizeof(int));
     work->scratch = (int *) ps_malloc(n_lines + 1, sizeof(int));
@@ -167,10 +167,10 @@ static int compare_col_data(const void *a, const void *b)
 }
 
 /* Sort rows so that rows with equal (lhs, rhs) get the same colour. */
-static void colour_rows(RowData *rows, int n_rows, int *colours)
+static void colour_rows(RowData *rows, int n_rows, uint64_t *colours)
 {
     qsort(rows, (size_t) n_rows, sizeof(RowData), compare_row_data);
-    int colour = 0;
+    uint64_t colour = 0;
     for (int ii = 0; ii < n_rows; ii++)
     {
         if (ii > 0 && compare_row_data(&rows[ii - 1], &rows[ii]) != 0)
@@ -182,10 +182,10 @@ static void colour_rows(RowData *rows, int n_rows, int *colours)
 }
 
 /* Sort columns so that columns with equal (lb, ub, c) get the same colour. */
-static void colour_cols(ColData *cols, int n_cols, int *colours)
+static void colour_cols(ColData *cols, int n_cols, uint64_t *colours)
 {
     qsort(cols, (size_t) n_cols, sizeof(ColData), compare_col_data);
-    int colour = 0;
+    uint64_t colour = 0;
     for (int ii = 0; ii < n_cols; ii++)
     {
         if (ii > 0 && compare_col_data(&cols[ii - 1], &cols[ii]) != 0)

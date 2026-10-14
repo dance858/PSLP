@@ -33,8 +33,9 @@ static ColourRefinementOptions refine_test_options(void)
    defaults). */
 static ColourRefinementResult
 graph_refine(RefineGraph *graph, int m, int n, int nnz, const int *Ap, const int *Ai,
-             const double *Ax, const int *row_colours, const int *col_colours,
-             ColourRefinementStats *stats, const ColourRefinementOptions *options)
+             const double *Ax, const uint64_t *row_colours,
+             const uint64_t *col_colours, ColourRefinementStats *stats,
+             const ColourRefinementOptions *options)
 {
     memset(graph, 0, sizeof(*graph));
     graph->A = matrix_new(Ax, Ai, Ap, (size_t) m, (size_t) n, (size_t) nnz);
@@ -43,8 +44,8 @@ graph_refine(RefineGraph *graph, int m, int n, int nnz, const int *Ap, const int
     graph->refine = colour_refinement_new(graph->A, graph->AT);
     graph->row_classes = (int *) calloc((size_t) m + 1, sizeof(int));
     graph->col_classes = (int *) calloc((size_t) n + 1, sizeof(int));
-    int *zero_rows = (int *) calloc((size_t) m + 1, sizeof(int));
-    int *zero_cols = (int *) calloc((size_t) n + 1, sizeof(int));
+    uint64_t *zero_rows = (uint64_t *) calloc((size_t) m + 1, sizeof(uint64_t));
+    uint64_t *zero_cols = (uint64_t *) calloc((size_t) n + 1, sizeof(uint64_t));
     ColourRefinementOptions defaults = refine_test_options();
     ColourRefinementResult result = colour_refinement_run(
         graph->refine, row_colours ? row_colours : zero_rows,
@@ -121,7 +122,7 @@ static const char *test_refine_edge_label(void)
 /* Start colours split the blocks; -0.0 and 0.0 are one label. */
 static const char *test_refine_start_colours(void)
 {
-    int row_colours[4] = {7, 7, 9, 9};
+    uint64_t row_colours[4] = {7, 7, 9, 9};
     RefineGraph graph;
     ColourRefinementStats stats;
     mu_assert("converged", graph_refine(&graph, 4, 4, 8, blocks_Ap, blocks_Ai,
@@ -131,15 +132,21 @@ static const char *test_refine_start_colours(void)
     graph_free(&graph);
 
     /* Every bit of a colour counts. */
-    int bit_colours[4] = {0, 0, 1, 1};
+    uint64_t bit_colours[4] = {0, 0, 1, 1};
     mu_assert("bit 0 splits", graph_refine(&graph, 4, 4, 8, blocks_Ap, blocks_Ai,
                                            blocks_Ax, bit_colours, NULL, &stats,
                                            NULL) == COLOUR_REFINEMENT_CONVERGED);
     mu_assert("four row classes", stats.n_row_classes == 4);
     graph_free(&graph);
+    bit_colours[2] = bit_colours[3] = 1ULL << 63;
+    mu_assert("bit 63 splits", graph_refine(&graph, 4, 4, 8, blocks_Ap, blocks_Ai,
+                                            blocks_Ax, bit_colours, NULL, &stats,
+                                            NULL) == COLOUR_REFINEMENT_CONVERGED);
+    mu_assert("four row classes", stats.n_row_classes == 4);
+    graph_free(&graph);
 
     /* A colour shared by no other line gives a singleton class. */
-    int mixed_colours[4] = {0, 0, 2, 1};
+    uint64_t mixed_colours[4] = {0, 0, 2, 1};
     mu_assert("singleton colours",
               graph_refine(&graph, 4, 4, 8, blocks_Ap, blocks_Ai, blocks_Ax,
                            mixed_colours, NULL, &stats,
@@ -273,18 +280,18 @@ static const char *test_refine_large(void)
     double *Ax;
     replicate_blocks(copies, &Ap, &Ai, &Ax);
     /* Odd copies differ in a column colour, so the classes are not trivial. */
-    int *row_colours = (int *) malloc((size_t) m * sizeof(int));
-    int *col_colours = (int *) malloc((size_t) m * sizeof(int));
+    uint64_t *row_colours = (uint64_t *) malloc((size_t) m * sizeof(uint64_t));
+    uint64_t *col_colours = (uint64_t *) malloc((size_t) m * sizeof(uint64_t));
     for (int jj = 0; jj < m; jj++)
     {
-        col_colours[jj] = (jj / 2) % 2;
+        col_colours[jj] = (uint64_t) ((jj / 2) % 2);
     }
     for (int many_groups = 0; many_groups <= 1; many_groups++)
     {
         /* Rows 5000 apart agree in colour, block row and column colours. */
         for (int ii = 0; ii < m; ii++)
         {
-            row_colours[ii] = many_groups ? ii % 5000 : 0;
+            row_colours[ii] = many_groups ? (uint64_t) (ii % 5000) : 0;
         }
         RefineGraph graph;
         ColourRefinementStats stats;
