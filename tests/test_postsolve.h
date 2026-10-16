@@ -1278,6 +1278,78 @@ static char *test_parallel_col_dual_identity()
     return 0;
 }
 
+/*  Parallel rows with an approximate reduced solution.
+    min. [1     2     3]
+    s.t.      [ 1000   1000   1000]  <= 1e5
+              [-2000  -2000  -2000]  <= -1.6e5
+              [    1     -1      0]  <= 30
+              [    0      1     -1]  <= 20
+              [    1      0      1]  <= 70
+                         0 <= x <= 100
+    Rows 0 and 1 are parallel and one of them is removed. In the reduced
+    problem the kept row has both sides, x = (160/3, 70/3, 10/3) and its dual
+    is 2 / a (a = its coefficient), on the side that came from the removed row
+    if row 0 is kept. The reduced point here is scaled by (1 + 2e-10), as a
+    first-order solver's may be, so the kept row misses that side by 1.6e-5:
+    more than FEAS_TOL, though about 2e-10 relative. Postsolve must still
+    leave every row dual with a sign its sides allow: neither row has a
+    finite lhs, so neither may end up with a positive dual.
+*/
+static char *test_parallel_rows_dual_approximate_solution()
+{
+    double Ax[] = {1000, 1000, 1000, -2000, -2000, -2000, 1, -1, 1, -1, 1, 1};
+    int Ai[] = {0, 1, 2, 0, 1, 2, 0, 1, 1, 2, 0, 2};
+    int Ap[] = {0, 3, 6, 8, 10, 12};
+    int nnz = 12;
+    int n_rows = 5;
+    int n_cols = 3;
+
+    double lhs[] = {-INF, -INF, -INF, -INF, -INF};
+    double rhs[] = {1e5, -1.6e5, 30, 20, 70};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {100, 100, 100};
+    double c[] = {1, 2, 3};
+    PresolvedProblem orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->parallel_rows = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    PresolvedProblem *red = presolver->reduced_prob;
+    mu_assert("expected one parallel row removed", red->m == 4 && red->n == 3);
+
+    // optimal reduced point, scaled by (1 + 2e-10); the kept parallel row is
+    // reduced row 0 with coefficient a, the other rows keep their order
+    double a = red->Ax[red->Ap[0]];
+    double scale = 1 + 2e-10;
+    double x[] = {160.0 / 3 * scale, 70.0 / 3 * scale, 10.0 / 3 * scale};
+    double y[] = {2 / a, -1, -1, 0};
+    double z[] = {0, 0, 0};
+    postsolve(presolver, x, y, z);
+
+    double *y_orig = presolver->sol->y;
+    for (int i = 0; i < n_rows; ++i)
+    {
+        mu_assert("positive row dual without a finite lhs",
+                  !(y_orig[i] > POSTSOLVE_TOL_FEAS && IS_NEG_INF(lhs[i])));
+        mu_assert("negative row dual without a finite rhs",
+                  !(y_orig[i] < -POSTSOLVE_TOL_FEAS && IS_POS_INF(rhs[i])));
+    }
+
+    KKTResiduals res;
+    kkt_residuals(&orig, presolver->sol->x, y_orig, presolver->sol->z, &res);
+    mu_assert("postsolved duals do not satisfy A^T y + z = c",
+              res.dual_res_rel <= 1e-12);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_postsolve()
 {
     mu_run_test(test_0_postsolve, counter_postsolve);
@@ -1305,6 +1377,7 @@ static const char *all_tests_postsolve()
     mu_run_test(test_pathological_ston_two, counter_postsolve);
     mu_run_test(test_fix_col_inf, counter_postsolve);
     mu_run_test(test_parallel_col_dual_identity, counter_postsolve);
+    mu_run_test(test_parallel_rows_dual_approximate_solution, counter_postsolve);
     //        all tests above pass
 
     return 0;

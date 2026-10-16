@@ -384,7 +384,10 @@ void retrieve_lhs_change(Solution *sol, int i, const double *vals, const int *co
         residual += vals[k] * sol->x[cols[k]];
     }
 
-    if (!IS_ZERO_FEAS_TOL(residual))
+    // A positive y_i already says the new lhs is the active side, so hand the
+    // dual over without the residual test, which fails on an approximate
+    // solution when the activity is large and would leave y_i on row i.
+    if (sol->y[i] <= 0 && !IS_ZERO_FEAS_TOL(residual))
     {
         return;
     }
@@ -414,7 +417,8 @@ void retrieve_rhs_change(Solution *sol, int i, const double *vals, const int *co
         residual += vals[k] * sol->x[cols[k]];
     }
 
-    if (!IS_ZERO_FEAS_TOL(residual))
+    // As in retrieve_lhs_change, with the signs reversed.
+    if (sol->y[i] >= 0 && !IS_ZERO_FEAS_TOL(residual))
     {
         return;
     }
