@@ -733,9 +733,9 @@ static int *fixture_col_ids(const FoldVerifyFixture *fx)
 /* Whether the fixture's current partition is equitable. */
 static bool fixture_verify(FoldVerifyFixture *fx)
 {
-    return colour_refinement_verify(fx->workspace->refine,
-                                    fx->workspace->row_classes,
-                                    fx->workspace->col_classes);
+    return colour_refinement_verify(
+               fx->workspace->refine, fx->workspace->row_classes,
+               fx->workspace->col_classes) == COLOUR_REFINEMENT_EQUITABLE;
 }
 
 /* Two identical blocks: the refined partition verifies; moving one row of

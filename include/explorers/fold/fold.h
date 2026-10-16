@@ -34,7 +34,7 @@ typedef enum FoldReason
     FOLD_FOLDABLE, /* Partition found. */
     FOLD_NOTHING,  /* No entries to remove, or fewer than min_reduction asks for. */
     FOLD_LIMIT,    /* Work budget or round limit reached. */
-    FOLD_FAILED,   /* No memory for the workspace. */
+    FOLD_FAILED,   /* Out of memory. */
     FOLD_COLLISION /* Lines with different data share a start colour. */
 } FoldReason;
 

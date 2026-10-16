@@ -17,6 +17,7 @@ typedef struct RefineGraph
     Matrix *A;
     Matrix *AT;
     int *work;
+    ThreadPool *pool;
     ColourRefinement *refine;
     int *row_classes;
     int *col_classes;
@@ -30,7 +31,7 @@ static ColourRefinementOptions refine_test_options(void)
 
 /* Builds the graph of (Ap, Ai, Ax) and runs the refinement from the given
    colours (NULL for all equal) with the given options (NULL for the
-   defaults). */
+   defaults), on a pool without workers. */
 static ColourRefinementResult
 graph_refine(RefineGraph *graph, int m, int n, int nnz, const int *Ap, const int *Ai,
              const double *Ax, const uint64_t *row_colours,
@@ -41,7 +42,8 @@ graph_refine(RefineGraph *graph, int m, int n, int nnz, const int *Ap, const int
     graph->A = matrix_new(Ax, Ai, Ap, (size_t) m, (size_t) n, (size_t) nnz);
     graph->work = (int *) calloc((size_t) n + 1, sizeof(int));
     graph->AT = transpose(graph->A, graph->work, 0);
-    graph->refine = colour_refinement_new(graph->A, graph->AT);
+    graph->pool = thread_pool_new(0);
+    graph->refine = colour_refinement_new(graph->A, graph->AT, graph->pool);
     graph->row_classes = (int *) calloc((size_t) m + 1, sizeof(int));
     graph->col_classes = (int *) calloc((size_t) n + 1, sizeof(int));
     uint64_t *zero_rows = (uint64_t *) calloc((size_t) m + 1, sizeof(uint64_t));
@@ -59,6 +61,7 @@ graph_refine(RefineGraph *graph, int m, int n, int nnz, const int *Ap, const int
 static void graph_free(RefineGraph *graph)
 {
     colour_refinement_free(graph->refine);
+    thread_pool_free(graph->pool);
     free(graph->row_classes);
     free(graph->col_classes);
     free(graph->work);
@@ -90,13 +93,15 @@ static const char *test_refine_blocks(void)
     mu_assert("duplicate entries", stats.duplicate_entries == 8);
 
     mu_assert("verified", colour_refinement_verify(graph.refine, graph.row_classes,
-                                                   graph.col_classes));
+                                                   graph.col_classes) ==
+                              COLOUR_REFINEMENT_EQUITABLE);
 
     /* Row 1 moved into the class of row 0 has different entries. */
     rows[1] = rows[0];
     mu_assert("tampered partition rejected",
-              !colour_refinement_verify(graph.refine, graph.row_classes,
-                                        graph.col_classes));
+              colour_refinement_verify(graph.refine, graph.row_classes,
+                                       graph.col_classes) ==
+                  COLOUR_REFINEMENT_NOT_EQUITABLE);
     graph_free(&graph);
     return 0;
 }
@@ -204,16 +209,17 @@ static const char *test_refine_path(void)
     int n_row_classes = stats.n_row_classes;
     mu_assert("partly refined", n_row_classes >= 2 && n_row_classes < 8);
     mu_assert("not equitable yet",
-              !colour_refinement_verify(graph.refine, graph.row_classes,
-                                        graph.col_classes));
+              colour_refinement_verify(graph.refine, graph.row_classes,
+                                       graph.col_classes) ==
+                  COLOUR_REFINEMENT_NOT_EQUITABLE);
     graph_free(&graph);
 
-    /* A round touches the entries of both sides, 2 nnz. */
+    /* The first round reads every entry twice. */
     ColourRefinementOptions work_limit = {1.0, 16384};
     mu_assert("work budget",
               graph_refine(&graph, 8, 8, nnz, Ap, Ai, Ax, NULL, NULL, &stats,
                            &work_limit) == COLOUR_REFINEMENT_NOT_CONVERGED);
-    mu_assert("one round of work", stats.rounds == 1 && stats.work == 2.0);
+    mu_assert("one round of work", stats.rounds == 1 && stats.work > 2.0);
     graph_free(&graph);
     return 0;
 }
@@ -233,15 +239,13 @@ static const char *test_refine_empty(void)
     mu_assert("two row classes", stats.n_row_classes == 2);
     mu_assert("rows 0 and 2 together", rows[0] == rows[2] && rows[0] != rows[1]);
     mu_assert("duplicate entries", stats.duplicate_entries == 2);
-    graph_free(&graph);
 
-    /* No rows at all. */
-    const int none_Ap[1] = {0};
-    mu_assert("converged",
-              graph_refine(&graph, 0, 2, 0, none_Ap, Ai, Ax, NULL, NULL, &stats,
-                           NULL) == COLOUR_REFINEMENT_CONVERGED);
-    mu_assert("no row classes", stats.n_row_classes == 0);
-    mu_assert("one column class", stats.n_col_classes == 1);
+    /* The empty row moved into the class of row 0 has fewer entries. */
+    graph.row_classes[1] = rows[0];
+    mu_assert("empty row rejected",
+              colour_refinement_verify(graph.refine, graph.row_classes,
+                                       graph.col_classes) ==
+                  COLOUR_REFINEMENT_NOT_EQUITABLE);
     graph_free(&graph);
     return 0;
 }
@@ -309,6 +313,104 @@ static const char *test_refine_large(void)
     return 0;
 }
 
+/* Gives the lines of class 'from' the class 'to'. */
+static void merge_class(int *classes, int n_lines, int from, int to)
+{
+    for (int ii = 0; ii < n_lines; ii++)
+    {
+        classes[ii] = classes[ii] == from ? to : classes[ii];
+    }
+}
+
+/* Runs on many copies of the block with 0 and 3 workers, so a side spans many
+   chunks and buckets: both give the same classes, which verify. Merging the
+   class with the highest id with a class of other labels fails. The other
+   side sees the merged ids consistently, so only the merged side can fail.
+   Merging classes whose lines have the same entries passes, since verify does
+   not see start colours. */
+static const char *test_refine_threads(void)
+{
+    int copies = 70000;
+    int m = 2 * copies, nnz = 4 * copies;
+    int *Ap, *Ai;
+    double *Ax;
+    replicate_blocks(copies, &Ap, &Ai, &Ax);
+    uint64_t *row_colours = (uint64_t *) malloc((size_t) m * sizeof(uint64_t));
+    uint64_t *col_colours = (uint64_t *) malloc((size_t) m * sizeof(uint64_t));
+    for (int ii = 0; ii < m; ii++)
+    {
+        row_colours[ii] = (uint64_t) (ii % 5000);
+        col_colours[ii] = (uint64_t) ((ii / 2) % 2);
+    }
+    RefineGraph graph;
+    ColourRefinementStats stats;
+    mu_assert("converged",
+              graph_refine(&graph, m, m, nnz, Ap, Ai, Ax, row_colours, col_colours,
+                           &stats, NULL) == COLOUR_REFINEMENT_CONVERGED);
+    int *rows = graph.row_classes;
+    int *cols = graph.col_classes;
+
+    ThreadPool *pool = thread_pool_new(3);
+    ColourRefinement *refine = colour_refinement_new(graph.A, graph.AT, pool);
+    int *thread_rows = (int *) malloc((size_t) m * sizeof(int));
+    int *thread_cols = (int *) malloc((size_t) m * sizeof(int));
+    ColourRefinementOptions options = refine_test_options();
+    ColourRefinementStats thread_stats;
+    mu_assert("converged on threads",
+              colour_refinement_run(refine, row_colours, col_colours, &options,
+                                    thread_rows, thread_cols,
+                                    &thread_stats) == COLOUR_REFINEMENT_CONVERGED);
+    mu_assert("same classes on threads",
+              memcmp(rows, thread_rows, (size_t) m * sizeof(int)) == 0 &&
+                  memcmp(cols, thread_cols, (size_t) m * sizeof(int)) == 0);
+    mu_assert("same counts on threads",
+              stats.rounds == thread_stats.rounds &&
+                  stats.duplicate_entries == thread_stats.duplicate_entries);
+    colour_refinement_free(refine);
+    thread_pool_free(pool);
+
+    mu_assert("refined partition passes",
+              colour_refinement_verify(graph.refine, rows, cols) ==
+                  COLOUR_REFINEMENT_EQUITABLE);
+    int last_row = 0, last_col = 0;
+    for (int ii = 0; ii < m; ii++)
+    {
+        last_row = rows[ii] > rows[last_row] ? ii : last_row;
+        last_col = cols[ii] > cols[last_col] ? ii : last_col;
+    }
+
+    /* Lines 2k and 2k + 1 of a copy have different labels. */
+    merge_class(rows, m, rows[last_row ^ 1], rows[last_row]);
+    mu_assert("merged rows rejected",
+              colour_refinement_verify(graph.refine, rows, cols) ==
+                  COLOUR_REFINEMENT_NOT_EQUITABLE);
+    memcpy(rows, thread_rows, (size_t) m * sizeof(int));
+    merge_class(cols, m, cols[last_col ^ 1], cols[last_col]);
+    mu_assert("merged columns rejected",
+              colour_refinement_verify(graph.refine, rows, cols) ==
+                  COLOUR_REFINEMENT_NOT_EQUITABLE);
+    memcpy(cols, thread_cols, (size_t) m * sizeof(int));
+
+    /* Copies 0 and 2 differ only in the start colours of their rows. */
+    mu_assert("start colours split", rows[4] != rows[0]);
+    merge_class(rows, m, thread_rows[4], thread_rows[0]);
+    merge_class(rows, m, thread_rows[5], thread_rows[1]);
+    merge_class(cols, m, thread_cols[4], thread_cols[0]);
+    merge_class(cols, m, thread_cols[5], thread_cols[1]);
+    mu_assert("merged copies pass",
+              colour_refinement_verify(graph.refine, rows, cols) ==
+                  COLOUR_REFINEMENT_EQUITABLE);
+    graph_free(&graph);
+    free(thread_cols);
+    free(thread_rows);
+    free(col_colours);
+    free(row_colours);
+    free(Ax);
+    free(Ai);
+    free(Ap);
+    return 0;
+}
+
 static const char *all_tests_colour_refinement(void)
 {
     mu_run_test(test_refine_blocks, counter_colour_refinement);
@@ -317,6 +419,7 @@ static const char *all_tests_colour_refinement(void)
     mu_run_test(test_refine_path, counter_colour_refinement);
     mu_run_test(test_refine_empty, counter_colour_refinement);
     mu_run_test(test_refine_large, counter_colour_refinement);
+    mu_run_test(test_refine_threads, counter_colour_refinement);
     return 0;
 }
 

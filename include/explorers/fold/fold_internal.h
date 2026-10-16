@@ -25,6 +25,7 @@
 #include "Bounds.h"
 #include "colour_refinement.h"
 #include "fold.h"
+#include "thread_pool.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -33,6 +34,7 @@ struct Matrix;
 /* Everything the fold allocates, apart from the maps. */
 typedef struct FoldWorkspace
 {
+    ThreadPool *pool; /* Without workers. */
     ColourRefinement *refine;
     uint64_t *row_colours; /* size: n_rows, the start colours of the rows. */
     uint64_t *col_colours; /* size: n_cols, the start colours of the columns. */
