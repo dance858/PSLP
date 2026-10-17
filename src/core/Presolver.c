@@ -413,6 +413,7 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     presolver = (Presolver *) ps_malloc(1, sizeof(Presolver));
     obj = objective_new(c_copy);
     if (!presolver || !obj) goto cleanup;
+    presolver->sol = NULL; /* allocated by the first postsolve call */
     presolver->stgs = stgs;
     presolver->prob = new_problem(constraints, obj);
     presolver->stats = init_stats(n_rows, n_cols, nnz);
@@ -423,12 +424,6 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     presolver->reduced_prob =
         (PresolvedProblem *) ps_calloc(1, sizeof(PresolvedProblem));
     DEBUG(run_debugger(constraints, false));
-
-    // ---------------------------------------------------------------------------
-    //           Allocate space for returning the solution
-    // ---------------------------------------------------------------------------
-    presolver->sol = new_solution(n_rows, n_cols);
-    if (!presolver->sol) goto cleanup;
 
     clock_gettime(CLOCK_MONOTONIC, &timer.end);
     presolver->stats->time_lp_fold = fold_time;
@@ -914,12 +909,36 @@ void free_presolver_reduced_problem(Presolver *presolver)
     PS_FREE(reduced_prob->ubs);
 }
 
+/* Allocates presolver->sol on the first postsolve call. Returns false (and
+   prints an error) if the allocation fails. */
+static bool ensure_solution(Presolver *presolver)
+{
+    if (presolver->sol)
+    {
+        return true;
+    }
+
+    presolver->sol = new_solution(presolver->stats->n_rows_original,
+                                  presolver->stats->n_cols_original);
+    if (!presolver->sol)
+    {
+        fprintf(stderr, "PSLP error: out of memory when allocating the "
+                        "postsolved solution. Outputs are left untouched. \n");
+        return false;
+    }
+    return true;
+}
+
 void postsolve(Presolver *presolver, const double *x, const double *y,
                const double *z)
 {
     Timer timer;
-    Solution *sol = presolver->sol;
     PresolveStats *stats = presolver->stats;
+    if (!ensure_solution(presolver))
+    {
+        return;
+    }
+    Solution *sol = presolver->sol;
     State *data = presolver->prob->constraints->state;
     PostsolveInfo *postsolve_info = data->postsolve_info;
     const FoldMaps *fold_maps = data->work->fold_maps;
@@ -966,7 +985,6 @@ void postsolve_primal_infeas_ray(Presolver *presolver, const double *y,
                                  double *y_orig)
 {
     Timer timer;
-    Solution *sol = presolver->sol;
     PresolveStats *stats = presolver->stats;
     State *data = presolver->prob->constraints->state;
     PostsolveInfo *postsolve_info = data->postsolve_info;
@@ -988,6 +1006,11 @@ void postsolve_primal_infeas_ray(Presolver *presolver, const double *y,
                         "free_presolver_reduced_problem! Don't do this! \n");
         return;
     }
+    if (!ensure_solution(presolver))
+    {
+        return;
+    }
+    Solution *sol = presolver->sol;
     z = (double *) ps_malloc(len_z, sizeof(double));
     assert(z != NULL);
 
@@ -1015,7 +1038,6 @@ void postsolve_primal_infeas_ray(Presolver *presolver, const double *y,
 void postsolve_dual_infeas_ray(Presolver *presolver, const double *x, double *x_orig)
 {
     Timer timer;
-    Solution *sol = presolver->sol;
     PresolveStats *stats = presolver->stats;
     State *data = presolver->prob->constraints->state;
     PostsolveInfo *postsolve_info = data->postsolve_info;
@@ -1026,6 +1048,11 @@ void postsolve_dual_infeas_ray(Presolver *presolver, const double *x, double *x_
                         "with lp_fold yet! x_orig is left untouched. \n");
         return;
     }
+    if (!ensure_solution(presolver))
+    {
+        return;
+    }
+    Solution *sol = presolver->sol;
 
     clock_gettime(CLOCK_MONOTONIC, &timer.start);
     postsolver_update(postsolve_info, stats->n_cols_reduced, stats->n_rows_reduced,

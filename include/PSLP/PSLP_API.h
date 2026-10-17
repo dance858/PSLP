@@ -90,7 +90,7 @@ extern "C"
          - 'reduced_prob' contains the presolved problem after running
             'run_presolver'
          - 'sol' contains the solution to the original problem after running
-            'postsolve'
+            'postsolve' (it is NULL until the first postsolve call)
     */
     typedef struct
     {

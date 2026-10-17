@@ -26,7 +26,7 @@
 #include "Memory_wrapper.h"
 #include "Numerics.h"
 #include "PSLP_API.h"
-#include "PSLP_sol.h"
+#include "PSLP_stats.h"
 #include "Postsolver.h"
 #include "Problem.h"
 #include "State.h"
@@ -215,12 +215,11 @@ void map_original_sol_to_reduced(Presolver *presolver, const double *x,
                                  const double *y, double *x_red, double *y_red,
                                  double *z_red)
 {
-    Solution *sol = presolver->sol;
     State *data = presolver->prob->constraints->state;
     const Mapping *maps = data->work->mappings;
     const PresolvedProblem *reduced_prob = presolver->reduced_prob;
-    size_t n_cols_orig = sol->dim_x;
-    size_t n_rows_orig = sol->dim_y;
+    size_t n_cols_orig = presolver->stats->n_cols_original;
+    size_t n_rows_orig = presolver->stats->n_rows_original;
     double *work;
 
     if (data->work->fold_maps)
