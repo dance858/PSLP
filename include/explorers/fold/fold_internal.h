@@ -34,7 +34,7 @@ struct Matrix;
 /* Everything the fold allocates, apart from the maps. */
 typedef struct FoldWorkspace
 {
-    ThreadPool *pool; /* Without workers. */
+    ThreadPool *pool; /* FOLD_THREADS - 1 workers (fold.c). */
     ColourRefinement *refine;
     uint64_t *row_colours; /* size: n_rows, the start colours of the rows. */
     uint64_t *col_colours; /* size: n_cols, the start colours of the columns. */

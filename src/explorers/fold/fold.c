@@ -29,6 +29,9 @@
 #include <assert.h>
 #include <string.h>
 
+/* Threads of the fold's pool: the calling thread and FOLD_THREADS - 1 workers. */
+#define FOLD_THREADS 8
+
 const char *fold_reason_string(FoldReason reason)
 {
     switch (reason)
@@ -55,7 +58,7 @@ FoldWorkspace *fold_workspace_new(const Matrix *A, const Matrix *AT)
         return NULL;
     }
     size_t n_lines = A->m > A->n ? A->m : A->n;
-    work->pool = thread_pool_new(0);
+    work->pool = thread_pool_new(FOLD_THREADS - 1);
     work->refine = work->pool ? colour_refinement_new(A, AT, work->pool) : NULL;
     work->row_colours = (uint64_t *) ps_malloc(A->m + 1, sizeof(uint64_t));
     work->col_colours = (uint64_t *) ps_malloc(A->n + 1, sizeof(uint64_t));
