@@ -1304,6 +1304,110 @@ static char *test_17_parallel_rows()
     return 0;
 }
 
+/*  Presolves the problem
+        min.   x1 + x2 + x3
+        s.t.   l0 <= a0 (x1 + x2 + x3) <= r0
+               l1 <= a1 (x1 + x2 + x3) <= r1
+               -10 <= x <= 10
+    with the two rows swapped if 'swap' is true, and stores the status in
+    'status'. Three variables keep the doubleton rule from processing an
+    equality before the parallel rows are merged. If 'check_sol' is true the
+    problem must not be declared infeasible, presolve must solve it completely,
+    and the postsolved point must satisfy the original problem. */
+static char *presolve_two_parallel_rows(double a0, double l0, double r0, double a1,
+                                        double l1, double r1, bool swap,
+                                        bool check_sol, PresolveStatus *status)
+{
+    double a[] = {swap ? a1 : a0, swap ? a0 : a1};
+    double lhs[] = {swap ? l1 : l0, swap ? l0 : l1};
+    double rhs[] = {swap ? r1 : r0, swap ? r0 : r1};
+    double Ax[] = {a[0], a[0], a[0], a[1], a[1], a[1]};
+    int Ai[] = {0, 1, 2, 0, 1, 2};
+    int Ap[] = {0, 3, 6};
+    int nnz = 6;
+    int n_rows = 2;
+    int n_cols = 3;
+    double lbs[] = {-10, -10, -10};
+    double ubs[] = {10, 10, 10};
+    double c[] = {1, 1, 1};
+
+    Settings *stgs = default_settings();
+    stgs->verbose = false;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("Presolver initialization failed", presolver != NULL);
+
+    *status = run_presolver(presolver);
+
+    if (check_sol)
+    {
+        mu_assert("feasible problem declared infeasible", *status != INFEASIBLE);
+
+        // presolve solves the problem completely, so the reduced solution is
+        // empty
+        mu_assert("reduced problem not empty", presolver->reduced_prob->m == 0 &&
+                                                   presolver->reduced_prob->n == 0);
+        double empty[] = {0};
+        postsolve(presolver, empty, empty, empty);
+
+        // the postsolved point must satisfy the original problem
+        const double *x = presolver->sol->x;
+        double sum = 0;
+        for (int j = 0; j < n_cols; ++j)
+        {
+            mu_assert("postsolved x violates bounds",
+                      x[j] >= lbs[j] - FEAS_TOL && x[j] <= ubs[j] + FEAS_TOL);
+            sum += x[j];
+        }
+        for (int i = 0; i < n_rows; ++i)
+        {
+            mu_assert("postsolved x violates row",
+                      a[i] * sum >= lhs[i] - FEAS_TOL &&
+                          a[i] * sum <= rhs[i] + FEAS_TOL);
+        }
+    }
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/*  Feasible problem whose two rows are mathematically the same constraint.
+    Scaling the inequality's rhs by the ratio rounds, (1/49) * 49 =
+    0.9999999999999999 < 1, so comparing it to the equality's rhs without a
+    tolerance declared the problem infeasible.
+           49 (x1 + x2 + x3)  = 1
+               x1 + x2 + x3  <= 1/49
+*/
+static char *test_18_parallel_rows()
+{
+    PresolveStatus status;
+    for (int swap = 0; swap < 2; ++swap)
+    {
+        char *msg = presolve_two_parallel_rows(49, 1, 1, 1, -INF, 1.0 / 49, swap,
+                                               true, &status);
+        if (msg) return msg;
+    }
+    return 0;
+}
+
+/*  Same as test 18 with a negative ratio, which flips the direction of the
+    rounding so that the lhs of the inequality is the side that is hit.
+           49 (x1 + x2 + x3)  = 1
+             -(x1 + x2 + x3) >= -1/49
+*/
+static char *test_19_parallel_rows()
+{
+    PresolveStatus status;
+    for (int swap = 0; swap < 2; ++swap)
+    {
+        char *msg = presolve_two_parallel_rows(49, 1, 1, -1, -1.0 / 49, INF, swap,
+                                               true, &status);
+        if (msg) return msg;
+    }
+    return 0;
+}
+
 static const char *all_tests_parallel_rows()
 {
     mu_run_test(test_1_parallel_rows, counter_parallel_rows);
@@ -1323,6 +1427,8 @@ static const char *all_tests_parallel_rows()
     mu_run_test(test_15_parallel_rows, counter_parallel_rows);
     mu_run_test(test_16_parallel_rows, counter_parallel_rows);
     mu_run_test(test_17_parallel_rows, counter_parallel_rows);
+    mu_run_test(test_18_parallel_rows, counter_parallel_rows);
+    mu_run_test(test_19_parallel_rows, counter_parallel_rows);
 
     return 0;
 }
