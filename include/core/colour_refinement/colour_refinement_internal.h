@@ -24,12 +24,18 @@
 
 #include "Matrix.h"
 #include "colour_refinement.h"
+#include "hash.h"
 #include "thread_pool.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
 typedef struct GroupTable GroupTable;
+
+/* Capacity, in lines, of the buffer of a thread of the parallel push. A thread
+   collects the lines it reaches in its buffer and appends them to the frontier
+   in one go when the buffer is full and when the push ends. */
+#define PUSH_BUFFER_SIZE 1024
 
 /* For each class, we store the signature its members had when it was last split
    and its number of members. */
@@ -57,10 +63,17 @@ typedef struct RefineCandidate
     * p, i, x:     pointer representation of A or AT
     * class_id:    class id of every line
     * signature:   latest signature of every line (not updated if the line is
-                   alone in its class)
+                   alone in its class). Bit 0 marks a line the push reached,
+                   and a candidate between the count and the scatter pass
+                   (colour_refinement.c).
     * classes:     signature and size of every class, indexed by class id
     * n_classes:   number of classes, the ids are 0, ..., n_classes - 1
-    * n_changed:   number of lines that changed class in the last half-round
+    * frontier:    lines whose signature the last push changed
+    * changed:     lines that changed class in the last half-round
+    * changed_old_class: class of each changed line before the half-round
+    * changed_entries:   entries of the changed lines
+    * nonsingleton_entries: entries of the lines in classes with more than
+                            one line
 */
 typedef struct RefineSide
 {
@@ -72,7 +85,13 @@ typedef struct RefineSide
     uint64_t *signature;  /* size: n_lines */
     RefineClass *classes; /* size: n_lines */
     int n_classes;
+    int *frontier; /* size: n_lines */
+    int n_frontier;
+    int *changed;           /* size: n_lines */
+    int *changed_old_class; /* size: n_lines */
     int n_changed;
+    int changed_entries;
+    int nonsingleton_entries;
 } RefineSide;
 
 /* The candidates of a range of consecutive class ids, at positions [start, end)
@@ -85,7 +104,10 @@ typedef struct RefineBucket
     int n_groups;
     int n_new_classes;
     int n_changed_lines;
-    int first_new_class; /* Id of its first new class. */
+    int n_changed_entries;
+    int singleton_entries; /* Entries of the lines left alone in a class. */
+    int first_new_class;   /* Id of its first new class. */
+    int change_start;      /* Position of its first changed line. */
 } RefineBucket;
 
 typedef struct RefineWorkspace
@@ -126,9 +148,45 @@ typedef struct RefineWorkspace
     int *class_seen;          /* Scratch of the statistics. */
     int *class_largest_group; /* Largest group of the class in its bucket. */
 
+    /* Lines reached by the push, buffered per thread (PUSH_BUFFER_SIZE each). */
+    int **push_buffers;
+    int *push_counts;
+
     /* for keeping track of the work budget */
     int64_t work_done;
 } RefineWorkspace;
+
+/* Contribution of one entry to the signature of a line. An entry joins a row
+   and a column. 'bits' is its label and 'other_class' the class of the line
+   at its other end: the column of the entry when the signature of a row is
+   computed, the row when the signature of a column is computed. Even, so bit
+   0 of a signature is free. */
+static inline uint64_t entry_hash(int other_class, uint64_t bits)
+{
+    return mix(bits * 0xff51afd7ed558ccdULL +
+               (uint64_t) other_class * 0x9e3779b97f4a7c15ULL)
+           << 1;
+}
+
+/* We use bit 0 of a stored signature as a mark. Between half-rounds it is set
+   on the lines the push reached, the frontier. Within a half-round the count
+   pass leaves it set on the candidates and the scatter pass clears it. */
+#define SIGNATURE_MARK ((uint64_t) 1)
+
+static inline bool has_mark(uint64_t signature)
+{
+    return (signature & SIGNATURE_MARK) != 0;
+}
+
+static inline uint64_t without_mark(uint64_t signature)
+{
+    return signature & ~SIGNATURE_MARK;
+}
+
+static inline int line_size(const RefineSide *side, int line)
+{
+    return side->p[line].end - side->p[line].start;
+}
 
 /* Groups the candidates of a bucket and chooses the keepers of its classes
    (colour_refinement_group.c). False when the table of 'thread' cannot
@@ -140,6 +198,12 @@ bool refine_group_bucket(RefineSide *side, RefineWorkspace *work,
    their lines into them. */
 void refine_apply_bucket(RefineSide *side, RefineWorkspace *work,
                          const RefineBucket *bucket);
+
+/* The lines of 'from' that changed class push the change of their id into the
+   signatures of 'to' (colour_refinement_push.c). The lines reached become the
+   frontier of 'to'. */
+void refine_push(const RefineSide *from, RefineSide *to, RefineWorkspace *work,
+                 ThreadPool *pool);
 
 struct ColourRefinement
 {

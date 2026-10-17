@@ -32,6 +32,21 @@
    class; otherwise the largest group keeps the id. The half-rounds alternate
    between the sides until one changes no class.
 
+   A half-round is dense or by frontier. A dense half-round recomputes the
+   signature of every line of a non-singleton class. Otherwise the lines that
+   changed class in the last half-round of the other side push the change of
+   their id into the signatures of the lines they touch
+   (colour_refinement_push.c), and only those lines, the frontier, can be
+   candidates. Between half-rounds the signature of every line of a
+   non-singleton class is up to date except for the changes of the other
+   side's last half-round, so both kinds give the same classes.
+
+   Bit 0 of a stored signature is a mark: between half-rounds every stored
+   signature is even, except that the push sets the bit on the lines of the
+   frontier and the frontier half-round that always follows clears it. Within
+   a half-round the count pass leaves the bit set exactly on the candidates
+   and the scatter pass clears it, so the scatter needs no class lookup.
+
    The candidates are partitioned by class id range into buckets, so all
    candidates of a class are in one bucket. The buckets are grouped
    independently, on the threads of the pool, each with a hash table
@@ -46,11 +61,16 @@
 
 #define LINES_PER_CHUNK 4096
 #define LINES_PER_BUCKET (1 << 14)
+/* Frontiers up to this size are collected by the calling thread. */
+#define SMALL_FRONTIER (1 << 15)
+/* A pushed entry costs this many entries of a dense half-round. */
+#define PUSH_COST 8
 
 typedef enum RegroupMode
 {
-    REGROUP_START, /* Every line is a candidate with its start colour. */
-    REGROUP_DENSE  /* The lines of non-singleton classes, signatures recomputed. */
+    REGROUP_START,   /* Every line is a candidate with its start colour. */
+    REGROUP_DENSE,   /* The lines of non-singleton classes, signatures recomputed. */
+    REGROUP_FRONTIER /* The lines of the frontier, signatures pushed. */
 } RegroupMode;
 
 /* Context of the passes of one half-round. */
@@ -71,24 +91,11 @@ static inline int max_bucket_count(int n_lines)
     return 4 * (n_lines / LINES_PER_BUCKET + 1);
 }
 
-/* The bucket that contains class 'id'. */
-static inline int bucket_of(const RegroupPass *pass, int id)
+/* The bucket that contains class 'id' when the buckets are blocks of 2^shift
+   consecutive ids. */
+static inline int bucket_of(int shift, int id)
 {
-    /* buckets are blocks of 2^shift consecutive ids */
-    return id >> pass->shift;
-}
-
-/* Signature contribution of an entry with label 'bits' whose other end is in
-   class 'other_class'. */
-static inline uint64_t entry_hash(int other_class, uint64_t bits)
-{
-    return mix(bits * 0xff51afd7ed558ccdULL +
-               (uint64_t) other_class * 0x9e3779b97f4a7c15ULL);
-}
-
-static inline int line_size(const RefineSide *side, int line)
-{
-    return side->p[line].end - side->p[line].start;
+    return id >> shift;
 }
 
 /* A line is a candidate if its class has more than one member and its new
@@ -129,6 +136,9 @@ static void count_chunk(void *context, int chunk, int thread)
     int *counts = chunk_counts(work, chunk);
     int start = work->chunk_bounds[chunk];
     int end = work->chunk_bounds[chunk + 1];
+    int shift = pass->shift;
+    const int *class_id = side->class_id;
+    uint64_t *signature = side->signature;
 
     if (pass->mode == REGROUP_START)
     {
@@ -138,27 +148,58 @@ static void count_chunk(void *context, int chunk, int thread)
         return;
     }
 
+    const RefineClass *classes = side->classes;
+    if (pass->mode == REGROUP_FRONTIER)
+    {
+        const int *frontier = side->frontier;
+        for (int ii = start; ii < end; ++ii)
+        {
+            /* the signature without its push mark; a candidate stays marked
+               for the scatter */
+            int line = frontier[ii];
+            uint64_t new_signature = signature[line];
+            assert(has_mark(new_signature));
+            new_signature = without_mark(new_signature);
+            int id = class_id[line];
+            if (classes[id].size > 1 && new_signature != classes[id].signature)
+            {
+                counts[bucket_of(shift, id)]++;
+            }
+            else
+            {
+                signature[line] = new_signature;
+            }
+        }
+        return;
+    }
+
+    const int *other_class = pass->other_class;
     int entries = 0;
     for (int line = start; line < end; ++line)
     {
+        /* every stored signature is even between half-rounds */
+        assert(!has_mark(signature[line]));
+
         /* which class does the current row (column) belong to */
-        int id = side->class_id[line];
+        int id = class_id[line];
 
         /* a class with just one member can't be split */
-        if (side->classes[id].size == 1)
+        if (classes[id].size == 1)
         {
             continue;
         }
 
         /* compute the signature of the line given the classes of the other side */
-        side->signature[line] = line_signature(side, pass->other_class, line);
+        uint64_t new_signature = line_signature(side, other_class, line);
         entries += line_size(side, line);
 
-        /* count the candidate in the bucket of its class */
-        if (is_candidate(side, line))
+        /* count the candidate in the bucket of its class and mark it */
+        if (new_signature != classes[id].signature)
         {
-            counts[bucket_of(pass, id)]++;
+            new_signature |= 1;
+            counts[bucket_of(shift, id)]++;
         }
+        signature[line] = new_signature;
     }
 
     work->chunk_entries[chunk] = entries;
@@ -174,17 +215,64 @@ static void scatter_chunk(void *context, int chunk, int thread)
     int *positions = chunk_counts(work, chunk);
     int start = work->chunk_bounds[chunk];
     int end = work->chunk_bounds[chunk + 1];
+    RegroupMode mode = pass->mode;
+    int shift = pass->shift;
+    const int *class_id = side->class_id;
+    const int *frontier = side->frontier;
+    uint64_t *signature = side->signature;
+    RefineCandidate *candidates = work->candidates;
 
-    for (int line = start; line < end; ++line)
+    for (int ii = start; ii < end; ++ii)
     {
-        if (pass->mode == REGROUP_DENSE && !is_candidate(side, line))
+        int line = mode == REGROUP_FRONTIER ? frontier[ii] : ii;
+        uint64_t new_signature = signature[line];
+        if (mode == REGROUP_START)
         {
-            continue;
+            /* the start groups by the full colour; the stored signature
+               loses bit 0 */
+            signature[line] = without_mark(new_signature);
         }
-        int id = side->class_id[line];
-        RefineCandidate candidate = {side->signature[line], id, line};
-        work->candidates[positions[bucket_of(pass, id)]++] = candidate;
+        else
+        {
+            /* the marked lines are the candidates */
+            if (!has_mark(new_signature))
+            {
+                continue;
+            }
+            new_signature = without_mark(new_signature);
+            signature[line] = new_signature;
+            assert(side->classes[class_id[line]].size > 1 &&
+                   new_signature != side->classes[class_id[line]].signature);
+        }
+        int id = class_id[line];
+        RefineCandidate candidate = {new_signature, id, line};
+        candidates[positions[bucket_of(shift, id)]++] = candidate;
     }
+}
+
+/* Collects the candidates of a small frontier into one bucket on the calling
+   thread. */
+static void collect_small_frontier(RefineSide *side, RefineWorkspace *work)
+{
+    int n_frontier = side->n_frontier;
+    int n_candidates = 0;
+    for (int ii = 0; ii < n_frontier; ++ii)
+    {
+        /* the signature without its frontier mark */
+        int line = side->frontier[ii];
+        side->signature[line] = without_mark(side->signature[line]);
+        if (is_candidate(side, line))
+        {
+            int id = side->class_id[line];
+            RefineCandidate candidate = {side->signature[line], id, line};
+            work->candidates[n_candidates++] = candidate;
+        }
+    }
+
+    work->work_done += n_candidates;
+    work->n_buckets = 1;
+    memset(work->buckets, 0, sizeof(RefineBucket));
+    work->buckets[0].end = n_candidates;
 }
 
 /* Collects the candidates of the side into buckets. */
@@ -192,18 +280,24 @@ static void collect_candidates(RegroupPass *pass, ThreadPool *pool)
 {
     RefineSide *side = pass->side;
     RefineWorkspace *work = pass->work;
+    if (pass->mode == REGROUP_FRONTIER && side->n_frontier <= SMALL_FRONTIER)
+    {
+        collect_small_frontier(side, work);
+        return;
+    }
 
     // --------------------------------------------------------------------------
-    //                   split the lines into chunks
+    //          split the lines (or the frontier) into chunks
     // --------------------------------------------------------------------------
+    int n_source = pass->mode == REGROUP_FRONTIER ? side->n_frontier : side->n_lines;
     int n_chunks =
-        thread_pool_chunk_count(work->n_threads, side->n_lines, LINES_PER_CHUNK);
-    thread_pool_chunk_bounds(side->n_lines, n_chunks, work->chunk_bounds);
+        thread_pool_chunk_count(work->n_threads, n_source, LINES_PER_CHUNK);
+    thread_pool_chunk_bounds(n_source, n_chunks, work->chunk_bounds);
 
     // ---------------------------------------------------------------------------
     //   choose the buckets so all candidates of a class are in one bucket
     // ----------------------------------------------------------------------------
-    int bucket_goal = max_bucket_count(side->n_lines);
+    int bucket_goal = max_bucket_count(n_source);
     int shift = 0;
     while ((side->n_classes >> shift) + 1 > bucket_goal)
     {
@@ -224,10 +318,17 @@ static void collect_candidates(RegroupPass *pass, ThreadPool *pool)
         work->bucket_counts, n_chunks, work->n_buckets, work->bucket_offsets);
     thread_pool_run(pool, scatter_chunk, pass, n_chunks);
 
-    work->work_done += n_candidates;
+    int entries = 0;
     for (int chunk = 0; chunk < n_chunks; ++chunk)
     {
-        work->work_done += work->chunk_entries[chunk];
+        entries += work->chunk_entries[chunk];
+    }
+    work->work_done += n_candidates + entries;
+
+    /* A dense half-round reads the entries of every non-singleton line. */
+    if (pass->mode == REGROUP_DENSE)
+    {
+        side->nonsingleton_entries = entries;
     }
     for (int ii = 0; ii < work->n_buckets; ++ii)
     {
@@ -269,19 +370,27 @@ static bool regroup(ColourRefinement *refine, RefineSide *side,
         return false;
     }
 
-    /* The new classes of the buckets get consecutive ids. */
+    /* The new classes of the buckets get consecutive ids, and their changed
+       lines consecutive positions. */
     int next_class = side->n_classes;
     int n_changed = 0;
+    int changed_entries = 0;
+    int singleton_entries = 0;
     for (int ii = 0; ii < work->n_buckets; ++ii)
     {
         RefineBucket *bucket = work->buckets + ii;
         bucket->first_new_class = next_class;
+        bucket->change_start = n_changed;
         next_class += bucket->n_new_classes;
         n_changed += bucket->n_changed_lines;
+        changed_entries += bucket->n_changed_entries;
+        singleton_entries += bucket->singleton_entries;
     }
     thread_pool_run(refine->pool, apply_task, &pass, work->n_buckets);
     side->n_classes = next_class;
     side->n_changed = n_changed;
+    side->changed_entries = changed_entries;
+    side->nonsingleton_entries -= singleton_entries;
     return true;
 }
 
@@ -339,7 +448,9 @@ ColourRefinementResult colour_refinement_run(ColourRefinement *refine,
         goto done;
     }
 
-    /* The first round refines both sides. */
+    /* The first round refines both sides, dense: a class made by the start
+       keeps its colour as signature, and an odd colour makes every line of the
+       class a candidate until the dense half-round replaces it. */
     if (!regroup(refine, rows, cols->class_id, REGROUP_DENSE) ||
         !regroup(refine, cols, rows->class_id, REGROUP_DENSE))
     {
@@ -363,9 +474,25 @@ ColourRefinementResult colour_refinement_run(ColourRefinement *refine,
             result = COLOUR_REFINEMENT_NOT_CONVERGED;
             break;
         }
-        if (!regroup(refine, to, from->class_id, REGROUP_DENSE))
+
+        /* a dense half-round reads every non-singleton line of 'to', a push the
+           entries of the changed lines of 'from' */
+        bool dense =
+            (double) PUSH_COST * from->changed_entries > to->nonsingleton_entries;
+        if (dense)
         {
-            goto done;
+            if (!regroup(refine, to, from->class_id, REGROUP_DENSE))
+            {
+                goto done;
+            }
+        }
+        else
+        {
+            refine_push(from, to, work, refine->pool);
+            if (!regroup(refine, to, NULL, REGROUP_FRONTIER))
+            {
+                goto done;
+            }
         }
         half_rounds++;
         RefineSide *swap = from;
@@ -395,6 +522,9 @@ static void side_free(RefineSide *side)
     PS_FREE(side->class_id);
     PS_FREE(side->signature);
     PS_FREE(side->classes);
+    PS_FREE(side->frontier);
+    PS_FREE(side->changed);
+    PS_FREE(side->changed_old_class);
     PS_FREE(side);
 }
 
@@ -413,7 +543,11 @@ static RefineSide *side_new(const Matrix *M)
     side->class_id = (int *) ps_malloc(size, sizeof(int));
     side->signature = (uint64_t *) ps_malloc(size, sizeof(uint64_t));
     side->classes = (RefineClass *) ps_malloc(size, sizeof(RefineClass));
-    if (!side->class_id || !side->signature || !side->classes)
+    side->frontier = (int *) ps_malloc(size, sizeof(int));
+    side->changed = (int *) ps_malloc(size, sizeof(int));
+    side->changed_old_class = (int *) ps_malloc(size, sizeof(int));
+    if (!side->class_id || !side->signature || !side->classes || !side->frontier ||
+        !side->changed || !side->changed_old_class)
     {
         side_free(side);
         return NULL;
@@ -434,6 +568,15 @@ static void workspace_free(RefineWorkspace *work)
             group_table_free(work->tables + thread);
         }
     }
+    if (work->push_buffers)
+    {
+        for (int thread = 0; thread < work->n_threads; ++thread)
+        {
+            PS_FREE(work->push_buffers[thread]);
+        }
+    }
+    PS_FREE(work->push_buffers);
+    PS_FREE(work->push_counts);
     PS_FREE(work->candidates);
     PS_FREE(work->candidate_group);
     PS_FREE(work->group_first);
@@ -490,6 +633,24 @@ static RefineWorkspace *workspace_new(int max_lines, int n_threads)
     {
         workspace_free(work);
         return NULL;
+    }
+
+    work->push_buffers = (int **) ps_calloc((size_t) n_threads, sizeof(int *));
+    work->push_counts = (int *) ps_calloc((size_t) n_threads, sizeof(int));
+    if (!work->push_buffers || !work->push_counts)
+    {
+        workspace_free(work);
+        return NULL;
+    }
+    for (int thread = 0; thread < n_threads; ++thread)
+    {
+        work->push_buffers[thread] =
+            (int *) ps_malloc(PUSH_BUFFER_SIZE, sizeof(int));
+        if (!work->push_buffers[thread])
+        {
+            workspace_free(work);
+            return NULL;
+        }
     }
     return work;
 }

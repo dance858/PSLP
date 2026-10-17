@@ -4,6 +4,7 @@
 #include "Matrix.h"
 #include "colour_refinement.h"
 #include "minunit.h"
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -198,6 +199,8 @@ static const char *test_refine_path(void)
                            NULL) == COLOUR_REFINEMENT_CONVERGED);
     mu_assert("a class per row", stats.n_row_classes == 8);
     mu_assert("several rounds", stats.rounds >= 2);
+    /* the entries read and the candidates grouped */
+    mu_assert("work", stats.work == 128.0 / nnz);
     graph_free(&graph);
 
     /* One round is not enough; the classes so far are still valid. */
@@ -313,6 +316,34 @@ static const char *test_refine_large(void)
     return 0;
 }
 
+/* True when the two classings of 'n_lines' lines, ids in [0, n_lines), give
+   every line the same lowest member of its class. */
+static bool same_partition(const int *classes, const int *other, int n_lines)
+{
+    int *lowest = (int *) malloc((size_t) n_lines * sizeof(int));
+    int *other_lowest = (int *) malloc((size_t) n_lines * sizeof(int));
+    for (int ii = 0; ii < n_lines; ii++)
+    {
+        lowest[ii] = other_lowest[ii] = -1;
+    }
+    bool same = true;
+    for (int ii = 0; ii < n_lines && same; ii++)
+    {
+        if (lowest[classes[ii]] < 0)
+        {
+            lowest[classes[ii]] = ii;
+        }
+        if (other_lowest[other[ii]] < 0)
+        {
+            other_lowest[other[ii]] = ii;
+        }
+        same = lowest[classes[ii]] == other_lowest[other[ii]];
+    }
+    free(other_lowest);
+    free(lowest);
+    return same;
+}
+
 /* Gives the lines of class 'from' the class 'to'. */
 static void merge_class(int *classes, int n_lines, int from, int to)
 {
@@ -323,7 +354,7 @@ static void merge_class(int *classes, int n_lines, int from, int to)
 }
 
 /* Runs on many copies of the block with 0 and 3 workers, so a side spans many
-   chunks and buckets: both give the same classes, which verify. Merging the
+   chunks and buckets: both give the same partition, which verifies. Merging the
    class with the highest id with a class of other labels fails. The other
    side sees the merged ids consistently, so only the merged side can fail.
    Merging classes whose lines have the same entries passes, since verify does
@@ -360,9 +391,8 @@ static const char *test_refine_threads(void)
               colour_refinement_run(refine, row_colours, col_colours, &options,
                                     thread_rows, thread_cols,
                                     &thread_stats) == COLOUR_REFINEMENT_CONVERGED);
-    mu_assert("same classes on threads",
-              memcmp(rows, thread_rows, (size_t) m * sizeof(int)) == 0 &&
-                  memcmp(cols, thread_cols, (size_t) m * sizeof(int)) == 0);
+    mu_assert("same partition on threads", same_partition(rows, thread_rows, m) &&
+                                               same_partition(cols, thread_cols, m));
     mu_assert("same counts on threads",
               stats.rounds == thread_stats.rounds &&
                   stats.duplicate_entries == thread_stats.duplicate_entries);
@@ -411,6 +441,142 @@ static const char *test_refine_threads(void)
     return 0;
 }
 
+/* 'copies' copies of the path r0 - c0 - ... - r(length-1) - c(length-1) on the
+   diagonal. Returns the number of entries. */
+static int path_copies(int length, int copies, int **Ap_out, int **Ai_out,
+                       double **Ax_out)
+{
+    int m = length * copies, nnz = (2 * length - 1) * copies;
+    int *Ap = (int *) malloc(((size_t) m + 1) * sizeof(int));
+    int *Ai = (int *) malloc((size_t) nnz * sizeof(int));
+    double *Ax = (double *) malloc((size_t) nnz * sizeof(double));
+    nnz = 0;
+    for (int ii = 0; ii < m; ii++)
+    {
+        Ap[ii] = nnz;
+        if (ii % length > 0)
+        {
+            Ai[nnz] = ii - 1;
+            Ax[nnz++] = 1;
+        }
+        Ai[nnz] = ii;
+        Ax[nnz++] = 1;
+    }
+    Ap[m] = nnz;
+    *Ap_out = Ap;
+    *Ai_out = Ai;
+    *Ax_out = Ax;
+    return nnz;
+}
+
+/* Many copies of the path r0 - c0 - ... - r63 - c63 refine from the ends
+   inwards, one position per half-round, so most half-rounds push the change of
+   a few lines of every copy, from one thread and from three. Every position of
+   a path is a class of its own. */
+static const char *test_refine_push(void)
+{
+    int length = 64, copies = 20000, m = length * copies;
+    int *Ap, *Ai;
+    double *Ax;
+    int nnz = path_copies(length, copies, &Ap, &Ai, &Ax);
+
+    RefineGraph graph;
+    ColourRefinementStats stats;
+    mu_assert("converged",
+              graph_refine(&graph, m, m, nnz, Ap, Ai, Ax, NULL, NULL, &stats,
+                           NULL) == COLOUR_REFINEMENT_CONVERGED);
+    mu_assert("a class per position",
+              stats.n_row_classes == length && stats.n_col_classes == length);
+    mu_assert("refined partition passes",
+              colour_refinement_verify(graph.refine, graph.row_classes,
+                                       graph.col_classes) ==
+                  COLOUR_REFINEMENT_EQUITABLE);
+
+    ThreadPool *pool = thread_pool_new(3);
+    ColourRefinement *refine = colour_refinement_new(graph.A, graph.AT, pool);
+    int *thread_rows = (int *) malloc((size_t) m * sizeof(int));
+    int *thread_cols = (int *) malloc((size_t) m * sizeof(int));
+    uint64_t *colours = (uint64_t *) calloc((size_t) m, sizeof(uint64_t));
+    ColourRefinementOptions options = refine_test_options();
+    ColourRefinementStats thread_stats;
+    mu_assert("converged on threads",
+              colour_refinement_run(refine, colours, colours, &options, thread_rows,
+                                    thread_cols,
+                                    &thread_stats) == COLOUR_REFINEMENT_CONVERGED);
+    mu_assert("same partition on threads",
+              same_partition(graph.row_classes, thread_rows, m) &&
+                  same_partition(graph.col_classes, thread_cols, m));
+    mu_assert("same counts on threads", stats.rounds == thread_stats.rounds &&
+                                            stats.work == thread_stats.work);
+    colour_refinement_free(refine);
+    thread_pool_free(pool);
+    graph_free(&graph);
+    free(colours);
+    free(thread_cols);
+    free(thread_rows);
+    free(Ax);
+    free(Ai);
+    free(Ap);
+    return 0;
+}
+
+/* Runs the refinement of 'graph' again on a pool with three workers and checks
+   that it gives the same partition, rounds and work. */
+static bool same_on_threads(const RefineGraph *graph, int m, int n,
+                            const uint64_t *row_colours, const uint64_t *col_colours,
+                            const ColourRefinementStats *stats)
+{
+    ThreadPool *pool = thread_pool_new(3);
+    ColourRefinement *refine = colour_refinement_new(graph->A, graph->AT, pool);
+    int *rows = (int *) malloc((size_t) m * sizeof(int));
+    int *cols = (int *) malloc((size_t) n * sizeof(int));
+    ColourRefinementOptions options = refine_test_options();
+    ColourRefinementStats thread_stats;
+    bool same =
+        colour_refinement_run(refine, row_colours, col_colours, &options, rows, cols,
+                              &thread_stats) == COLOUR_REFINEMENT_CONVERGED &&
+        same_partition(graph->row_classes, rows, m) &&
+        same_partition(graph->col_classes, cols, n) &&
+        stats->rounds == thread_stats.rounds && stats->work == thread_stats.work;
+    colour_refinement_free(refine);
+    thread_pool_free(pool);
+    free(cols);
+    free(rows);
+    return same;
+}
+
+/* The copies of test_refine_push with one row of odd start colour in the
+   middle of a copy: a class of one line that the push reaches. */
+static const char *test_refine_push_odd_colour(void)
+{
+    int length = 64, copies = 20000, m = length * copies;
+    int *Ap, *Ai;
+    double *Ax;
+    int nnz = path_copies(length, copies, &Ap, &Ai, &Ax);
+    uint64_t *row_colours = (uint64_t *) calloc((size_t) m, sizeof(uint64_t));
+    uint64_t *col_colours = (uint64_t *) calloc((size_t) m, sizeof(uint64_t));
+    row_colours[(copies / 2) * length + length / 2] = 1;
+
+    RefineGraph graph;
+    ColourRefinementStats stats;
+    mu_assert("converged",
+              graph_refine(&graph, m, m, nnz, Ap, Ai, Ax, row_colours, col_colours,
+                           &stats, NULL) == COLOUR_REFINEMENT_CONVERGED);
+    mu_assert("refined partition passes",
+              colour_refinement_verify(graph.refine, graph.row_classes,
+                                       graph.col_classes) ==
+                  COLOUR_REFINEMENT_EQUITABLE);
+    mu_assert("same on threads",
+              same_on_threads(&graph, m, m, row_colours, col_colours, &stats));
+    graph_free(&graph);
+    free(col_colours);
+    free(row_colours);
+    free(Ax);
+    free(Ai);
+    free(Ap);
+    return 0;
+}
+
 static const char *all_tests_colour_refinement(void)
 {
     mu_run_test(test_refine_blocks, counter_colour_refinement);
@@ -420,6 +586,8 @@ static const char *all_tests_colour_refinement(void)
     mu_run_test(test_refine_empty, counter_colour_refinement);
     mu_run_test(test_refine_large, counter_colour_refinement);
     mu_run_test(test_refine_threads, counter_colour_refinement);
+    mu_run_test(test_refine_push, counter_colour_refinement);
+    mu_run_test(test_refine_push_odd_colour, counter_colour_refinement);
     return 0;
 }
 

@@ -52,9 +52,11 @@ static int group_bucket(RefineWorkspace *work, const RefineBucket *bucket,
     const RefineCandidate *candidates = work->candidates;
     int *group_first = work->group_first + bucket->start;
     int *group_size = work->group_size + bucket->start;
+    int *candidate_group = work->candidate_group;
+    int end = bucket->end;
     int n_groups = 0;
 
-    for (int ii = bucket->start; ii < bucket->end; ++ii)
+    for (int ii = bucket->start; ii < end; ++ii)
     {
         size_t slot =
             group_table_find(table, &candidates[ii], candidates, group_first);
@@ -75,14 +77,16 @@ static int group_bucket(RefineWorkspace *work, const RefineBucket *bucket,
         group_size[group]++;
 
         /* record the group of candidate ii, numbered within the bucket */
-        work->candidate_group[ii] = group;
+        candidate_group[ii] = group;
     }
     return n_groups;
 }
 
 /* Decides for every class of a bucket which group, if any, keeps the class id
    and takes the lines of the other groups out of the class. Counts the new
-   classes and the lines that change class. */
+   classes, the lines that change class and their entries, and the entries of
+   the lines left alone in a class. The lines of a group have equal entry
+   counts, and so have all lines of a class once the side has been refined. */
 static void choose_keepers(RefineSide *side, RefineWorkspace *work,
                            RefineBucket *bucket)
 {
@@ -118,23 +122,48 @@ static void choose_keepers(RefineSide *side, RefineWorkspace *work,
 
     /* A class left empty had only candidates, so its largest group goes back
        and keeps the id. Every other group becomes a new class. */
+    int *group_class = work->group_class;
+    int n_new_classes = 0;
+    int n_changed_lines = 0;
+    int n_changed_entries = 0;
+    int singleton_entries = 0;
     for (int group = first_group; group < end_group; ++group)
     {
         const RefineCandidate *first = candidates + group_first[group];
         RefineClass *class_data = side->classes + first->class_id;
+        int line_entries = line_size(side, first->line);
         if (largest[first->class_id] == group && class_data->size == 0)
         {
             class_data->size = group_size[group];
             class_data->signature = first->signature;
-            work->group_class[group] = first->class_id;
+            group_class[group] = first->class_id;
         }
         else
         {
-            work->group_class[group] = NEW_CLASS;
-            bucket->n_new_classes++;
-            bucket->n_changed_lines += group_size[group];
+            group_class[group] = NEW_CLASS;
+            n_new_classes++;
+            n_changed_lines += group_size[group];
+            n_changed_entries += group_size[group] * line_entries;
+        }
+
+        /* the group is alone in its class */
+        if (group_size[group] == 1)
+        {
+            singleton_entries += line_entries;
+        }
+
+        /* one line that is not a candidate is left in the class, counted once
+           through the largest group */
+        if (largest[first->class_id] == group && class_data->size == 1 &&
+            group_class[group] == NEW_CLASS)
+        {
+            singleton_entries += line_entries;
         }
     }
+    bucket->n_new_classes += n_new_classes;
+    bucket->n_changed_lines += n_changed_lines;
+    bucket->n_changed_entries += n_changed_entries;
+    bucket->singleton_entries += singleton_entries;
 }
 
 bool refine_group_bucket(RefineSide *side, RefineWorkspace *work,
@@ -163,25 +192,39 @@ void refine_apply_bucket(RefineSide *side, RefineWorkspace *work,
     RefineClass *classes = side->classes;
     const RefineCandidate *candidates = work->candidates;
     const int *group_first = work->group_first;
+    const int *candidate_group = work->candidate_group;
+    int *group_class = work->group_class;
+    int *class_id = side->class_id;
+    int *changed = side->changed;
+    int *changed_old_class = side->changed_old_class;
     int next_class = bucket->first_new_class;
     int first_group = bucket->start;
     int end_group = first_group + bucket->n_groups;
+    int end = bucket->end;
 
     /* create new classes for the groups that become new classes */
     for (int group = first_group; group < end_group; ++group)
     {
-        if (work->group_class[group] == NEW_CLASS)
+        if (group_class[group] == NEW_CLASS)
         {
             classes[next_class].signature = candidates[group_first[group]].signature;
             classes[next_class].size = work->group_size[group];
-            work->group_class[group] = next_class++;
+            group_class[group] = next_class++;
         }
     }
 
-    /* assign each candidate to its group's class */
-    for (int ii = bucket->start; ii < bucket->end; ++ii)
+    /* assign each candidate to its group's class and record the lines that
+       change class */
+    int position = bucket->change_start;
+    for (int ii = bucket->start; ii < end; ++ii)
     {
-        int group = first_group + work->candidate_group[ii];
-        side->class_id[candidates[ii].line] = work->group_class[group];
+        int group = first_group + candidate_group[ii];
+        int line = candidates[ii].line;
+        if (group_class[group] != candidates[ii].class_id)
+        {
+            changed[position] = line;
+            changed_old_class[position++] = candidates[ii].class_id;
+        }
+        class_id[line] = group_class[group];
     }
 }
