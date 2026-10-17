@@ -223,42 +223,6 @@ void presolver_clean_up(clean_up_scope scope)
     free_presolver(scope.presolver);
 }
 
-/* Finds and applies the fold. Returns true when the problem was folded: *A is
-   then the folded matrix (the given one freed), the line data is compacted in
-   place and *maps holds the maps; the caller rebuilds AT. Otherwise nothing
-   is touched and *maps is NULL. */
-static bool run_fold(Matrix **A, const Matrix *AT, double *lhs, double *rhs,
-                     RowTag *row_tags, Bound *bounds, ColTag *col_tags, double *c,
-                     FoldMaps **maps)
-{
-    FoldOptions options;
-    options.min_reduction = LP_FOLD_MIN_REDUCTION;
-    options.work_budget = LP_FOLD_WORK_BUDGET;
-    options.max_rounds = LP_FOLD_MAX_ROUNDS;
-
-    FoldStats stats;
-    Matrix *folded = NULL;
-    FoldReason reason =
-        fold_detect(*A, AT, lhs, rhs, bounds, c, &options, maps, &stats);
-    if (reason == FOLD_FOLDABLE)
-    {
-        reason =
-            fold_apply(*A, lhs, rhs, row_tags, bounds, col_tags, c, *maps, &folded);
-    }
-    bool applied = reason == FOLD_FOLDABLE;
-    if (applied)
-    {
-        free_matrix(*A);
-        *A = folded;
-    }
-    else
-    {
-        fold_maps_free(*maps);
-        *maps = NULL;
-    }
-    return applied;
-}
-
 Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t m,
                          size_t n, size_t nnz, const double *lhs, const double *rhs,
                          const double *lbs, const double *ubs, const double *c,
@@ -350,9 +314,13 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     nnz_stripped = A->nnz; /* after the explicit zeros were dropped */
     if (stgs->lp_fold)
     {
+        FoldOptions fold_options;
+        fold_options.min_reduction = LP_FOLD_MIN_REDUCTION;
+        fold_options.work_budget = LP_FOLD_WORK_BUDGET;
+        fold_options.max_rounds = LP_FOLD_MAX_ROUNDS;
         clock_gettime(CLOCK_MONOTONIC, &fold_timer.start);
-        if (run_fold(&A, AT, lhs_copy, rhs_copy, row_tags, bounds, col_tags, c_copy,
-                     &work->fold_maps))
+        if (fold_problem(&A, AT, lhs_copy, rhs_copy, row_tags, bounds, col_tags,
+                         c_copy, &fold_options, &work->fold_maps, NULL))
         {
             free_matrix(AT);
             AT = transpose(A, work->iwork_n_cols,
