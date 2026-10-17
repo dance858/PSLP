@@ -223,37 +223,19 @@ void presolver_clean_up(clean_up_scope scope)
     free_presolver(scope.presolver);
 }
 
-/* The outcome of the fold, with the dimensions before and after when it was
-   applied. */
-static void print_fold_message(bool applied, FoldReason reason,
-                               const FoldStats *stats, size_t n_rows, size_t n_cols,
-                               size_t nnz, const Matrix *A)
-{
-    printf("PSLP lp_fold: %s (%d rounds, %.3f seconds)",
-           applied ? "applied" : fold_reason_string(reason), stats->rounds,
-           stats->time);
-    if (applied)
-    {
-        printf(", rows %zu -> %zu, cols %zu -> %zu, nnz %zu -> %zu", n_rows, A->m,
-               n_cols, A->n, nnz, A->nnz);
-    }
-    printf("\n");
-}
-
 /* Finds and applies the fold. Returns true when the problem was folded: *A is
    then the folded matrix (the given one freed), the line data is compacted in
    place and *maps holds the maps; the caller rebuilds AT. Otherwise nothing
    is touched and *maps is NULL. */
 static bool run_fold(Matrix **A, const Matrix *AT, double *lhs, double *rhs,
                      RowTag *row_tags, Bound *bounds, ColTag *col_tags, double *c,
-                     bool verbose, FoldMaps **maps)
+                     FoldMaps **maps)
 {
     FoldOptions options;
     options.min_reduction = LP_FOLD_MIN_REDUCTION;
     options.work_budget = LP_FOLD_WORK_BUDGET;
     options.max_rounds = LP_FOLD_MAX_ROUNDS;
 
-    size_t n_rows = (*A)->m, n_cols = (*A)->n, nnz = (*A)->nnz;
     FoldStats stats;
     Matrix *folded = NULL;
     FoldReason reason =
@@ -273,11 +255,6 @@ static bool run_fold(Matrix **A, const Matrix *AT, double *lhs, double *rhs,
     {
         fold_maps_free(*maps);
         *maps = NULL;
-    }
-
-    if (verbose)
-    {
-        print_fold_message(applied, reason, &stats, n_rows, n_cols, nnz, *A);
     }
     return applied;
 }
@@ -375,7 +352,7 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     {
         clock_gettime(CLOCK_MONOTONIC, &fold_timer.start);
         if (run_fold(&A, AT, lhs_copy, rhs_copy, row_tags, bounds, col_tags, c_copy,
-                     stgs->verbose, &work->fold_maps))
+                     &work->fold_maps))
         {
             free_matrix(AT);
             AT = transpose(A, work->iwork_n_cols,
@@ -708,8 +685,8 @@ static inline void print_end_message(const Matrix *A, const PresolveStats *stats
 {
     printf("Presolved problem: %zu rows, %zu columns, %zu nnz\n", A->m, A->n,
            A->nnz);
-    printf("PSLP init & run time : %.3f seconds, %.3f \n", stats->time_init,
-           stats->time_presolve);
+    printf("PSLP init, fold & run time : %.3f, %.3f, %.3f seconds\n",
+           stats->time_init, stats->time_lp_fold, stats->time_presolve);
 }
 
 static inline void print_infeas_or_unbnd_message(PresolveStatus status)
