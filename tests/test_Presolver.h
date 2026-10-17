@@ -165,10 +165,7 @@ static char *test_03_presolver()
 }
 
 /* Columns with close bounds are fixed at an integral bound when there is one,
-   else at the midpoint. Fixing at the lower bound drops the width of every
-   such column, and in a row with several of them the drops add up to a false
-   infeasibility (MIPLIB ex10 after the fold: four columns in
-   [0.2499995, 0.250000125] in one equality row). */
+   else at the midpoint. */
 static char *test_04_presolver()
 {
     // min x0 + x1 + x2 + x3  s.t.  x0 + x1 + x2 + x3 <= 5

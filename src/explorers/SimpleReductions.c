@@ -707,10 +707,7 @@ PresolveStatus remove_variables_with_close_bounds(Problem *prob)
         // objective contribution to the offset twice.
         if (col_sizes[ii] > 0 && IS_EQUAL_FEAS_TOL(bounds[ii].lb, bounds[ii].ub))
         {
-            // An integral bound is kept, else the midpoint: fixing every
-            // column at its lower bound lets the dropped widths add up in a
-            // row. No need to check the return value since the value is
-            // within the bounds.
+            // fix at integral bound or at midpoint
             double lb = bounds[ii].lb, ub = bounds[ii].ub;
             double val = 0.5 * (lb + ub);
             if (IS_INTEGRAL(lb))
