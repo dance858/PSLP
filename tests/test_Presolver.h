@@ -164,12 +164,58 @@ static char *test_03_presolver()
     return 0;
 }
 
+/* Columns with close bounds are fixed at an integral bound when there is one,
+   else at the midpoint. Fixing at the lower bound drops the width of every
+   such column, and in a row with several of them the drops add up to a false
+   infeasibility (MIPLIB ex10 after the fold: four columns in
+   [0.2499995, 0.250000125] in one equality row). */
+static char *test_04_presolver()
+{
+    // min x0 + x1 + x2 + x3  s.t.  x0 + x1 + x2 + x3 <= 5
+    double Ax[] = {1, 1, 1, 1};
+    int Ai[] = {0, 1, 2, 3};
+    int Ap[] = {0, 4};
+    int nnz = 4;
+    int n_rows = 1;
+    int n_cols = 4;
+    double lhs[] = {-INF};
+    double rhs[] = {5};
+    double lbs[] = {0, 1 - 1e-7, 0.3, 0};
+    double ubs[] = {1e-7, 1, 0.3 + 5e-7, 10};
+    double c[] = {1, 1, 1, 1};
+    double mid = 0.5 * (0.3 + (0.3 + 5e-7));
+
+    Settings *stgs = default_settings();
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("Presolver initialization failed", presolver != NULL);
+
+    mu_assert("reduced", run_presolver(presolver) == REDUCED);
+    mu_assert("offset of the three fixed columns",
+              fabs(presolver->reduced_prob->obj_offset - (1 + mid)) < 1e-12);
+
+    // x3 = 0 is optimal whether or not it survived the presolve
+    double x[] = {0};
+    double y[] = {0};
+    double z[] = {1};
+    postsolve(presolver, x, y, z);
+    mu_assert("integral lower bound kept", presolver->sol->x[0] == 0.0);
+    mu_assert("integral upper bound kept", presolver->sol->x[1] == 1.0);
+    mu_assert("midpoint otherwise", presolver->sol->x[2] == mid);
+    mu_assert("free column", presolver->sol->x[3] == 0.0);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_presolver()
 {
     mu_run_test(test_00_presolver, counter_presolver);
     mu_run_test(test_01_presolver, counter_presolver);
     mu_run_test(test_02_presolver, counter_presolver);
     mu_run_test(test_03_presolver, counter_presolver);
+    mu_run_test(test_04_presolver, counter_presolver);
     return 0;
 }
 
