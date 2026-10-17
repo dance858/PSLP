@@ -41,8 +41,8 @@ PresolveStatus fix_col(Problem *prob, int col, double val)
     assert(constraints->state->col_sizes[col] > 0);
     assert(!HAS_TAG(*col_tag, C_TAG_INACTIVE));
 
-    if ((!is_ub_inf && val >= old_ub + FEAS_TOL) ||
-        (!is_lb_inf && val <= old_lb - FEAS_TOL))
+    if ((!is_ub_inf && IS_INFEAS_GT(val, old_ub)) ||
+        (!is_lb_inf && IS_INFEAS_LT(val, old_lb)))
     {
         return INFEASIBLE;
     }
@@ -158,7 +158,7 @@ PresolveStatus update_lb(Constraints *constraints, int col, double new_lb,
     double lb = bounds[col].lb;
     assert(!HAS_TAG(constraints->col_tags[col], C_TAG_INACTIVE));
 
-    if (!HAS_TAG(*col_tag, C_TAG_UB_INF) && new_lb >= ub + FEAS_TOL)
+    if (!HAS_TAG(*col_tag, C_TAG_UB_INF) && IS_INFEAS_GT(new_lb, ub))
     {
         return INFEASIBLE;
     }
@@ -211,7 +211,7 @@ PresolveStatus update_ub(Constraints *constraints, int col, double new_ub,
 
     assert(!HAS_TAG(constraints->col_tags[col], C_TAG_INACTIVE));
 
-    if (!HAS_TAG(*col_tag, C_TAG_LB_INF) && new_ub <= lb - FEAS_TOL)
+    if (!HAS_TAG(*col_tag, C_TAG_LB_INF) && IS_INFEAS_LT(new_ub, lb))
     {
         return INFEASIBLE;
     }
@@ -367,7 +367,7 @@ PresolveStatus change_rhs_of_ineq(RowView *row, double new_rhs, Lock *locks,
     assert(!IS_ABS_INF(new_rhs));
     assert(other_row_idx >= 0);
 
-    if (!HAS_TAG(*row->tag, R_TAG_LHS_INF) && *row->lhs >= new_rhs + FEAS_TOL)
+    if (!HAS_TAG(*row->tag, R_TAG_LHS_INF) && IS_INFEAS_GT(*row->lhs, new_rhs))
     {
         return INFEASIBLE;
     }
@@ -426,7 +426,7 @@ PresolveStatus change_lhs_of_ineq(RowView *row, double new_lhs, Lock *locks,
     assert(!IS_ABS_INF(new_lhs));
     assert(other_row_idx >= 0);
 
-    if (!HAS_TAG(*row->tag, R_TAG_RHS_INF) && *row->rhs <= new_lhs - FEAS_TOL)
+    if (!HAS_TAG(*row->tag, R_TAG_RHS_INF) && IS_INFEAS_LT(*row->rhs, new_lhs))
     {
         return INFEASIBLE;
     }

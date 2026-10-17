@@ -52,6 +52,12 @@
 #define IS_LT_FEAS_TOL(x, y) ((y) - (x) >= FEAS_TOL)
 #define IS_HUGE(x) (ABS(x) >= HUGE_VAL_PS)
 
+/* Tolerance of an infeasibility verdict: FEAS_TOL near zero, relative to the
+   larger magnitude beyond one. */
+#define INFEAS_TOL(x, y) (FEAS_TOL * MAX(1.0, MAX(ABS(x), ABS(y))))
+#define IS_INFEAS_GT(x, y) ((x) - (y) > INFEAS_TOL(x, y))
+#define IS_INFEAS_LT(x, y) ((y) - (x) > INFEAS_TOL(x, y))
+
 #define SET_ZERO_IF_SMALL_DUAL_POSTSOLVE(x)                                         \
     do                                                                              \
     {                                                                               \

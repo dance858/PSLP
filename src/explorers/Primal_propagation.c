@@ -88,7 +88,7 @@ static PresolveStatus update_lb_within_propagation(double new_lb, double *lb,
         assert(ABS(ub) != -INF);
 
         // check for infeasibility
-        if (new_lb >= ub + FEAS_TOL)
+        if (IS_INFEAS_GT(new_lb, ub))
         {
             return INFEASIBLE;
         }
@@ -165,7 +165,7 @@ static PresolveStatus update_ub_within_propagation(double new_ub, double *ub,
     {
         assert(ABS(lb) != -INF);
 
-        if (new_ub <= lb - FEAS_TOL)
+        if (IS_INFEAS_LT(new_ub, lb))
         {
             return INFEASIBLE;
         }

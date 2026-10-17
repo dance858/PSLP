@@ -149,11 +149,110 @@ static char *test_3_core()
     return 0;
 }
 
+/*  Feasible. The singleton row fixes x1 at its own upper bound, where the
+    absolute FEAS_TOL is below the spacing of the doubles.
+    min.   x1 + x2
+    s.t.   x1 = 2e10
+           x1 + x2 <= 1e12
+           0 <= x1 <= 2e10, 0 <= x2 <= 1
+*/
+static char *test_4_core()
+{
+    double Ax[] = {1, 1, 1};
+    int Ai[] = {0, 0, 1};
+    int Ap[] = {0, 1, 3};
+    int nnz = 3;
+    int n_rows = 2;
+    int n_cols = 2;
+
+    double lhs[] = {2e10, -INF};
+    double rhs[] = {2e10, 1e12};
+    double lbs[] = {0, 0};
+    double ubs[] = {2e10, 1};
+    double c[] = {1, 1};
+
+    Settings *stgs = default_settings();
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("error status", run_presolver(presolver) != INFEASIBLE);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/*  Feasible. As test_4_core with the singleton row as an inequality, so the
+    bound is tightened to the upper bound instead of fixed.
+    min.   x1 + x2
+    s.t.   x1 >= 2e10
+           x1 + x2 <= 1e12
+           0 <= x1 <= 2e10, 0 <= x2 <= 1
+*/
+static char *test_5_core()
+{
+    double Ax[] = {1, 1, 1};
+    int Ai[] = {0, 0, 1};
+    int Ap[] = {0, 1, 3};
+    int nnz = 3;
+    int n_rows = 2;
+    int n_cols = 2;
+
+    double lhs[] = {2e10, -INF};
+    double rhs[] = {INF, 1e12};
+    double lbs[] = {0, 0};
+    double ubs[] = {2e10, 1};
+    double c[] = {1, 1};
+
+    Settings *stgs = default_settings();
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("error status", run_presolver(presolver) != INFEASIBLE);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/*  Infeasible. The singleton row fixes x1 above its upper bound by more than
+    the relative tolerance.
+    min.   x1 + x2
+    s.t.   x1 = 2e10 + 1e6
+           x1 + x2 <= 1e12
+           0 <= x1 <= 2e10, 0 <= x2 <= 1
+*/
+static char *test_6_core()
+{
+    double Ax[] = {1, 1, 1};
+    int Ai[] = {0, 0, 1};
+    int Ap[] = {0, 1, 3};
+    int nnz = 3;
+    int n_rows = 2;
+    int n_cols = 2;
+
+    double lhs[] = {2e10 + 1e6, -INF};
+    double rhs[] = {2e10 + 1e6, 1e12};
+    double lbs[] = {0, 0};
+    double ubs[] = {2e10, 1};
+    double c[] = {1, 1};
+
+    Settings *stgs = default_settings();
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("error status", run_presolver(presolver) == INFEASIBLE);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_core()
 {
     mu_run_test(test_1_core, counter_core);
     mu_run_test(test_2_core, counter_core);
     mu_run_test(test_3_core, counter_core);
+    mu_run_test(test_4_core, counter_core);
+    mu_run_test(test_5_core, counter_core);
+    mu_run_test(test_6_core, counter_core);
     return 0;
 }
 
