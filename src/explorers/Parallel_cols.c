@@ -57,7 +57,7 @@ static inline PresolveStatus process_single_bin(Problem *prob, const int *bin,
     {
         j = bin[ii];
 
-        if (HAS_TAG(col_tags[j], C_TAG_INACTIVE))
+        if (HAS_TAG(col_tags[j], C_TAG_INACTIVE) || col_in_P(constraints->state, j))
         {
             continue;
         }
@@ -72,7 +72,8 @@ static inline PresolveStatus process_single_bin(Problem *prob, const int *bin,
         {
             k = bin[jj];
 
-            if (HAS_TAG(col_tags[k], C_TAG_INACTIVE))
+            if (HAS_TAG(col_tags[k], C_TAG_INACTIVE) ||
+                col_in_P(constraints->state, k))
             {
                 continue;
             }
@@ -159,6 +160,7 @@ static inline PresolveStatus process_single_bin(Problem *prob, const int *bin,
                 //                  mark col k as substituted
                 // ---------------------------------------------------------------------
                 set_col_to_substituted(k, col_tags + k, sub_cols_to_delete);
+                mark_P_row_inactive(prob, k);
                 save_retrieval_parallel_col(postsolve_info, ub_j_old, lb_j_old,
                                             bounds[k].lb, bounds[k].ub, ratio, j, k,
                                             col_tags[j], col_tags[k]);
@@ -323,7 +325,7 @@ PresolveStatus remove_parallel_cols(Problem *prob)
 {
     assert(prob->constraints->state->ston_rows->len == 0);
     assert(prob->constraints->state->empty_rows->len == 0);
-    assert(prob->constraints->state->empty_cols->len == 0);
+    assert(!has_removable_empty_cols(prob->constraints->state));
     DEBUG(verify_problem_up_to_date(prob->constraints));
 
     Constraints *constraints = prob->constraints;

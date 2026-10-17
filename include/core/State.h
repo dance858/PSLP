@@ -22,6 +22,7 @@
 #include "Postsolver.h"
 #include "Tags.h"
 #include "iVec.h"
+#include <stdbool.h>
 
 // forward declarations
 struct Mapping;
@@ -46,16 +47,46 @@ typedef struct State
     int *row_sizes;
     int *col_sizes;
 
+    /* row sizes of P, SIZE_INACTIVE_COL for removed variables */
+    int *P_row_sizes;
+
     iVec *fixed_cols_to_delete;
     iVec *sub_cols_to_delete;
     iVec *rows_to_delete;
 } State;
 
 /* Constructor and destructor */
-State *new_state(int *row_sizes, int *col_sizes, struct Lock *col_locks,
-                 size_t n_rows, size_t n_cols, struct Activity *activities,
-                 struct Work *work, const RowTag *row_tags);
+State *new_state(int *row_sizes, int *col_sizes, int *P_row_sizes,
+                 struct Lock *col_locks, size_t n_rows, size_t n_cols,
+                 struct Activity *activities, struct Work *work,
+                 const RowTag *row_tags);
 void free_state(State *data);
+
+/* True if column k has a non-empty row in P. Singleton and parallel columns
+   skip such a variable; the doubleton eliminator and the dual fix handle it
+   through the P-aware paths (see Problem.h). For an inactive column the row
+   size is SIZE_INACTIVE_COL and this returns true; callers test
+   C_TAG_INACTIVE first. */
+static inline bool col_in_P(const State *data, int k)
+{
+    return data->P_row_sizes[k] != 0;
+}
+
+/* True if empty_cols holds a column with an empty P row, which
+   remove_empty_cols always removes. Columns with entries in P stay in the
+   worklist; a diagonal-only one is also removable but not detected here. */
+static inline bool has_removable_empty_cols(const State *data)
+{
+    for (size_t i = 0; i < data->empty_cols->len; ++i)
+    {
+        if (!col_in_P(data, data->empty_cols->data[i]))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 /* Maintains consistency of all internal data structures when columns and
    removes are deleted */

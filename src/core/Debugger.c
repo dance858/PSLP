@@ -24,6 +24,7 @@
 #include "Matrix.h"
 #include "Numerics.h"
 #include "PSLP_stats.h"
+#include "Problem.h"
 #include "State.h"
 #include "glbopts.h"
 #include <stdio.h>
@@ -58,6 +59,12 @@ void run_debugger(const Constraints *constraints, bool finished)
         verify_empty_when_finished(constraints);
         verify_A_and_AT(constraints, true);
     }
+}
+
+void run_debugger_problem(const Problem *prob, bool finished)
+{
+    run_debugger(prob->constraints, finished);
+    verify_P(prob, finished);
 }
 
 int ASSERT_NO_ZEROS_D(const double *x, size_t len)
@@ -149,11 +156,9 @@ void verify_ston_cols(const Constraints *constraints)
     size_t n_cols = constraints->n;
     char *lookup = ps_calloc(n_cols, sizeof(char));
 
-    // verify that all appended columns are ston columns or
-    // empty/inactive
+    // the list may hold columns that are no longer singletons, even twice
     for (size_t i = 0; i < ston_cols->len; ++i)
     {
-        PSLP_ASSERT(col_sizes[ston_cols->data[i]] <= 1);
         lookup[ston_cols->data[i]] = 1;
     }
 
@@ -482,6 +487,36 @@ void verify_A_and_AT(const Constraints *constraints, bool compressed)
     verify_no_inactive_cols(AT, constraints->row_tags);
 }
 
+void verify_P(const Problem *prob, bool compressed)
+{
+    const Matrix *P = prob->obj->P;
+    const Constraints *constraints = prob->constraints;
+    const ColTag *col_tags = constraints->col_tags;
+    const int *P_row_sizes = constraints->state->P_row_sizes;
+    size_t k;
+    int j;
+
+    PSLP_ASSERT(P->m == constraints->n && P->n == constraints->n);
+    verify_CSR_matrix(P, compressed);
+    PSLP_ASSERT(matrix_is_symmetric(P));
+
+    for (k = 0; k < P->m; ++k)
+    {
+        if (HAS_TAG(col_tags[k], C_TAG_INACTIVE))
+        {
+            PSLP_ASSERT(P_row_sizes[k] == SIZE_INACTIVE_COL);
+            PSLP_ASSERT(P->p[k].start == P->p[k].end);
+            continue;
+        }
+
+        PSLP_ASSERT(P_row_sizes[k] == P->p[k].end - P->p[k].start);
+        for (j = P->p[k].start; j < P->p[k].end; ++j)
+        {
+            PSLP_ASSERT(!HAS_TAG(col_tags[P->i[j]], C_TAG_INACTIVE));
+        }
+    }
+}
+
 void verify_locks(const Matrix *AT, const Lock *locks, const ColTag *col_tags,
                   const RowTag *row_tags)
 {
@@ -525,7 +560,8 @@ void verify_locks(const Matrix *AT, const Lock *locks, const ColTag *col_tags,
 
 void verify_empty_when_finished(const Constraints *constraints)
 {
-    PSLP_ASSERT(constraints->state->empty_cols->len == 0);
+    // columns that are empty in A but appear in P stay in the problem
+    PSLP_ASSERT(!has_removable_empty_cols(constraints->state));
     PSLP_ASSERT(constraints->state->empty_rows->len == 0);
     PSLP_ASSERT(constraints->state->rows_to_delete->len == 0);
     PSLP_ASSERT(constraints->state->fixed_cols_to_delete->len == 0);

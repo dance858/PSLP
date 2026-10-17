@@ -50,6 +50,13 @@ typedef struct Matrix
 Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, size_t n_rows,
                    size_t n_cols, size_t nnz);
 
+Matrix *matrix_new_no_extra_space(const double *Ax, const int *Ai, const int *Ap,
+                                  size_t n_rows, size_t n_cols, size_t nnz);
+
+/* True if A is square and exactly symmetric (A_kl and A_lk both present with
+   the same value). Rows must be sorted. */
+bool matrix_is_symmetric(const Matrix *A);
+
 /* True if (Ai, Ap) is a valid n_rows x n_cols CSR structure with nnz entries:
    Ap[0] == 0, Ap non-decreasing, Ap[n_rows] == nnz, and every row has strictly
    increasing column indices in [0, n_cols). Works on the raw input arrays, so

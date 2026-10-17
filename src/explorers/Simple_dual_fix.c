@@ -22,6 +22,8 @@
 #include "CoreTransformations.h"
 #include "Debugger.h"
 #include "Locks.h"
+#include "Matrix.h"
+#include "Numerics.h"
 #include "Problem.h"
 #include "SimpleReductions.h"
 #include "State.h"
@@ -34,6 +36,7 @@ static inline PresolveStatus _simple_dual_fix(Problem *prob, double ck, double l
                                               int col, iVec *cols_to_inf)
 {
     assert(!HAS_TAG(col_tag, C_TAG_INACTIVE));
+    assert(!col_in_P(prob->constraints->state, col));
 
     // --------------------------------------------------
     // see if we can fix the variable to its lower bound
@@ -107,9 +110,109 @@ static inline PresolveStatus _simple_dual_fix(Problem *prob, double ck, double l
     return UNCHANGED;
 }
 
+/* Dual fix for a variable k in P with diagonal Pkk > 0. The derivative of the
+   objective in xk is gk = ck + sum_{l != k} Pkl xl + Pkk xk, and [gmin, gmax]
+   bounds the first two terms over the bounds of the other variables. Without
+   down-locks xk can be decreased freely, so every optimal solution has gk <= 0
+   or xk = lb, i.e. xk <= max(lb, -gmin / Pkk): xk = lb when the maximum is lb
+   (gmin + Pkk lb >= 0), otherwise the upper bound is tightened to -gmin / Pkk.
+   Symmetrically, without up-locks xk >= min(ub, -gmax / Pkk). A diagonal-only
+   row without locks is fixed at clip(-ck / Pkk, lb, ub). An implied bound is
+   only applied when it is finite, not huge and tighter by FEAS_TOL
+   (dual_tighten_bound, postsolve record DUAL_BOUND_CHANGE); it is never
+   binding at an exact optimum of the reduced problem. */
+static inline void P_dual_fix(Problem *prob, int col)
+{
+    const Constraints *constraints = prob->constraints;
+    const Bound *bounds = constraints->bounds;
+    const Matrix *P = prob->obj->P;
+    ColTag col_tag = constraints->col_tags[col];
+    Lock lock = constraints->state->col_locks[col];
+    bool lb_inf = HAS_TAG(col_tag, C_TAG_LB_INF);
+    bool ub_inf = HAS_TAG(col_tag, C_TAG_UB_INF);
+    double lb = bounds[col].lb;
+    double ub = bounds[col].ub;
+    assert(!HAS_TAG(col_tag, C_TAG_INACTIVE));
+    assert(lock.down == 0 || lock.up == 0);
+
+    // an infinite bound is stored as +-INF, so gmin / gmax become infinite
+    // when they depend on one and the tests below fail by themselves
+    double Pkk = 0.0, gmin = prob->obj->c[col], gmax = gmin;
+    for (int jj = P->p[col].start; jj < P->p[col].end; ++jj)
+    {
+        int l = P->i[jj];
+        double Pkl = P->x[jj];
+        if (l == col)
+        {
+            Pkk = Pkl;
+            continue;
+        }
+        gmin += MIN(Pkl * bounds[l].lb, Pkl * bounds[l].ub);
+        gmax += MAX(Pkl * bounds[l].lb, Pkl * bounds[l].ub);
+    }
+    if (Pkk <= 0.0)
+    {
+        return;
+    }
+
+    // diagonal-only row without locks: xk = clip(x*, lb, ub)
+    if (lock.down == 0 && lock.up == 0 && constraints->state->P_row_sizes[col] == 1)
+    {
+        double val = -prob->obj->c[col] / Pkk;
+        if (IS_HUGE(val))
+        {
+            return;
+        }
+        if (!lb_inf && val < lb)
+        {
+            val = lb;
+        }
+        else if (!ub_inf && val > ub)
+        {
+            val = ub;
+        }
+        fix_col(prob, col, val);
+        return;
+    }
+
+    // no down-locks: xk <= max(lb, -gmin / Pkk)
+    if (lock.down == 0)
+    {
+        if (!lb_inf && gmin + Pkk * lb >= 0.0)
+        {
+            fix_col(prob, col, lb);
+            return;
+        }
+        double implied_ub = -gmin / Pkk;
+        if (!IS_ABS_INF(gmin) && !IS_HUGE(implied_ub) &&
+            (ub_inf || implied_ub <= ub - FEAS_TOL))
+        {
+            dual_tighten_bound(prob, col, implied_ub, true);
+            ub = implied_ub;
+            ub_inf = false;
+        }
+    }
+
+    // no up-locks: xk >= min(ub, -gmax / Pkk)
+    if (lock.up == 0)
+    {
+        if (!ub_inf && gmax + Pkk * ub <= 0.0)
+        {
+            fix_col(prob, col, ub);
+            return;
+        }
+        double implied_lb = -gmax / Pkk;
+        if (!IS_ABS_INF(gmax) && !IS_HUGE(implied_lb) &&
+            (lb_inf || implied_lb >= lb + FEAS_TOL))
+        {
+            dual_tighten_bound(prob, col, implied_lb, false);
+        }
+    }
+}
+
 PresolveStatus simple_dual_fix(Problem *prob)
 {
-    assert(prob->constraints->state->empty_cols->len == 0);
+    assert(!has_removable_empty_cols(prob->constraints->state));
     DEBUG(verify_problem_up_to_date(prob->constraints));
 
     Constraints *constraints = prob->constraints;
@@ -129,6 +232,15 @@ PresolveStatus simple_dual_fix(Problem *prob)
         if (HAS_TAG(col_tags[k], C_TAG_INACTIVE) ||
             (locks[k].up > 0 && locks[k].down > 0))
         {
+            continue;
+        }
+
+        // a variable in P is fixed from the sign of its objective derivative
+        // over the bounds of the others; this also catches the empty columns
+        // that remove_empty_cols keeps (coupled in P)
+        if (col_in_P(constraints->state, (int) k))
+        {
+            P_dual_fix(prob, (int) k);
             continue;
         }
 

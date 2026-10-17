@@ -398,6 +398,19 @@ void postsolver_run_primal_infeas_ray(const PostsolveInfo *info, Solution *sol,
                 decode_deleted_row(indices + start, vals + start, len);
             retrieve_deleted_row(sol, r.row, 0.0);
         }
+        else if (type == DELETED_ROW_ZK)
+        {
+            // yi and zk already follow from the LP records (the objective
+            // plays no role in a primal infeasibility ray)
+            (void) decode_deleted_row_zk(indices + start, vals + start, len);
+        }
+        else if (type == DUAL_BOUND_CHANGE)
+        {
+            // Farkas certificates do not involve the objective. A dual bound
+            // only tightens a side whose multiplier is zero in any certificate
+            // (the variable has no locks in that direction).
+            (void) decode_dual_bound_change(indices + start, vals + start, len);
+        }
         else if (type == ADDED_ROW)
         {
             AddedRowRecord r = decode_added_row(indices + start, vals + start, len);
@@ -557,6 +570,16 @@ void postsolver_run_dual_infeas_ray(const PostsolveInfo *info, Solution *sol,
         {
             // nothing to do for a dual ray; decoded to check the record
             (void) decode_deleted_row(indices + start, vals + start, len);
+        }
+        else if (type == DELETED_ROW_ZK)
+        {
+            (void) decode_deleted_row_zk(indices + start, vals + start, len);
+        }
+        else if (type == DUAL_BOUND_CHANGE)
+        {
+            // the implied bound is never binding for a ray: a variable with a
+            // positive diagonal in P has a zero component in any d with Pd = 0
+            (void) decode_dual_bound_change(indices + start, vals + start, len);
         }
         else if (type == ADDED_ROW)
         {

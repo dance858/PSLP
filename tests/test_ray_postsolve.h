@@ -255,7 +255,7 @@ static char *test_bound_change_dual_ray_postsolve()
 
     int rows[] = {0};
     double vals[] = {2.0};
-    save_retrieval_fixed_col(info, 1, 3.0, 0.0, vals, rows, 1);
+    save_retrieval_fixed_col(info, 1, 3.0, 0.0, vals, rows, 1, NULL, NULL, 0);
 
     int cols[] = {0, 1};
     double row_vals[] = {1.0, 2.0};
@@ -363,7 +363,7 @@ static char *test_fix_col_primal_ray_postsolve()
 
     int rows[] = {0};
     double vals[] = {2.0};
-    save_retrieval_fixed_col(info, 0, 0.0, 0.0, vals, rows, 1);
+    save_retrieval_fixed_col(info, 0, 0.0, 0.0, vals, rows, 1, NULL, NULL, 0);
 
     int col_map[] = {-1, 0};
     int row_map[] = {0};
@@ -392,7 +392,7 @@ static char *test_fix_col_dual_ray_postsolve()
 
     int rows[] = {0};
     double vals[] = {2.0};
-    save_retrieval_fixed_col(info, 0, 0.0, 0.0, vals, rows, 1);
+    save_retrieval_fixed_col(info, 0, 0.0, 0.0, vals, rows, 1, NULL, NULL, 0);
 
     int col_map[] = {-1, 0};
     int row_map[] = {0};

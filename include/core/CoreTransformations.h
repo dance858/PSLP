@@ -39,16 +39,16 @@ struct Bound;
 
 /* Checks if fixing a column to 'val' is feasible with respect to its bounds.
    If not, it returns INFEASIBLE without modifying anything. Otherwise it tags
-   the column as fixed, stores the postsolve record, adds c[col] * val to the
-   objective offset, sets both lb and ub to val, and updates the activities.
-   The postsolve record and the objective update use the same value of c[col],
-   and the objective update is the last thing that reads it. The column must
-   be non-empty; empty columns are fixed by remove_empty_cols. */
+   the column as fixed, stores the postsolve record, updates the objective
+   (fix_var_in_obj), sets both lb and ub to val, and updates the activities.
+   The record is saved before the objective update, which is the last reader
+   of c[col] and row col of P. The column must be non-empty (asserted); empty
+   columns are fixed by remove_empty_cols. */
 PresolveStatus fix_col(struct Problem *prob, int col, double val);
 
 /* Fixes a variable to infinity and marks the constraints it appears in as
-   inactive. This is only valid for a variable with a zero objective
-   coefficient (asserted), so the objective is not modified. */
+   inactive. Only valid for a variable with a zero objective coefficient that
+   does not appear in P (both asserted). */
 void fix_col_to_negative_inf(struct Problem *prob, int col);
 void fix_col_to_positive_inf(struct Problem *prob, int col);
 
@@ -58,6 +58,15 @@ PresolveStatus update_lb(struct Constraints *constraints, int col, double new_lb
                          int row HUGE_BOUND_PARAM);
 PresolveStatus update_ub(struct Constraints *constraints, int col, double new_ub,
                          int row HUGE_BOUND_PARAM);
+
+/* Tightens the upper (is_upper_bound) or lower bound of 'col' to 'new_bound'
+   because no optimal solution lies beyond it (a dual argument, see
+   P_dual_fix). No row is behind the change, so the postsolve record is
+   DUAL_BOUND_CHANGE rather than BOUND_CHANGE_*. The caller checks that the
+   new bound is finite, not huge, strictly tighter and consistent with the
+   other bound (all asserted). */
+void dual_tighten_bound(struct Problem *prob, int col, double new_bound,
+                        bool is_upper_bound);
 
 /* Updates the rhs/lhs of a row. These functions check for infeasibility
    and also if the row becomes an equality constraint after the bound change.

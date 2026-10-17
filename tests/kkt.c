@@ -6,9 +6,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-PresolvedProblem problem_from_csr(double *Ax, int *Ai, int *Ap, int n_rows,
-                                  int n_cols, int nnz, double *lhs, double *rhs,
-                                  double *lbs, double *ubs, double *c)
+PresolvedProblem problem_from_csr_qp(double *Ax, int *Ai, int *Ap, int n_rows,
+                                     int n_cols, int nnz, double *lhs, double *rhs,
+                                     double *lbs, double *ubs, double *c, double *Px,
+                                     int *Pi, int *Pp, int Pnnz)
 {
     PresolvedProblem prob;
     prob.Ax = Ax;
@@ -23,7 +24,25 @@ PresolvedProblem problem_from_csr(double *Ax, int *Ai, int *Ap, int n_rows,
     prob.lbs = lbs;
     prob.ubs = ubs;
     prob.obj_offset = 0.0;
+    prob.Px = Px;
+    prob.Pi = Pi;
+    prob.Pp = Pp;
+    prob.Pnnz = (size_t) Pnnz;
     return prob;
+}
+
+PresolvedProblem problem_from_csr(double *Ax, int *Ai, int *Ap, int n_rows,
+                                  int n_cols, int nnz, double *lhs, double *rhs,
+                                  double *lbs, double *ubs, double *c)
+{
+    return problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs,
+                               c, NULL, NULL, NULL, 0);
+}
+
+/* true if the problem has a quadratic objective term */
+static bool has_P(const PresolvedProblem *prob)
+{
+    return prob->Pp != NULL && prob->Pnnz > 0;
 }
 
 /* p(s; l, u) = sum_i (s_i < 0 ? s_i l_i : s_i > 0 ? s_i u_i : 0).
@@ -64,10 +83,12 @@ void kkt_residuals(const PresolvedProblem *prob, const double *x, const double *
 
     double *Ax_vec = (double *) calloc(m > 0 ? m : 1, sizeof(double));
     double *ATy = (double *) calloc(n > 0 ? n : 1, sizeof(double));
-    if (!Ax_vec || !ATy)
+    double *Px_vec = (double *) calloc(n > 0 ? n : 1, sizeof(double));
+    if (!Ax_vec || !ATy || !Px_vec)
     {
         free(Ax_vec);
         free(ATy);
+        free(Px_vec);
         out->dual_res_abs = out->primal_res_abs = out->gap_abs = NAN;
         out->dual_res_rel = out->primal_res_rel = out->gap_rel = NAN;
         out->y_comp_slack = out->z_comp_slack = NAN;
@@ -87,13 +108,27 @@ void kkt_residuals(const PresolvedProblem *prob, const double *x, const double *
         Ax_vec[i] = acc;
     }
 
+    // P x (zero for an LP)
+    if (has_P(prob))
+    {
+        for (size_t k = 0; k < n; k++)
+        {
+            for (int p = prob->Pp[k]; p < prob->Pp[k + 1]; p++)
+            {
+                Px_vec[k] += prob->Px[p] * x[prob->Pi[p]];
+            }
+        }
+    }
+
     // objective, norms of the data, bound violation of x
-    double cx = 0.0, c_norm2 = 0.0, sides_norm2 = 0.0;
+    double cx = 0.0, xPx = 0.0, c_norm2 = 0.0, Px_norm2 = 0.0, sides_norm2 = 0.0;
     double x_norm2 = 0.0, bviol2 = 0.0;
     for (size_t j = 0; j < n; j++)
     {
         cx += c[j] * x[j];
+        xPx += x[j] * Px_vec[j];
         c_norm2 += c[j] * c[j];
+        Px_norm2 += Px_vec[j] * Px_vec[j];
         x_norm2 += x[j] * x[j];
         double proj = clip(x[j], lbs[j], ubs[j]);
         bviol2 += (x[j] - proj) * (x[j] - proj);
@@ -108,7 +143,7 @@ void kkt_residuals(const PresolvedProblem *prob, const double *x, const double *
     double dual2 = 0.0, z_norm2 = 0.0, p_z = 0.0, zcs2 = 0.0;
     for (size_t j = 0; j < n; j++)
     {
-        double r = ATy[j] + z[j] - c[j];
+        double r = ATy[j] + z[j] - c[j] - Px_vec[j];
         dual2 += r * r;
         z_norm2 += z[j] * z[j];
         p_z += support_term(-z[j], lbs[j], ubs[j]);
@@ -129,14 +164,16 @@ void kkt_residuals(const PresolvedProblem *prob, const double *x, const double *
         ycs2 += (y[i] - yi) * (y[i] - yi);
     }
 
+    // at a KKT point c^T x = -x^T P x + y^T A x + z^T x, so the gap of an LP
+    // generalizes to x^T P x + c^T x + p(-y) + p(-z)
     double p_total = p_y + p_z;
-    out->primal_obj = cx + prob->obj_offset;
+    out->primal_obj = 0.5 * xPx + cx + prob->obj_offset;
     out->dual_res_abs = sqrt(dual2);
     out->primal_res_abs = sqrt(primal2);
-    out->gap_abs = fabs(cx + p_total);
-    out->dual_res_rel = out->dual_res_abs / (1.0 + sqrt(c_norm2));
+    out->gap_abs = fabs(xPx + cx + p_total);
+    out->dual_res_rel = out->dual_res_abs / (1.0 + sqrt(c_norm2) + sqrt(Px_norm2));
     out->primal_res_rel = out->primal_res_abs / (1.0 + sqrt(sides_norm2));
-    out->gap_rel = out->gap_abs / (1.0 + fabs(p_total) + fabs(cx));
+    out->gap_rel = out->gap_abs / (1.0 + fabs(p_total) + fabs(xPx + cx));
     out->y_comp_slack = sqrt(ycs2);
     out->z_comp_slack = sqrt(zcs2);
     out->y_norm = sqrt(y_norm2);
@@ -146,6 +183,7 @@ void kkt_residuals(const PresolvedProblem *prob, const double *x, const double *
 
     free(Ax_vec);
     free(ATy);
+    free(Px_vec);
 }
 
 bool is_kkt_point(const PresolvedProblem *prob, const double *x, const double *y,
@@ -293,6 +331,24 @@ bool is_dual_ray_certificate(const PresolvedProblem *prob, const double *d,
                    "[%g, %g]\n",
                    j, d[j], prob->lbs[j], prob->ubs[j]);
             return false;
+        }
+    }
+
+    // P d = 0: the objective is linear along the ray
+    if (has_P(prob))
+    {
+        for (size_t k = 0; k < prob->n; ++k)
+        {
+            double pd = 0.0;
+            for (int p = prob->Pp[k]; p < prob->Pp[k + 1]; ++p)
+            {
+                pd += prob->Px[p] * d[prob->Pi[p]];
+            }
+            if (fabs(pd) > tol)
+            {
+                printf("dual ray: (P d)_%zu = %g is not zero\n", k, pd);
+                return false;
+            }
         }
     }
 

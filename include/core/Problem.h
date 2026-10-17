@@ -20,12 +20,23 @@
 #define CORE_PROBLEM_H
 
 #include <stdbool.h>
+#include <stddef.h>
 struct Constraints;
+struct Matrix;
 
+/* Objective (1/2) x'Px + c'x + offset. P is the full symmetric matrix in
+   CSR without extra row space. Fixing a variable removes its row and column
+   (fix_var_in_obj); no reduction creates fill-in in P (see col_in_P): the
+   doubleton eliminator substitutes a P variable only when its row of P folds
+   into the other column's diagonal (diagonal_only_P_entry,
+   coupled_dton_subst_ok), and the dual fix of a P variable (P_dual_fix)
+   fixes it or tightens a bound from the sign of its derivative. problem_clean
+   drops the rows of removed variables. For an LP, P has no entries. */
 typedef struct
 {
     double *c;
     double offset;
+    struct Matrix *P;
 } Objective;
 
 typedef struct Problem
@@ -44,24 +55,68 @@ void free_problem(Problem *problem);
    account. */
 void problem_clean(Problem *problem);
 
-/* Constructor and destructor */
-Objective *objective_new(double *c);
+/* Constructor and destructor. The objective takes ownership of c and P. */
+Objective *objective_new(double *c, struct Matrix *P);
 void free_objective(Objective *obj);
 
-/* Adds c[col] * value to the offset when variable 'col' is fixed to 'value'.
-   Called at fix time by fix_col and remove_empty_cols; the flush of fixed
-   columns (delete_fixed_cols_from_problem) does not touch the objective. */
-void fix_var_in_obj(Objective *obj, int col, double value);
+/* Fixes variable k = 'col' to 'value' in the objective:
+     offset += c_k value + (1/2) P_kk value^2,   c_l += P_kl value (l != k),
+   then removes row and column k of P and marks the row inactive. The caller
+   saves the postsolve record first since it needs c_k and row k of P. */
+void fix_var_in_obj(Problem *prob, int col, double value);
 
 /* Substitutes variable 'k' from the objective using row 'i'
    (assumed to be an equality). Row 'i' is specified by
-   (vals, cols, len, rhs) */
-void sub_var_in_obj(Objective *obj, const double *vals, const int *cols, int len,
+   (vals, cols, len, rhs). Row k of P must be empty and is marked inactive. */
+void sub_var_in_obj(Problem *prob, const double *vals, const int *cols, int len,
                     int k, double aik, double rhs);
+
+/* Marks row k of P (which must be empty) as removed. */
+void mark_P_row_inactive(Problem *prob, int k);
+
+/* True if row k of P is a single positive diagonal entry, returned in *Pkk.
+   A size-one row is not necessarily a diagonal: check_P_input tolerates tiny
+   off-diagonals in a row with no diagonal. */
+bool diagonal_only_P_entry(const struct Matrix *P, const int *P_row_sizes, int k,
+                           double *Pkk);
+
+/* True if row k of P holds a diagonal entry. */
+bool P_row_has_diagonal(const struct Matrix *P, const int *P_row_sizes, int k);
 
 /* Substitutes x_subst = shift + mult * x_stay in the objective and zeroes
    c[subst]. */
 void sub_var_in_obj_dton(Objective *obj, int subst, int stay, double mult,
                          double shift);
+
+/* Substitutes x_k = shift + mult * x_t in the objective when row k of P is the
+   positive diagonal Pkk alone (diagonal_only_P_entry) and t has a diagonal:
+     c_t += mult (c_k + P_kk shift),  offset += shift (c_k + (1/2) P_kk shift),
+     P_tt += mult^2 P_kk,
+   then empties row k of P. The caller marks it inactive. */
+void sub_diag_var_in_obj_dton(Problem *prob, int k, int t, double mult, double shift,
+                              double Pkk);
+
+/* Doubleton equality row aij xj + aik xk = rhs with both columns in P. True if
+   xk can be substituted out of the objective without fill-in in P although it
+   is coupled: row k of P holds a positive diagonal Pkk and the coupling Pkj
+   to j and nothing else, row j holds a diagonal, and the updated diagonal
+       P_jj + s^2 P_kk - 2 s P_kj,   s = aij / aik,
+   is nonnegative up to rounding (it is v'Pv for v = e_j - s e_k). An exact
+   cancellation means P v = 0, so row j then holds nothing but j and k; a
+   cancellation next to other entries of row j is rejected as rounding.
+   Returns the two entries of row k (0 when false). */
+bool coupled_dton_subst_ok(const struct Matrix *P, const int *P_row_sizes, int k,
+                           int j, double s, double *Pkk, double *Pkj);
+
+/* Substitutes x_k = shift + mult * x_j in the objective when row k of P is the
+   positive diagonal Pkk plus the coupling Pkj to j (coupled_dton_subst_ok):
+     c_j += mult (c_k + P_kk shift) + P_kj shift,
+     offset += shift (c_k + (1/2) P_kk shift),
+     P_jj += mult^2 P_kk + 2 mult P_kj,
+   removes P_jk from row j and empties row k of P (the caller marks it
+   inactive). A diagonal that cancels is removed when row j holds nothing
+   else. */
+void sub_coupled_var_in_obj_dton(Problem *prob, int k, int j, double mult,
+                                 double shift, double Pkk, double Pkj);
 
 #endif // CORE_PROBLEM_H

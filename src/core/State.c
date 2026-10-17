@@ -44,8 +44,8 @@
 #define MIN_INIT_UPDATED_ACTS 1000
 #define INIT_UPDATED_ACTS_FRACTION 0.01
 
-State *new_state(int *row_sizes, int *col_sizes, Lock *col_locks, size_t n_rows,
-                 size_t n_cols, Activity *activities, Work *work,
+State *new_state(int *row_sizes, int *col_sizes, int *P_row_sizes, Lock *col_locks,
+                 size_t n_rows, size_t n_cols, Activity *activities, Work *work,
                  const RowTag *row_tags)
 {
     State *data = (State *) ps_malloc(1, sizeof(State));
@@ -53,6 +53,7 @@ State *new_state(int *row_sizes, int *col_sizes, Lock *col_locks, size_t n_rows,
     data->col_locks = col_locks;
     data->row_sizes = row_sizes;
     data->col_sizes = col_sizes;
+    data->P_row_sizes = P_row_sizes;
     data->activities = activities;
     data->work = work;
 
@@ -199,6 +200,7 @@ void clean_state(State *data, const Mapping *maps, size_t n_rows, size_t n_cols)
     shrink_activities(data->activities, maps->rows, n_rows);
     shrink_locks(data->col_locks, maps->cols, n_cols);
     iPtr_shrink(data->col_sizes, maps->cols, n_cols);
+    iPtr_shrink(data->P_row_sizes, maps->cols, n_cols);
 
     shrink_idx_vector(data->ston_rows, maps->rows);
     shrink_idx_vector(data->dton_rows, maps->rows);

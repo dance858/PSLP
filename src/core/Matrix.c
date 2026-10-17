@@ -85,6 +85,86 @@ Matrix *matrix_alloc(size_t n_rows, size_t n_cols, size_t nnz)
     return A;
 }
 
+Matrix *matrix_new_no_extra_space(const double *Ax, const int *Ai, const int *Ap,
+                                  size_t n_rows, size_t n_cols, size_t nnz)
+{
+    Matrix *A = (Matrix *) ps_malloc(1, sizeof(Matrix));
+    RETURN_PTR_IF_NULL(A, NULL);
+
+    A->m = n_rows;
+    A->n = n_cols;
+    A->nnz = nnz;
+    /* avoid a zero-size allocation for an empty matrix */
+    A->n_alloc = MAX(nnz, 1);
+    A->i = (int *) ps_malloc(A->n_alloc, sizeof(int));
+    A->p = (RowRange *) ps_malloc(n_rows + 1, sizeof(RowRange));
+    A->x = (double *) ps_malloc(A->n_alloc, sizeof(double));
+
+    if (!A->i || !A->p || !A->x)
+    {
+        free_matrix(A);
+        return NULL;
+    }
+
+    /* Ap == NULL means an empty matrix */
+    if (Ap == NULL)
+    {
+        assert(nnz == 0);
+        memset(A->p, 0, (n_rows + 1) * sizeof(RowRange));
+        return A;
+    }
+
+    if (nnz > 0)
+    {
+        memcpy(A->x, Ax, nnz * sizeof(double));
+        memcpy(A->i, Ai, nnz * sizeof(int));
+    }
+
+    for (int i = 0; i < n_rows; ++i)
+    {
+        A->p[i].start = Ap[i];
+        A->p[i].end = Ap[i + 1];
+    }
+    A->p[n_rows].start = Ap[n_rows];
+    A->p[n_rows].end = Ap[n_rows];
+
+    /* the presolver assumes that only nonzero entries are stored */
+    remove_explicit_zeros(A);
+
+    return A;
+}
+
+bool matrix_is_symmetric(const Matrix *A)
+{
+    int j, k, l, rel;
+
+    if (A->m != A->n)
+    {
+        return false;
+    }
+
+    for (k = 0; k < A->m; ++k)
+    {
+        for (j = A->p[k].start; j < A->p[k].end; ++j)
+        {
+            l = A->i[j];
+
+            if (l == k)
+            {
+                continue;
+            }
+
+            rel = sorted_find(A->i + A->p[l].start, A->p[l].end - A->p[l].start, k);
+            if (rel == -1 || A->x[A->p[l].start + rel] != A->x[j])
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 bool matrix_valid_csr_input(const int *Ai, const int *Ap, size_t n_rows,
                             size_t n_cols, size_t nnz)
 {

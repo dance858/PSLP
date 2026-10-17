@@ -159,11 +159,13 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
             // PARALLEL_ROW record that follows
         }
         else if (type == FIXED_COL || type == FIXED_COL_INF || type == SUB_COL ||
-                 type == SUB_COL_DTON || type == DELETED_ROW)
+                 type == SUB_COL_DTON || type == DELETED_ROW ||
+                 type == DELETED_ROW_ZK)
         {
             // only affects a removed row or column
         }
-        else if (type == BOUND_CHANGE_NO_ROW || type == BOUND_CHANGE_THE_ROW)
+        else if (type == BOUND_CHANGE_NO_ROW || type == BOUND_CHANGE_THE_ROW ||
+                 type == DUAL_BOUND_CHANGE)
         {
             // bound changes do not touch A, so (x, y) carry over unchanged
         }

@@ -212,7 +212,7 @@ static void handle_impl_free_from_below_eq(RowView *row, int k, double Aik,
     }
 }
 
-static PresolveStatus process_colston_eq(RowView *row, ColView *col, Objective *obj,
+static PresolveStatus process_colston_eq(RowView *row, ColView *col, Problem *prob,
                                          double Aik, bool impl_free_from_above,
                                          bool impl_free_from_below, Activity *act,
                                          Lock *locks, iVec *rows_to_delete,
@@ -232,11 +232,11 @@ static PresolveStatus process_colston_eq(RowView *row, ColView *col, Objective *
     }
 
     // must store for dual postsolve
-    double ck = obj->c[col->k];
+    double ck = prob->obj->c[col->k];
 
     // substitute variable in objective and mark it as substituted
     // (note that we don't push it to list of substituted cols)
-    sub_var_in_obj(obj, row->vals, row->cols, *row->len, col->k, Aik, *row->rhs);
+    sub_var_in_obj(prob, row->vals, row->cols, *row->len, col->k, Aik, *row->rhs);
     UPDATE_TAG(*col->tag, C_TAG_SUBSTITUTED);
     *col->len = SIZE_INACTIVE_COL;
     col->range->end = col->range->start;
@@ -379,7 +379,7 @@ static void fix_col_ston(double val, double Aik, RowView *row, ColView *col,
 */
 
 static inline PresolveStatus
-process_colston_ineq(RowView *row, ColView *col, Objective *obj, double Aik,
+process_colston_ineq(RowView *row, ColView *col, Problem *prob, double Aik,
                      bool impl_free_from_above, bool impl_free_from_below,
                      Activity *act, Lock *locks, iVec *rows_to_delete, size_t *A_nnz,
                      const Bound *bounds, iVec *ston_rows, iVec *dton_rows,
@@ -389,7 +389,7 @@ process_colston_ineq(RowView *row, ColView *col, Objective *obj, double Aik,
     bool is_rhs_inf = HAS_TAG(*row->tag, R_TAG_RHS_INF);
     bool is_ub_inf = HAS_TAG(*col->tag, C_TAG_UB_INF);
     bool is_lb_inf = HAS_TAG(*col->tag, C_TAG_LB_INF);
-    double ck = obj->c[col->k];
+    double ck = prob->obj->c[col->k];
 
     /* unboundedness check */
     if ((ck > 0 && Aik > 0 && is_lhs_inf && is_lb_inf) ||
@@ -435,7 +435,7 @@ process_colston_ineq(RowView *row, ColView *col, Objective *obj, double Aik,
 
         // substitute variable in objective and mark it as substituted
         // (note that we don't push it to list of substituted cols)
-        sub_var_in_obj(obj, row->vals, row->cols, *row->len, col->k, Aik, new_side);
+        sub_var_in_obj(prob, row->vals, row->cols, *row->len, col->k, Aik, new_side);
         col->range->end = col->range->start;
         UPDATE_TAG(*col->tag, C_TAG_SUBSTITUTED);
         *col->len = SIZE_INACTIVE_COL;
@@ -471,7 +471,7 @@ process_colston_ineq(RowView *row, ColView *col, Objective *obj, double Aik,
         // equality for a later pass lets other reductions treat it as a genuine
         // equality, whose postsolve returns a multiplier of either sign, while
         // the original one-sided row only admits one.
-        return process_colston_eq(row, col, obj, Aik, impl_free_from_above,
+        return process_colston_eq(row, col, prob, Aik, impl_free_from_above,
                                   impl_free_from_below, act, locks, rows_to_delete,
                                   A_nnz, bounds, ston_rows, dton_rows,
                                   postsolve_info);
@@ -496,7 +496,7 @@ process_colston_ineq(RowView *row, ColView *col, Objective *obj, double Aik,
         RESET_TAG(*row->tag, R_TAG_EQ);
 
         // see the comment in the branch above
-        return process_colston_eq(row, col, obj, Aik, impl_free_from_above,
+        return process_colston_eq(row, col, prob, Aik, impl_free_from_above,
                                   impl_free_from_below, act, locks, rows_to_delete,
                                   A_nnz, bounds, ston_rows, dton_rows,
                                   postsolve_info);
@@ -571,6 +571,13 @@ PresolveStatus remove_ston_cols__(Problem *prob)
     for (kk = 0; kk < ston_cols->len; ++kk)
     {
         k = ston_cols->data[kk];
+
+        /* A column that grew through a doubleton substitution and shrank back
+           to a singleton is listed twice; its first entry may have eliminated it. */
+        if (col_sizes[k] != 1)
+        {
+            continue;
+        }
         i = AT->i[AT->p[k].start];
         Aik = AT->x[AT->p[k].start];
 
@@ -589,6 +596,11 @@ PresolveStatus remove_ston_cols__(Problem *prob)
         // processed. Also skip column singletons appearing in singleton rows.
         // It is necessary to both check for inactivity and the row size here.
         if (HAS_TAG(row_tags[i], R_TAG_INACTIVE) || row_sizes[i] <= 1)
+        {
+            continue;
+        }
+
+        if (col_in_P(constraints->state, k))
         {
             continue;
         }
@@ -624,14 +636,14 @@ PresolveStatus remove_ston_cols__(Problem *prob)
         {
 
             status |= process_colston_eq(
-                &row_view, &col_view, prob->obj, Aik, impl_free_from_above,
+                &row_view, &col_view, prob, Aik, impl_free_from_above,
                 impl_free_from_below, acts + i, locks, rows_to_delete, A_nnz, bounds,
                 ston_rows, dton_rows, postsolve_info);
         }
         else
         {
             status |= process_colston_ineq(
-                &row_view, &col_view, prob->obj, Aik, impl_free_from_above,
+                &row_view, &col_view, prob, Aik, impl_free_from_above,
                 impl_free_from_below, acts + i, locks, rows_to_delete, A_nnz, bounds,
                 ston_rows, dton_rows, postsolve_info);
         }
@@ -660,9 +672,8 @@ PresolveStatus remove_ston_cols(Problem *prob)
 {
     assert(prob->constraints->state->ston_rows->len == 0);
     assert(prob->constraints->state->empty_rows->len == 0);
-    assert(prob->constraints->state->empty_cols->len == 0);
+    assert(!has_removable_empty_cols(prob->constraints->state));
     DEBUG(verify_problem_up_to_date(prob->constraints));
-    DEBUG(verify_no_duplicates_sort(prob->constraints->state->ston_cols));
 
     PresolveStatus status = UNCHANGED;
 

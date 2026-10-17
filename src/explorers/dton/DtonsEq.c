@@ -100,7 +100,7 @@ PresolveStatus remove_dton_eq_rows(Problem *prob)
 
     assert(state->ston_rows->len == 0);
     assert(state->empty_rows->len == 0);
-    assert(state->empty_cols->len == 0);
+    assert(!has_removable_empty_cols(state));
     DEBUG(verify_problem_up_to_date(constraints));
 
     while (dton_rows->len > 0)
@@ -143,6 +143,15 @@ PresolveStatus remove_dton_eq_rows(Problem *prob)
         {
             DEBUG(verify_no_duplicates_sort_ptr(deferred, (size_t) n_deferred));
             iVec_append_array(dton_rows, deferred, (size_t) n_deferred);
+        }
+
+        /* Without progress the deferred rows are the ones the round cannot
+           eliminate (both columns in P, neither substitutable without fill-in,
+           see dton_choose_subst_qp). They stay on the worklist for the next
+           call. */
+        if (!progress)
+        {
+            break;
         }
     }
 
