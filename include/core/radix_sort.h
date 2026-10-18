@@ -22,8 +22,10 @@
 #include "thread_pool.h"
 #include <stddef.h>
 
-// The parallel sort splits inputs of at least this many rows.
-#define PARALLEL_SORT_THRESHOLD 100000
+// The parallel sort splits inputs of at least this many rows. Measured on
+// mittelmann, miplib, gams and qap instances (2026-10-18): below a million
+// lines the chunks gain nothing, above they save about a tenth of the sort.
+#define PARALLEL_SORT_THRESHOLD 1000000
 // The most chunks of a chunked sort: one per thread of the largest pool.
 #define RADIX_SORT_MAX_CHUNKS THREAD_POOL_MAX_THREADS
 

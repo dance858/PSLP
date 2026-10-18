@@ -5,6 +5,7 @@
 #include "Matrix.h"
 #include "PSLP_API.h"
 #include "Parallel_rows.h"
+#include "radix_sort.h"
 #include "thread_pool.h"
 
 #include "math.h"
@@ -1310,7 +1311,7 @@ static char *test_17_parallel_rows()
    must not depend on the pool. */
 static char *test_18_parallel_rows()
 {
-    int m = 120000, n = 1000, nnz = 2 * m;
+    int m = PARALLEL_SORT_THRESHOLD + 20000, n = 1000, nnz = 2 * m;
     int *Ap = (int *) malloc(((size_t) m + 1) * sizeof(int));
     int *Ai = (int *) malloc((size_t) nnz * sizeof(int));
     double *Ax = (double *) malloc((size_t) nnz * sizeof(double));
