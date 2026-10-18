@@ -1440,12 +1440,13 @@ static const char *test_fold_presolver_threads(void)
     mu_assert("reference presolver", reference != NULL);
     int automatic =
         thread_pool_n_threads(reference->prob->constraints->state->work->pool);
-    mu_assert("automatic count in range", automatic >= 1 && automatic <= 8);
+    mu_assert("automatic count in range",
+              automatic >= 1 && automatic <= THREAD_POOL_AUTO_THREADS);
     mu_assert("reference presolve", run_presolver(reference) != INFEASIBLE);
     mu_assert("reference folded", reference->stats->n_rows_folded == 1);
 
     int counts[] = {1, 2, 3, 7, -5, 1000};
-    int expected[] = {1, 2, 3, 7, automatic, 64};
+    int expected[] = {1, 2, 3, 7, automatic, THREAD_POOL_MAX_THREADS};
     for (size_t t = 0; t < sizeof(counts) / sizeof(int); t++)
     {
         stgs->n_threads = counts[t];

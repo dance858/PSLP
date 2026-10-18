@@ -19,14 +19,13 @@
 #ifndef RADIX_SORT_H
 #define RADIX_SORT_H
 
+#include "thread_pool.h"
 #include <stddef.h>
-
-struct ThreadPool;
 
 // The parallel sort splits inputs of at least this many rows.
 #define PARALLEL_SORT_THRESHOLD 100000
-// The most chunks of a chunked sort.
-#define RADIX_SORT_MAX_CHUNKS 64
+// The most chunks of a chunked sort: one per thread of the largest pool.
+#define RADIX_SORT_MAX_CHUNKS THREAD_POOL_MAX_THREADS
 
 // LSD radix sort on composite key (sparsity_ID, coeff_hash).
 // Sorts row indices in-place. aux must have space for n ints.
