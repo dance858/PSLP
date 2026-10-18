@@ -1452,10 +1452,11 @@ static const char *test_fold_presolver_threads(void)
         stgs->n_threads = counts[t];
         Presolver *presolver = fold_presolver(&p, stgs);
         mu_assert("presolver", presolver != NULL);
-        mu_assert(
-            "pool has the threads of the setting",
-            thread_pool_n_threads(presolver->prob->constraints->state->work->pool) ==
-                expected[t]);
+        /* without workers (Windows) the pool is the calling thread only */
+        int pool_threads =
+            thread_pool_n_threads(presolver->prob->constraints->state->work->pool);
+        mu_assert("pool has the threads of the setting",
+                  pool_threads == (THREAD_POOL_HAS_WORKERS ? expected[t] : 1));
         mu_assert("presolve", run_presolver(presolver) != INFEASIBLE);
         mu_assert("pool released",
                   presolver->prob->constraints->state->work->pool == NULL);
