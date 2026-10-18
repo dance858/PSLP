@@ -128,6 +128,7 @@ static char *test_3_core()
     double c[] = {1, 1, 7};
 
     Settings *stgs = default_settings();
+    stgs->lp_fold = false; /* The fold would merge the two equal columns. */
     Presolver *presolver =
         new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
     Problem *prob = presolver->prob;

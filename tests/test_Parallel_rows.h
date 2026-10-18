@@ -1286,6 +1286,7 @@ static char *test_17_parallel_rows()
     double c[] = {0, 0, 0};
 
     Settings *stgs = default_settings();
+    stgs->lp_fold = false; /* The fold would merge the three equal columns. */
     Presolver *presolver =
         new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
 
