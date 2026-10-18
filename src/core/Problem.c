@@ -85,6 +85,11 @@ static void objective_clean(Objective *obj, const int *P_row_sizes,
 {
     dPtr_shrink(obj->c, col_map, n_cols_old);
 
+    if (obj->P == NULL)
+    {
+        return;
+    }
+
     /* drops the rows with size SIZE_INACTIVE_COL (== SIZE_INACTIVE_ROW) and
        renumbers the columns */
     remove_extra_space(obj->P, P_row_sizes, col_map, n_cols_new);
@@ -92,6 +97,11 @@ static void objective_clean(Objective *obj, const int *P_row_sizes,
 
 void mark_P_row_inactive(Problem *prob, int k)
 {
+    if (prob->obj->P == NULL)
+    {
+        return;
+    }
+
     int *P_row_sizes = prob->constraints->state->P_row_sizes;
     assert(P_row_sizes[k] == 0);
     assert(prob->obj->P->p[k].start == prob->obj->P->p[k].end);
@@ -125,6 +135,12 @@ void fix_var_in_obj(Problem *prob, int col, double value)
 {
     Objective *obj = prob->obj;
     Matrix *P = obj->P;
+    if (P == NULL)
+    {
+        obj->offset += obj->c[col] * value;
+        return;
+    }
+
     int *P_row_sizes = prob->constraints->state->P_row_sizes;
     int start = P->p[col].start;
     int end = P->p[col].end;

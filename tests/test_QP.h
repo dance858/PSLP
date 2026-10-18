@@ -226,8 +226,9 @@ static char *test_1_qp()
     {
         presolver = new_presolver(Ax, Ai, Ap, 1, 2, 2, lhs, rhs, lbs, ubs, c, stgs);
         mu_assert("empty P should be accepted", presolver != NULL);
-        mu_assert("empty P should have no entries",
-                  presolver->prob->obj->P->nnz == 0);
+        mu_assert("an LP has no P",
+                  presolver->prob->obj->P == NULL &&
+                      presolver->prob->constraints->state->P_row_sizes == NULL);
         mu_assert("empty P stats", presolver->stats->Pnnz_original == 0);
         free_presolver(presolver);
     }
@@ -1815,9 +1816,7 @@ static char *test_29_qp()
     mu_assert("folded", presolver->stats->n_rows_folded == 1 &&
                             presolver->stats->n_cols_folded == 2 &&
                             presolver->stats->nnz_removed_lp_fold == 4);
-    mu_assert("empty P in folded dimensions", presolver->prob->obj->P->m == 2 &&
-                                                  presolver->prob->obj->P->n == 2 &&
-                                                  presolver->prob->obj->P->nnz == 0);
+    mu_assert("no P for an LP", presolver->prob->obj->P == NULL);
     mu_assert("presolve lp", run_presolver(presolver) != INFEASIBLE);
     mu_assert("reduced lp", presolver->reduced_prob->m == 1 &&
                                 presolver->reduced_prob->n == 2 &&

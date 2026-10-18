@@ -693,11 +693,14 @@ void save_retrieval_fixed_col(PostsolveInfo *info, int col, double val, double c
     iVec_append(info->indices, col);
     iVec_append(info->indices, (int) P_len);
     iVec_append_array(info->indices, rows, len);
-    iVec_append_array(info->indices, Pcols, P_len);
     dVec_append(info->vals, val);
     dVec_append(info->vals, ck);
     dVec_append_array(info->vals, vals, len);
-    dVec_append_array(info->vals, Pvals, P_len);
+    if (P_len > 0)
+    {
+        iVec_append_array(info->indices, Pcols, P_len);
+        dVec_append_array(info->vals, Pvals, P_len);
+    }
     iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);

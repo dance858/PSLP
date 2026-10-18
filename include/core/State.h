@@ -47,7 +47,7 @@ typedef struct State
     int *row_sizes;
     int *col_sizes;
 
-    /* row sizes of P, SIZE_INACTIVE_COL for removed variables */
+    /* row sizes of P, SIZE_INACTIVE_COL for removed variables, NULL for an LP */
     int *P_row_sizes;
 
     iVec *fixed_cols_to_delete;
@@ -66,10 +66,10 @@ void free_state(State *data);
    skip such a variable; the doubleton eliminator and the dual fix handle it
    through the P-aware paths (see Problem.h). For an inactive column the row
    size is SIZE_INACTIVE_COL and this returns true; callers test
-   C_TAG_INACTIVE first. */
+   C_TAG_INACTIVE first. Always false for an LP. */
 static inline bool col_in_P(const State *data, int k)
 {
-    return data->P_row_sizes[k] != 0;
+    return data->P_row_sizes != NULL && data->P_row_sizes[k] != 0;
 }
 
 /* True if empty_cols holds a column with an empty P row, which

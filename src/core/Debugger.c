@@ -496,6 +496,12 @@ void verify_P(const Problem *prob, bool compressed)
     size_t k;
     int j;
 
+    if (P == NULL)
+    {
+        PSLP_ASSERT(P_row_sizes == NULL);
+        return;
+    }
+
     PSLP_ASSERT(P->m == constraints->n && P->n == constraints->n);
     verify_CSR_matrix(P, compressed);
     PSLP_ASSERT(matrix_is_symmetric(P));

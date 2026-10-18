@@ -200,7 +200,10 @@ void clean_state(State *data, const Mapping *maps, size_t n_rows, size_t n_cols)
     shrink_activities(data->activities, maps->rows, n_rows);
     shrink_locks(data->col_locks, maps->cols, n_cols);
     iPtr_shrink(data->col_sizes, maps->cols, n_cols);
-    iPtr_shrink(data->P_row_sizes, maps->cols, n_cols);
+    if (data->P_row_sizes)
+    {
+        iPtr_shrink(data->P_row_sizes, maps->cols, n_cols);
+    }
 
     shrink_idx_vector(data->ston_rows, maps->rows);
     shrink_idx_vector(data->dton_rows, maps->rows);

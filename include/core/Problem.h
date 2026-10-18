@@ -31,7 +31,8 @@ struct Matrix;
    into the other column's diagonal (diagonal_only_P_entry,
    coupled_dton_subst_ok), and the dual fix of a P variable (P_dual_fix)
    fixes it or tightens a bound from the sign of its derivative. problem_clean
-   drops the rows of removed variables. For an LP, P has no entries. */
+   drops the rows of removed variables. For an LP, P is NULL, as is
+   P_row_sizes in the state. */
 typedef struct
 {
     double *c;

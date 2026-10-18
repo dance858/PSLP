@@ -120,7 +120,8 @@ extern "C"
         double *ubs;
 
         /* CSR format of the reduced quadratic objective matrix P (n x n,
-           full symmetric matrix, Pnnz non-zeros). Pnnz is 0 for an LP. */
+           full symmetric matrix, Pnnz non-zeros). For an LP the three
+           arrays are NULL and Pnnz is 0. */
         double *Px;
         int *Pi;
         int *Pp;

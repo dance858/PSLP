@@ -313,10 +313,9 @@ Presolver *new_presolver_from_problem(const OriginalProblem *problem,
     work = new_work(n_rows, n_cols, stgs->dton_eq);
     row_sizes = (int *) ps_malloc(n_rows, sizeof(int));
     col_sizes = (int *) ps_malloc(n_cols, sizeof(int));
-    P_row_sizes = (int *) ps_malloc(n_cols, sizeof(int));
 
     if (!lhs_copy || !rhs_copy || !c_copy || !col_tags || !bounds || !work ||
-        !row_sizes || !col_sizes || !P_row_sizes)
+        !row_sizes || !col_sizes)
     {
         goto cleanup;
     }
@@ -334,15 +333,29 @@ Presolver *new_presolver_from_problem(const OriginalProblem *problem,
     memcpy(c_copy, c, n_cols * sizeof(double));
 
     // ---------------------------------------------------------------------------
-    //  Build and validate P (empty for an LP)
+    //  Build and validate P (NULL for an LP)
     // ---------------------------------------------------------------------------
-    P = matrix_new_no_extra_space(Px, Pi, Pnnz > 0 ? Pp : NULL, n_cols, n_cols,
-                                  Pnnz);
-    if (!P) goto cleanup;
-    if (!matrix_is_symmetric(P)) goto cleanup;
-    count_rows(P, P_row_sizes);
-    size_t Pnnz_stripped = P->nnz; /* after the explicit zeros were dropped */
-    bool lp_fold = stgs->lp_fold && P->nnz == 0; /* no fold of a QP */
+    if (Pnnz > 0)
+    {
+        P = matrix_new_no_extra_space(Px, Pi, Pp, n_cols, n_cols, Pnnz);
+        if (!P) goto cleanup;
+        if (!matrix_is_symmetric(P)) goto cleanup;
+        if (P->nnz == 0)
+        {
+            /* All entries were explicit zeros. */
+            free_matrix(P);
+            P = NULL;
+        }
+    }
+    if (P)
+    {
+        P_row_sizes = (int *) ps_malloc(n_cols, sizeof(int));
+        if (!P_row_sizes) goto cleanup;
+        count_rows(P, P_row_sizes);
+    }
+    size_t Pnnz_stripped =
+        P ? P->nnz : 0; /* after the explicit zeros were dropped */
+    bool lp_fold = stgs->lp_fold && P == NULL; /* no fold of a QP */
 
     // ---------------------------------------------------------------------------
     //  Build bounds, row tags, A and AT. We first build A, then in parallel
@@ -393,10 +406,6 @@ Presolver *new_presolver_from_problem(const OriginalProblem *problem,
             /* postsolve replays the records into the folded dimensions */
             work->folded_sol = new_solution(A->m, A->n);
             if (!work->folded_sol) goto cleanup;
-            /* P is empty, now in the folded dimensions */
-            free_matrix(P);
-            P = matrix_new_no_extra_space(NULL, NULL, NULL, A->n, A->n, 0);
-            if (!P) goto cleanup;
         }
         clock_gettime(CLOCK_MONOTONIC, &fold_timer.end);
         fold_time = GET_ELAPSED_SECONDS(fold_timer);
@@ -723,7 +732,12 @@ void populate_presolved_problem(Presolver *presolver)
         reduced_prob->Ap[i] = A->p[i].start;
     }
 
+    /* For an LP the arrays of P stay NULL and Pnnz stays 0. */
     const Matrix *P = presolver->prob->obj->P;
+    if (P == NULL)
+    {
+        return;
+    }
     assert(P->m == A->n && P->n == A->n);
     reduced_prob->Px = P->x;
     reduced_prob->Pi = P->i;
@@ -890,7 +904,7 @@ PresolveStatus run_presolver(Presolver *presolver)
     stats->n_rows_reduced = A->m;
     stats->n_cols_reduced = A->n;
     stats->nnz_reduced = A->nnz;
-    stats->Pnnz_reduced = prob->obj->P->nnz;
+    stats->Pnnz_reduced = prob->obj->P ? prob->obj->P->nnz : 0;
     DEBUG(run_debugger_stats_consistency_check(stats));
     populate_presolved_problem(presolver);
 
