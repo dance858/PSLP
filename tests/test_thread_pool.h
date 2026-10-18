@@ -106,8 +106,15 @@ static const char *test_pool_atomics(void)
     return 0;
 }
 
+static const char *test_pool_online_cpus(void)
+{
+    mu_assert("at least one CPU online", thread_pool_online_cpus() >= 1);
+    return 0;
+}
+
 static const char *all_tests_thread_pool(void)
 {
+    mu_run_test(test_pool_online_cpus, counter_thread_pool);
     mu_run_test(test_pool_runs_every_chunk, counter_thread_pool);
     mu_run_test(test_pool_chunk_helpers, counter_thread_pool);
     mu_run_test(test_pool_atomics, counter_thread_pool);

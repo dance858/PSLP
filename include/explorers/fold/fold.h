@@ -27,6 +27,7 @@
    counts are int, like the matrix indices. */
 
 struct Matrix;
+struct ThreadPool;
 struct Bound;
 
 typedef enum FoldReason
@@ -77,14 +78,14 @@ typedef struct FoldStats
     double time;
 } FoldStats;
 
-/* Finds the partition of (A, lhs, rhs, bounds, c). AT is the transpose of A.
-   *maps is set to the maps when the result is FOLD_FOLDABLE and to NULL
-   otherwise. */
+/* Finds the partition of (A, lhs, rhs, bounds, c). AT is the transpose of A
+   and 'pool' runs the refinement. *maps is set to the maps when the result is
+   FOLD_FOLDABLE and to NULL otherwise. */
 FoldReason fold_detect(const struct Matrix *A, const struct Matrix *AT,
                        const double *lhs, const double *rhs,
                        const struct Bound *bounds, const double *c,
-                       const FoldOptions *options, FoldMaps **maps,
-                       FoldStats *stats);
+                       const FoldOptions *options, struct ThreadPool *pool,
+                       FoldMaps **maps, FoldStats *stats);
 
 /* Freeing NULL is safe. */
 void fold_maps_free(FoldMaps *maps);

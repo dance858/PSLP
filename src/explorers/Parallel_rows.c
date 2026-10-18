@@ -29,6 +29,7 @@
 #include "iVec.h"
 #include "limits.h" // for INT_MAX
 #include "radix_sort.h"
+#include "thread_pool.h"
 #include "utils.h"
 #include <PSLP_warnings.h>
 #include <math.h> // For round()
@@ -110,9 +111,9 @@ static inline
 }
 
 static void sort_rows(int *rows, size_t n, const int *sparsity_IDs,
-                      const int *coeff_hashes, int *aux)
+                      const int *coeff_hashes, int *aux, ThreadPool *pool)
 {
-    parallel_radix_sort_rows(rows, n, sparsity_IDs, coeff_hashes, aux);
+    parallel_radix_sort_rows(rows, n, sparsity_IDs, coeff_hashes, aux, pool);
 }
 
 static inline int get_bin_size(int start, size_t n_rows, const int *rows,
@@ -331,7 +332,7 @@ static int remove_rows_with_unique_key(int *rows, int n, const int *sparsity_IDs
 // replaced rows with parallel_rows for less memory usage
 void find_parallel_rows(const Matrix *A, const RowTag *r_Tags, iVec *group_starts,
                         int *parallel_rows, int *sparsity_IDs, int *coeff_hashes,
-                        RowTag INACTIVE_TAG, int *radix_aux)
+                        RowTag INACTIVE_TAG, int *radix_aux, ThreadPool *pool)
 {
     int i, bin_size;
     int n_p_rows_total = 0;
@@ -362,7 +363,7 @@ void find_parallel_rows(const Matrix *A, const RowTag *r_Tags, iVec *group_start
     }
 
     sort_rows(parallel_rows, (size_t) n_active, sparsity_IDs, coeff_hashes,
-              radix_aux);
+              radix_aux, pool);
 
 #ifndef NDEBUG
     if (INACTIVE_TAG == R_TAG_INACTIVE)
@@ -659,7 +660,8 @@ PresolveStatus remove_parallel_rows(Constraints *constraints)
 
     find_parallel_rows(constraints->A, constraints->row_tags, group_starts,
                        parallel_rows, sparsity_IDs, coeff_hashes, R_TAG_INACTIVE,
-                       constraints->state->work->radix_aux);
+                       constraints->state->work->radix_aux,
+                       constraints->state->work->pool);
 
     PresolveStatus status =
         process_all_bins(constraints, parallel_rows, group_starts);

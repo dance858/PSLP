@@ -5,6 +5,7 @@
 #include "Matrix.h"
 #include "PSLP_API.h"
 #include "Parallel_rows.h"
+#include "thread_pool.h"
 
 #include "math.h"
 #include "minunit.h"
@@ -103,7 +104,7 @@ static char *test_3_parallel_rows()
     int radix_aux[5];
 
     find_parallel_rows(A, row_tags, group_start, parallel_rows, sparsity_IDs,
-                       coeff_hashes, R_TAG_INACTIVE, radix_aux);
+                       coeff_hashes, R_TAG_INACTIVE, radix_aux, NULL);
 
     int parallel_rows_correct[] = {0, 4, 1, 3};
     int group_start_correct[] = {0, 2, 4};
@@ -203,7 +204,7 @@ static char *test_4_parallel_rows()
     int radix_aux[1000];
 
     find_parallel_rows(A, row_tags, group_start, parallel_rows, sparsity_IDs,
-                       coeff_hashes, R_TAG_INACTIVE, radix_aux);
+                       coeff_hashes, R_TAG_INACTIVE, radix_aux, NULL);
 
     mu_assert("error group_starts len", group_start->len == 4);
     int group_start_correct[] = {0, 8, 16, 24};
@@ -375,7 +376,7 @@ static char *test_5_parallel_rows()
     row_tags[310] = R_TAG_INACTIVE;
 
     find_parallel_rows(A, row_tags, group_start, parallel_rows, sparsity_IDs,
-                       coeff_hashes, R_TAG_INACTIVE, radix_aux);
+                       coeff_hashes, R_TAG_INACTIVE, radix_aux, NULL);
 
     mu_assert("error group_starts len", group_start->len == 4);
     // int group_start_correct[] = {0, 8, 14, 20};
@@ -1304,6 +1305,76 @@ static char *test_17_parallel_rows()
     return 0;
 }
 
+/* Test 18: with more rows than the parallel sort's threshold, all of them
+   sharing their key with other rows, the sort runs on the pool. The groups
+   must not depend on the pool. */
+static char *test_18_parallel_rows()
+{
+    int m = 120000, n = 1000, nnz = 2 * m;
+    int *Ap = (int *) malloc(((size_t) m + 1) * sizeof(int));
+    int *Ai = (int *) malloc((size_t) nnz * sizeof(int));
+    double *Ax = (double *) malloc((size_t) nnz * sizeof(double));
+    for (int i = 0; i < m; i++)
+    {
+        /* rows 2k and 2k + 1 share the support; the second is twice the first */
+        int col = (i / 2) % (n - 1);
+        double scale = 1.0 + (double) (i % 2);
+        Ap[i] = 2 * i;
+        Ai[2 * i] = col;
+        Ai[2 * i + 1] = col + 1;
+        Ax[2 * i] = scale;
+        Ax[2 * i + 1] = 2.0 * scale;
+    }
+    Ap[m] = nnz;
+    Matrix *A = matrix_new(Ax, Ai, Ap, (size_t) m, (size_t) n, (size_t) nnz);
+    RowTag *row_tags = (RowTag *) malloc((size_t) m * sizeof(RowTag));
+    for (int i = 0; i < m; i++)
+    {
+        row_tags[i] = R_TAG_NONE;
+    }
+    int *reference = (int *) malloc((size_t) m * sizeof(int));
+    int *parallel_rows = (int *) malloc((size_t) m * sizeof(int));
+    int *sparsity_IDs = (int *) malloc((size_t) m * sizeof(int));
+    int *coeff_hashes = (int *) malloc((size_t) m * sizeof(int));
+    int *radix_aux = (int *) malloc((size_t) m * sizeof(int));
+
+    iVec *reference_starts = iVec_new(10);
+    find_parallel_rows(A, row_tags, reference_starts, reference, sparsity_IDs,
+                       coeff_hashes, R_TAG_INACTIVE, radix_aux, NULL);
+    mu_assert("groups found", reference_starts->len > 1);
+    size_t n_sorted = (size_t) reference_starts->data[reference_starts->len - 1];
+    mu_assert("sorted rows in range", n_sorted <= (size_t) m);
+
+    int workers[] = {0, 1, 3};
+    for (size_t w = 0; w < sizeof(workers) / sizeof(int); w++)
+    {
+        ThreadPool *pool = thread_pool_new(workers[w]);
+        iVec *starts = iVec_new(10);
+        find_parallel_rows(A, row_tags, starts, parallel_rows, sparsity_IDs,
+                           coeff_hashes, R_TAG_INACTIVE, radix_aux, pool);
+        mu_assert("same number of groups", starts->len == reference_starts->len);
+        mu_assert("same group starts", memcmp(starts->data, reference_starts->data,
+                                              starts->len * sizeof(int)) == 0);
+        mu_assert("same row order",
+                  memcmp(parallel_rows, reference, n_sorted * sizeof(int)) == 0);
+        iVec_free(starts);
+        thread_pool_free(pool);
+    }
+
+    iVec_free(reference_starts);
+    free(radix_aux);
+    free(coeff_hashes);
+    free(sparsity_IDs);
+    free(parallel_rows);
+    free(reference);
+    free(row_tags);
+    free_matrix(A);
+    free(Ax);
+    free(Ai);
+    free(Ap);
+    return 0;
+}
+
 static const char *all_tests_parallel_rows()
 {
     mu_run_test(test_1_parallel_rows, counter_parallel_rows);
@@ -1323,6 +1394,7 @@ static const char *all_tests_parallel_rows()
     mu_run_test(test_15_parallel_rows, counter_parallel_rows);
     mu_run_test(test_16_parallel_rows, counter_parallel_rows);
     mu_run_test(test_17_parallel_rows, counter_parallel_rows);
+    mu_run_test(test_18_parallel_rows, counter_parallel_rows);
 
     return 0;
 }

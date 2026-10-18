@@ -9,6 +9,7 @@
 #include "minunit.h"
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 static int counter_presolver = 0;
 
@@ -206,6 +207,66 @@ static char *test_04_presolver()
     return 0;
 }
 
+/* True when two presolved problems are identical. */
+static bool same_presolved_problem(const PresolvedProblem *a,
+                                   const PresolvedProblem *b)
+{
+    return a->m == b->m && a->n == b->n && a->nnz == b->nnz &&
+           a->obj_offset == b->obj_offset &&
+           memcmp(a->Ap, b->Ap, (a->m + 1) * sizeof(int)) == 0 &&
+           memcmp(a->Ai, b->Ai, a->nnz * sizeof(int)) == 0 &&
+           memcmp(a->Ax, b->Ax, a->nnz * sizeof(double)) == 0 &&
+           memcmp(a->lhs, b->lhs, a->m * sizeof(double)) == 0 &&
+           memcmp(a->rhs, b->rhs, a->m * sizeof(double)) == 0 &&
+           memcmp(a->c, b->c, a->n * sizeof(double)) == 0 &&
+           memcmp(a->lbs, b->lbs, a->n * sizeof(double)) == 0 &&
+           memcmp(a->ubs, b->ubs, a->n * sizeof(double)) == 0;
+}
+
+/* Any thread setting, automatic, out of range or not, gives the same reduced
+   problem. */
+static char *test_05_presolver()
+{
+    /* x0 + x1 <= 4 three times over (two of them parallel copies), an
+       equality and an inequality that keep the columns. */
+    double Ax[] = {1, 1, 2, 2, 1, 1, 1, 1, -1, -1};
+    int Ai[] = {0, 1, 0, 1, 2, 3, 1, 2, 0, 1};
+    int Ap[] = {0, 2, 4, 6, 8, 10};
+    int nnz = 10;
+    int n_rows = 5;
+    int n_cols = 4;
+    double lhs[] = {-INF, -INF, 2, 1, -4};
+    double rhs[] = {4, 10, 2, INF, INF};
+    double lbs[] = {0, 0, 0, 0};
+    double ubs[] = {5, 5, 5, 5};
+    double c[] = {1, 2, 3, 4};
+
+    Settings *stgs = default_settings();
+    mu_assert("automatic by default", stgs->n_threads == 0);
+    Presolver *reference =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("reference presolver", reference != NULL);
+    mu_assert("reference reduced", run_presolver(reference) == REDUCED);
+
+    int counts[] = {1, 2, 3, -5, 1000};
+    for (size_t t = 0; t < sizeof(counts) / sizeof(int); t++)
+    {
+        stgs->n_threads = counts[t];
+        Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs,
+                                             rhs, lbs, ubs, c, stgs);
+        mu_assert("presolver", presolver != NULL);
+        mu_assert("reduced", run_presolver(presolver) == REDUCED);
+        mu_assert("same reduced problem for every thread count",
+                  same_presolved_problem(presolver->reduced_prob,
+                                         reference->reduced_prob));
+        free_presolver(presolver);
+    }
+
+    PS_FREE(stgs);
+    free_presolver(reference);
+    return 0;
+}
+
 static const char *all_tests_presolver()
 {
     mu_run_test(test_00_presolver, counter_presolver);
@@ -213,6 +274,7 @@ static const char *all_tests_presolver()
     mu_run_test(test_02_presolver, counter_presolver);
     mu_run_test(test_03_presolver, counter_presolver);
     mu_run_test(test_04_presolver, counter_presolver);
+    mu_run_test(test_05_presolver, counter_presolver);
     return 0;
 }
 

@@ -44,6 +44,9 @@ void thread_pool_free(ThreadPool *pool);
 /* Workers plus the calling thread. */
 int thread_pool_n_threads(const ThreadPool *pool);
 
+/* CPUs online, at least 1 (1 without workers). */
+int thread_pool_online_cpus(void);
+
 /* Runs the chunks of one pass and returns when all of them are done. */
 void thread_pool_run(ThreadPool *pool, ThreadPoolChunkFunction function,
                      void *context, int n_chunks);

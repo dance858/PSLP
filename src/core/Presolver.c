@@ -49,6 +49,8 @@
 #include "glbopts.h"
 #include "iVec.h"
 #include "pslp_thread.h"
+#include "radix_sort.h"
+#include "thread_pool.h"
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -58,6 +60,9 @@
 #define LP_FOLD_MIN_REDUCTION 0.01 /* removable nnz required, as a share of nnz */
 #define LP_FOLD_WORK_BUDGET 100.0
 #define LP_FOLD_MAX_ROUNDS 8192
+/* Threads when n_threads is 0: the smaller of this and the CPUs online. */
+#define PSLP_AUTO_THREADS 8
+#define PSLP_MAX_THREADS 64
 
 typedef uint8_t Complexity;
 
@@ -98,7 +103,25 @@ Settings *default_settings(void)
     stgs->lp_fold = false;
     stgs->max_time = 60.0;
     stgs->verbose = true;
+    stgs->n_threads = 0;
     return stgs;
+}
+
+/* The threads of the pool: the setting, or the automatic count for
+   n_threads <= 0, clamped to [1, PSLP_MAX_THREADS]. */
+static int resolve_n_threads(const Settings *stgs)
+{
+    int n_threads = stgs->n_threads;
+    if (n_threads <= 0)
+    {
+        int online = thread_pool_online_cpus();
+        n_threads = online < PSLP_AUTO_THREADS ? online : PSLP_AUTO_THREADS;
+    }
+    if (n_threads > PSLP_MAX_THREADS)
+    {
+        n_threads = PSLP_MAX_THREADS;
+    }
+    return n_threads < 1 ? 1 : n_threads;
 }
 
 // Helper struct for parallel initialization work
@@ -276,6 +299,13 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
         goto cleanup;
     }
 
+    /* The pool of the fold and of the parallel sort. Without the fold, a
+       problem below the sort's threshold never uses workers, so it gets none. */
+    bool needs_workers = stgs->lp_fold || n_rows >= PARALLEL_SORT_THRESHOLD ||
+                         n_cols >= PARALLEL_SORT_THRESHOLD;
+    work->pool = thread_pool_new(needs_workers ? resolve_n_threads(stgs) - 1 : 0);
+    if (!work->pool) goto cleanup;
+
     memcpy(lhs_copy, lhs, n_rows * sizeof(double));
     memcpy(rhs_copy, rhs, n_rows * sizeof(double));
     memcpy(c_copy, c, n_cols * sizeof(double));
@@ -320,7 +350,7 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
         fold_options.max_rounds = LP_FOLD_MAX_ROUNDS;
         clock_gettime(CLOCK_MONOTONIC, &fold_timer.start);
         if (fold_problem(&A, AT, lhs_copy, rhs_copy, row_tags, bounds, col_tags,
-                         c_copy, &fold_options, &work->fold_maps, NULL))
+                         c_copy, &fold_options, work->pool, &work->fold_maps, NULL))
         {
             free_matrix(AT);
             AT = transpose(A, work->iwork_n_cols,

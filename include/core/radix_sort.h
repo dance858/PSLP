@@ -21,15 +21,30 @@
 
 #include <stddef.h>
 
+struct ThreadPool;
+
+// The parallel sort splits inputs of at least this many rows.
+#define PARALLEL_SORT_THRESHOLD 100000
+// The most chunks of a chunked sort.
+#define RADIX_SORT_MAX_CHUNKS 64
+
 // LSD radix sort on composite key (sparsity_ID, coeff_hash).
 // Sorts row indices in-place. aux must have space for n ints.
 void radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
                      const int *coeff_hashes, int *aux);
 
-// Parallel version: splits into 4 chunks, sorts in parallel, merges.
-// Falls back to sequential radix_sort_rows for n < 100000.
+// Sorts the chunks on the pool (the calling thread takes one too) and merges
+// them. At most RADIX_SORT_MAX_CHUNKS chunks; one chunk, or a NULL pool, is
+// the sequential sort. The result does not depend on the number of chunks.
+void radix_sort_rows_chunked(int *rows, size_t n, const int *sparsity_IDs,
+                             const int *coeff_hashes, int *aux,
+                             struct ThreadPool *pool, int n_chunks);
+
+// Parallel version: for n >= PARALLEL_SORT_THRESHOLD, sorts in as many chunks
+// as the pool has threads, up to a cap; otherwise sequential radix_sort_rows.
 void parallel_radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
-                              const int *coeff_hashes, int *aux);
+                              const int *coeff_hashes, int *aux,
+                              struct ThreadPool *pool);
 
 // Single-key LSD radix sort. Sorts indices by keys[indices[i]]
 // ascending (unsigned order). Stable. aux must have space for n ints.

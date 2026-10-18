@@ -2,6 +2,7 @@
 #define TEST_RADIX_SORT_H
 
 #include "radix_sort.h"
+#include "thread_pool.h"
 
 #include "minunit.h"
 #include <stdio.h>
@@ -276,7 +277,10 @@ static char *test_10_radix_sort()
         coeff_hashes[i] = rand() - RAND_MAX / 2;
     }
 
-    parallel_radix_sort_rows(rows, (size_t) n, sparsity_IDs, coeff_hashes, aux);
+    ThreadPool *pool = thread_pool_new(3);
+    parallel_radix_sort_rows(rows, (size_t) n, sparsity_IDs, coeff_hashes, aux,
+                             pool);
+    thread_pool_free(pool);
     mu_assert("should be sorted",
               is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
     mu_assert("should be permutation", is_permutation(rows, n));
@@ -305,7 +309,8 @@ static char *test_11_radix_sort()
         coeff_hashes[i] = rand() % 10;
     }
 
-    parallel_radix_sort_rows(rows, (size_t) n, sparsity_IDs, coeff_hashes, aux);
+    parallel_radix_sort_rows(rows, (size_t) n, sparsity_IDs, coeff_hashes, aux,
+                             NULL);
     mu_assert("should be sorted",
               is_sorted_by_keys(rows, n, sparsity_IDs, coeff_hashes));
     mu_assert("should be permutation", is_permutation(rows, n));
@@ -567,6 +572,61 @@ static char *test_20_radix_sort()
     return 0;
 }
 
+/* Test 21: the chunked sort gives the sequential result, element for element,
+   for any number of chunks and workers (heavy key ties test the merge) */
+static char *test_21_radix_sort()
+{
+    int n = 200000;
+    int *rows = (int *) malloc((size_t) n * sizeof(int));
+    int *expected = (int *) malloc((size_t) n * sizeof(int));
+    int *sparsity_IDs = (int *) malloc((size_t) n * sizeof(int));
+    int *coeff_hashes = (int *) malloc((size_t) n * sizeof(int));
+    int *aux = (int *) malloc((size_t) n * sizeof(int));
+
+    srand(2121);
+    for (int i = 0; i < n; i++)
+    {
+        expected[i] = i;
+        sparsity_IDs[i] = rand() % 300 - 150;
+        coeff_hashes[i] = rand() % 7;
+    }
+    radix_sort_rows(expected, (size_t) n, sparsity_IDs, coeff_hashes, aux);
+
+    int chunk_counts[] = {1, 2, 3, 4, 7, 64, 1000};
+    for (int n_workers = 0; n_workers <= 3; n_workers++)
+    {
+        ThreadPool *pool = thread_pool_new(n_workers);
+        mu_assert("pool", pool != NULL);
+        for (size_t t = 0; t < sizeof(chunk_counts) / sizeof(int); t++)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                rows[i] = i;
+            }
+            radix_sort_rows_chunked(rows, (size_t) n, sparsity_IDs, coeff_hashes,
+                                    aux, pool, chunk_counts[t]);
+            mu_assert("chunked sort equals the sequential sort",
+                      memcmp(rows, expected, (size_t) n * sizeof(int)) == 0);
+        }
+        /* more chunks than elements */
+        for (int i = 0; i < 5; i++)
+        {
+            rows[i] = i;
+        }
+        radix_sort_rows_chunked(rows, 5, sparsity_IDs, coeff_hashes, aux, pool, 8);
+        mu_assert("tiny input",
+                  is_sorted_by_keys(rows, 5, sparsity_IDs, coeff_hashes));
+        thread_pool_free(pool);
+    }
+
+    free(rows);
+    free(expected);
+    free(sparsity_IDs);
+    free(coeff_hashes);
+    free(aux);
+    return 0;
+}
+
 static const char *all_tests_radix_sort()
 {
     mu_run_test(test_1_radix_sort, counter_radix_sort);
@@ -589,6 +649,7 @@ static const char *all_tests_radix_sort()
     mu_run_test(test_18_radix_sort, counter_radix_sort);
     mu_run_test(test_19_radix_sort, counter_radix_sort);
     mu_run_test(test_20_radix_sort, counter_radix_sort);
+    mu_run_test(test_21_radix_sort, counter_radix_sort);
 
     return 0;
 }

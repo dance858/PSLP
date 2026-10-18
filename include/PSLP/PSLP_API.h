@@ -53,6 +53,12 @@ extern "C"
         bool lp_fold;
         double max_time;
         bool verbose;
+        /* Threads PSLP may use, the calling thread included. 0 picks the
+           count automatically: the smaller of 8 and the CPUs online. Values
+           are clamped to [1, 64]. The initialisation always runs one helper
+           thread besides the caller. No effect on Windows, where PSLP runs
+           on the calling thread only. */
+        int n_threads;
     } Settings;
 
     /* struct corresponding to the presolved problem */

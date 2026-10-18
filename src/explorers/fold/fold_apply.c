@@ -23,6 +23,7 @@
 #include "fold_apply.h"
 #include "Memory_wrapper.h"
 #include "Numerics.h"
+#include "thread_pool.h"
 #include <stdlib.h>
 
 /* Sums the entries of one row by folded column. stamp[col] is the folded row
@@ -236,7 +237,8 @@ FoldReason fold_apply(const Matrix *A, double *lhs, double *rhs, RowTag *row_tag
 
 bool fold_problem(Matrix **A, const Matrix *AT, double *lhs, double *rhs,
                   RowTag *row_tags, Bound *bounds, ColTag *col_tags, double *c,
-                  const FoldOptions *options, FoldMaps **maps, FoldStats *stats)
+                  const FoldOptions *options, ThreadPool *pool, FoldMaps **maps,
+                  FoldStats *stats)
 {
     FoldStats local_stats;
     if (!stats)
@@ -245,7 +247,7 @@ bool fold_problem(Matrix **A, const Matrix *AT, double *lhs, double *rhs,
     }
     Matrix *folded = NULL;
     FoldReason reason =
-        fold_detect(*A, AT, lhs, rhs, bounds, c, options, maps, stats);
+        fold_detect(*A, AT, lhs, rhs, bounds, c, options, pool, maps, stats);
     if (reason == FOLD_FOLDABLE)
     {
         reason =

@@ -34,7 +34,7 @@ struct Matrix;
 /* Everything the fold allocates, apart from the maps. */
 typedef struct FoldWorkspace
 {
-    ThreadPool *pool; /* FOLD_THREADS - 1 workers (fold.c). */
+    ThreadPool *pool; /* The caller's; it runs the refinement. */
     ColourRefinement *refine;
     uint64_t *row_colours; /* size: n_rows, the start colours of the rows. */
     uint64_t *col_colours; /* size: n_cols, the start colours of the columns. */
@@ -43,8 +43,9 @@ typedef struct FoldWorkspace
     int *scratch; /* size: max(n_rows, n_cols), the first line of each class. */
 } FoldWorkspace;
 
-/* NULL when an allocation fails. Freeing NULL is safe. */
-FoldWorkspace *fold_workspace_new(const struct Matrix *A, const struct Matrix *AT);
+/* NULL when an allocation fails. Freeing NULL is safe; the pool stays. */
+FoldWorkspace *fold_workspace_new(const struct Matrix *A, const struct Matrix *AT,
+                                  ThreadPool *pool);
 void fold_workspace_free(FoldWorkspace *work);
 
 /* Start colours from the line data: a hash of (lhs, rhs) for a row and of

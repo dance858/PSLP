@@ -26,6 +26,7 @@
 
 #if THREAD_POOL_HAS_WORKERS
 #include <pthread.h>
+#include <unistd.h>
 #endif
 
 struct ThreadPool
@@ -199,6 +200,16 @@ void thread_pool_free(ThreadPool *pool)
 int thread_pool_n_threads(const ThreadPool *pool)
 {
     return pool->n_workers + 1;
+}
+
+int thread_pool_online_cpus(void)
+{
+#if THREAD_POOL_HAS_WORKERS
+    long online = sysconf(_SC_NPROCESSORS_ONLN);
+    return online < 1 ? 1 : (int) online;
+#else
+    return 1;
+#endif
 }
 
 void thread_pool_run(ThreadPool *pool, ThreadPoolChunkFunction function,

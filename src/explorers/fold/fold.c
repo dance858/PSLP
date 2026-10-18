@@ -29,9 +29,6 @@
 #include <assert.h>
 #include <string.h>
 
-/* Threads of the fold's pool: the calling thread and FOLD_THREADS - 1 workers. */
-#define FOLD_THREADS 8
-
 const char *fold_reason_string(FoldReason reason)
 {
     switch (reason)
@@ -50,7 +47,8 @@ const char *fold_reason_string(FoldReason reason)
     return "unknown";
 }
 
-FoldWorkspace *fold_workspace_new(const Matrix *A, const Matrix *AT)
+FoldWorkspace *fold_workspace_new(const Matrix *A, const Matrix *AT,
+                                  ThreadPool *pool)
 {
     FoldWorkspace *work = (FoldWorkspace *) ps_calloc(1, sizeof(FoldWorkspace));
     if (!work)
@@ -58,8 +56,8 @@ FoldWorkspace *fold_workspace_new(const Matrix *A, const Matrix *AT)
         return NULL;
     }
     size_t n_lines = A->m > A->n ? A->m : A->n;
-    work->pool = thread_pool_new(FOLD_THREADS - 1);
-    work->refine = work->pool ? colour_refinement_new(A, AT, work->pool) : NULL;
+    work->pool = pool;
+    work->refine = colour_refinement_new(A, AT, pool);
     work->row_colours = (uint64_t *) ps_malloc(A->m + 1, sizeof(uint64_t));
     work->col_colours = (uint64_t *) ps_malloc(A->n + 1, sizeof(uint64_t));
     work->row_classes = (int *) ps_malloc(A->m + 1, sizeof(int));
@@ -81,7 +79,6 @@ void fold_workspace_free(FoldWorkspace *work)
         return;
     }
     colour_refinement_free(work->refine);
-    thread_pool_free(work->pool);
     PS_FREE(work->row_colours);
     PS_FREE(work->col_colours);
     PS_FREE(work->row_classes);
@@ -277,7 +274,8 @@ static FoldReason find_fold(FoldWorkspace *work, const Matrix *A, const double *
 
 FoldReason fold_detect(const Matrix *A, const Matrix *AT, const double *lhs,
                        const double *rhs, const Bound *bounds, const double *c,
-                       const FoldOptions *options, FoldMaps **maps, FoldStats *stats)
+                       const FoldOptions *options, ThreadPool *pool, FoldMaps **maps,
+                       FoldStats *stats)
 {
     memset(stats, 0, sizeof(*stats));
     *maps = NULL;
@@ -291,7 +289,7 @@ FoldReason fold_detect(const Matrix *A, const Matrix *AT, const double *lhs,
     clock_gettime(CLOCK_MONOTONIC, &timer.start);
 
     FoldReason reason;
-    FoldWorkspace *work = fold_workspace_new(A, AT);
+    FoldWorkspace *work = fold_workspace_new(A, AT, pool);
     FoldMaps *found = maps_new((int) A->m, (int) A->n);
     if (!work || !found)
     {
