@@ -261,10 +261,9 @@ static inline int merge_compare(int a, int b, const int *sparsity_IDs,
     return 0;
 }
 
-// Merges the sorted chunks into dst. On equal keys the last chunk wins: the
-// sequential sort leaves equal keys in reverse input order, and taking the
-// chunks back to front on ties gives that order over the whole array, so the
-// result does not depend on the number of chunks.
+// Merges the sorted chunks into dst. The sequential sort leaves equal keys in
+// reverse input order, so the last chunk wins ties: the result does not depend
+// on the number of chunks.
 static void merge_chunks(int *dst, int *const *chunk_ptrs, const size_t *chunk_sizes,
                          int n_chunks, const int *sparsity_IDs,
                          const int *coeff_hashes, size_t total_n)

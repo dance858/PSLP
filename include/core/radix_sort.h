@@ -32,15 +32,14 @@
 void radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
                      const int *coeff_hashes, int *aux);
 
-// Sorts the chunks on the pool (the calling thread takes one too) and merges
-// them. At most RADIX_SORT_MAX_CHUNKS chunks; one chunk, or a NULL pool, is
+// Sorts the chunks on the pool and merges them. One chunk, or a NULL pool, is
 // the sequential sort. The result does not depend on the number of chunks.
 void radix_sort_rows_chunked(int *rows, size_t n, const int *sparsity_IDs,
                              const int *coeff_hashes, int *aux,
                              struct ThreadPool *pool, int n_chunks);
 
-// Parallel version: for n >= PARALLEL_SORT_THRESHOLD, sorts in as many chunks
-// as the pool has threads, up to a cap; otherwise sequential radix_sort_rows.
+// Parallel version: from PARALLEL_SORT_THRESHOLD rows on, one chunk per thread
+// of the pool, up to a cap.
 void parallel_radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
                               const int *coeff_hashes, int *aux,
                               struct ThreadPool *pool);
