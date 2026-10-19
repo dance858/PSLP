@@ -59,15 +59,6 @@ PresolveStatus update_lb(struct Constraints *constraints, int col, double new_lb
 PresolveStatus update_ub(struct Constraints *constraints, int col, double new_ub,
                          int row HUGE_BOUND_PARAM);
 
-/* Tightens the upper (is_upper_bound) or lower bound of 'col' to 'new_bound'
-   because no optimal solution lies beyond it (a dual argument, see
-   P_dual_fix). No row is behind the change, so the postsolve record is
-   DUAL_BOUND_CHANGE rather than BOUND_CHANGE_*. The caller checks that the
-   new bound is finite, not huge, strictly tighter and consistent with the
-   other bound (all asserted). */
-void dual_tighten_bound(struct Problem *prob, int col, double new_bound,
-                        bool is_upper_bound);
-
 /* Updates the rhs/lhs of a row. These functions check for infeasibility
    and also if the row becomes an equality constraint after the bound change.
    The locks are updated. It also appends to doubleton equality rows

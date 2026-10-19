@@ -46,8 +46,6 @@
             singleton (the other one is substituted and the singleton grows)
    Test 11: diagonal dual fix fixes variables whose minimiser is beyond the
             bound on the unlocked side
-   Test 12: diagonal dual fix tightens the unlocked bound of a variable with
-            an interior minimiser (DUAL_BOUND_CHANGE replay)
    Test 15: two coupled variables fixed by two singleton equality rows, in
             both orders (the first multiplier needs the later-fixed neighbour)
    Test 16: primal infeasibility ray after fixing a variable that appears in P
@@ -71,10 +69,6 @@
             only: the sparser one is substituted, P_jj, c_j and the offset
             change, the multiplier needs P_kj x_j (DELETED_ROW_ZK)
    Test 26: the same when the stay column keeps a coupling to a third variable
-   Test 27: dual bound tightening makes the only row redundant and the whole
-            problem disappears (HS21)
-   Test 28: coupled dual fix tightens the bound of a variable with
-            off-diagonal entries from the derivative range over the box
    Test 29: lp_fold leaves a QP unfolded; P = 0 through new_presolver_from_problem
             folds as an LP
 */
@@ -843,72 +837,6 @@ static char *test_11_qp()
     return 0;
 }
 
-/*  Diagonal dual fix with an interior minimiser tightens the bound.
-    min. x0^2 - 4 x0 + x1 - x2 s.t. x0 - x1 + x2 <= 3, 0 <= x <= 10
-    Only dual fix is enabled. x0 has no down-locks and -c0 / P00 = 2 is inside
-    its bounds, so every optimal solution has x0 <= 2 and the upper bound is
-    tightened to 2; x1 and x2 are locked. Solution x = (1.5, 0, 1.5), y = -1,
-    z = 0. A reduced solution that puts a multiplier on the implied bound
-    (not a KKT point, but solvers round) gets z0 = 0 back. */
-static char *test_12_qp()
-{
-    double Ax[] = {1, -1, 1};
-    int Ai[] = {0, 1, 2};
-    int Ap[] = {0, 3};
-    int n_rows = 1, n_cols = 3;
-    double lhs[] = {-INF};
-    double rhs[] = {3};
-    double lbs[] = {0, 0, 0};
-    double ubs[] = {10, 10, 10};
-    double c[] = {-4, 1, -1};
-    double Px[] = {2};
-    int Pi[] = {0};
-    int Pp[] = {0, 1, 1, 1};
-
-    Settings *stgs = default_settings();
-    set_settings_false(stgs);
-    stgs->dual_fix = true;
-    Presolver *presolver = qp_presolver(Ax, Ai, Ap, n_rows, n_cols, 3, lhs, rhs, lbs,
-                                        ubs, c, Px, Pi, Pp, 1, stgs);
-    mu_assert("init", presolver != NULL);
-    run_presolver(presolver);
-
-    ProblemData *red = presolver->reduced_prob;
-    mu_assert("reduced dims", red->m == 1 && red->n == 3 && red->Pnnz == 1);
-    mu_assert("ub tightened", red->ubs[0] == 2.0 && red->lbs[0] == 0.0);
-    mu_assert("other bounds unchanged", red->ubs[1] == 10.0 && red->ubs[2] == 10.0);
-
-    double x[] = {1.5, 0, 1.5};
-    double y[] = {-1};
-    double z[] = {0, 0, 0};
-    postsolve(presolver, x, y, z);
-    mu_assert("postsolve values",
-              is_solution_correct(presolver->sol->x, x, presolver->sol->y, y,
-                                  presolver->sol->z, z, n_rows, n_cols, QP_TOL));
-    ProblemData orig =
-        problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
-                            ubs, c, Px, Pi, Pp, Pp[n_cols]);
-    mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
-                                  presolver->sol->z, QP_TOL));
-    free_presolver(presolver);
-
-    // a multiplier on the implied bound is dropped (x0 = 2 is not at the
-    // original bound 10)
-    presolver = qp_presolver(Ax, Ai, Ap, n_rows, n_cols, 3, lhs, rhs, lbs, ubs, c,
-                             Px, Pi, Pp, 1, stgs);
-    mu_assert("init 2", presolver != NULL);
-    run_presolver(presolver);
-    double x2[] = {2, 0, 1};
-    double z2[] = {-0.5, 0, 0};
-    postsolve(presolver, x2, y, z2);
-    mu_assert("implied bound multiplier dropped",
-              presolver->sol->x[0] == 2.0 && presolver->sol->z[0] == 0.0);
-
-    PS_FREE(stgs);
-    free_presolver(presolver);
-    return 0;
-}
-
 /*  Two coupled variables fixed by singleton equality rows, in both row
     orders. The multiplier of the row fixed first needs the neighbour that is
     recovered by the later FIXED_COL record.
@@ -1648,115 +1576,6 @@ static char *test_26_qp()
     return 0;
 }
 
-/*  HS21: min. 0.01 x0^2 + x1^2 - 100 s.t. 10 x0 - x1 >= 10,
-    2 <= x0 <= 50, -50 <= x1 <= 50. Default settings.
-    x1 has no down-locks and its minimiser 0 is interior, so its upper bound
-    becomes 0. The row's minimal activity 10 * 2 - 0 = 20 then exceeds 10 and
-    the row is redundant; both columns become empty and are fixed at their
-    clipped minimisers x = (2, 0). Postsolve: y = 0, z = (0.04, 0), objective
-    offset 0.04 - 100. */
-static char *test_27_qp()
-{
-    double Ax[] = {10, -1};
-    int Ai[] = {0, 1};
-    int Ap[] = {0, 2};
-    int n_rows = 1, n_cols = 2;
-    double lhs[] = {10};
-    double rhs[] = {INF};
-    double lbs[] = {2, -50};
-    double ubs[] = {50, 50};
-    double c[] = {0, 0};
-    double Px[] = {0.02, 2};
-    int Pi[] = {0, 1};
-    int Pp[] = {0, 1, 2};
-
-    Settings *stgs = default_settings();
-    Presolver *presolver = qp_presolver(Ax, Ai, Ap, n_rows, n_cols, 2, lhs, rhs, lbs,
-                                        ubs, c, Px, Pi, Pp, 2, stgs);
-    mu_assert("init", presolver != NULL);
-    mu_assert("status", run_presolver(presolver) == REDUCED);
-
-    ProblemData *red = presolver->reduced_prob;
-    mu_assert("everything removed",
-              red->m == 0 && red->n == 0 && red->nnz == 0 && red->Pnnz == 0);
-    mu_assert("offset", ABS(red->obj_offset - 0.04) <= QP_TOL);
-
-    double dummy[] = {0};
-    postsolve(presolver, dummy, dummy, dummy);
-    double correct_x[] = {2, 0};
-    double correct_y[] = {0};
-    double correct_z[] = {0.04, 0};
-    mu_assert("postsolve values",
-              is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
-                                  correct_y, presolver->sol->z, correct_z, n_rows,
-                                  n_cols, QP_TOL));
-    ProblemData orig =
-        problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
-                            ubs, c, Px, Pi, Pp, Pp[n_cols]);
-    mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
-                                  presolver->sol->z, QP_TOL));
-
-    PS_FREE(stgs);
-    free_presolver(presolver);
-    return 0;
-}
-
-/*  Coupled dual fix tightening a bound from the derivative range.
-    min. x0^2 + x1^2 + x0 x1 - 3 x0 - x2 s.t. x0 + x2 <= 5,
-    -10 <= x0 <= 10, 0 <= x1 <= 1, 0 <= x2 <= 10
-    Only dual fix is enabled. x0 has no down-locks and its derivative
-    2 x0 + x1 - 3 is at least 2 x0 - 3 over the box of x1, so every optimal
-    solution has x0 <= 1.5: the upper bound is tightened to 1.5. x1 is empty
-    in A and coupled, its derivative x0 + 2 x1 changes sign over the box, so
-    it stays; x2 is locked. Solution x = (1, 0, 4), y = -1, z = (0, 1, 0). */
-static char *test_28_qp()
-{
-    double Ax[] = {1, 1};
-    int Ai[] = {0, 2};
-    int Ap[] = {0, 2};
-    int n_rows = 1, n_cols = 3;
-    double lhs[] = {-INF};
-    double rhs[] = {5};
-    double lbs[] = {-10, 0, 0};
-    double ubs[] = {10, 1, 10};
-    double c[] = {-3, 0, -1};
-    double Px[] = {2, 1, 1, 2};
-    int Pi[] = {0, 1, 0, 1};
-    int Pp[] = {0, 2, 4, 4};
-
-    Settings *stgs = default_settings();
-    set_settings_false(stgs);
-    stgs->dual_fix = true;
-    Presolver *presolver = qp_presolver(Ax, Ai, Ap, n_rows, n_cols, 2, lhs, rhs, lbs,
-                                        ubs, c, Px, Pi, Pp, 4, stgs);
-    mu_assert("init", presolver != NULL);
-    run_presolver(presolver);
-
-    ProblemData *red = presolver->reduced_prob;
-    mu_assert("reduced dims", red->m == 1 && red->n == 3 && red->Pnnz == 4);
-    mu_assert("ub tightened", red->ubs[0] == 1.5 && red->lbs[0] == -10.0);
-    mu_assert("other bounds unchanged", red->lbs[1] == 0.0 && red->ubs[1] == 1.0 &&
-                                            red->lbs[2] == 0.0 &&
-                                            red->ubs[2] == 10.0);
-
-    double x[] = {1, 0, 4};
-    double y[] = {-1};
-    double z[] = {0, 1, 0};
-    postsolve(presolver, x, y, z);
-    mu_assert("postsolve values",
-              is_solution_correct(presolver->sol->x, x, presolver->sol->y, y,
-                                  presolver->sol->z, z, n_rows, n_cols, QP_TOL));
-    ProblemData orig =
-        problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
-                            ubs, c, Px, Pi, Pp, Pp[n_cols]);
-    mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
-                                  presolver->sol->z, QP_TOL));
-
-    PS_FREE(stgs);
-    free_presolver(presolver);
-    return 0;
-}
-
 /*  No fold of a QP: three copies of  min -x0 - 2 x1  s.t.  x0 + x1 <= 1,
     0 <= x <= 1  fold to one copy as an LP (test_fold_presolver_lift), but with
     P00 = 2 on the first copy nothing folds, though lp_fold is enabled. KKT
@@ -1900,7 +1719,6 @@ static const char *all_tests_qp()
     mu_run_test(test_9_qp, counter_qp);
     mu_run_test(test_10_qp, counter_qp);
     mu_run_test(test_11_qp, counter_qp);
-    mu_run_test(test_12_qp, counter_qp);
     mu_run_test(test_15_qp, counter_qp);
     mu_run_test(test_16_qp, counter_qp);
     mu_run_test(test_17_qp, counter_qp);
@@ -1913,8 +1731,6 @@ static const char *all_tests_qp()
     mu_run_test(test_24_qp, counter_qp);
     mu_run_test(test_25_qp, counter_qp);
     mu_run_test(test_26_qp, counter_qp);
-    mu_run_test(test_27_qp, counter_qp);
-    mu_run_test(test_28_qp, counter_qp);
     mu_run_test(test_29_qp, counter_qp);
     mu_run_test(test_30_qp, counter_qp);
     return 0;

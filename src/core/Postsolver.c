@@ -302,22 +302,6 @@ static void retrieve_deleted_row_zk(Solution *sol, const DeletedRowZkRecord *r)
     sol->z[r->col] = 0.0;
 }
 
-// sets zk = 0 if the reduced solution put a multiplier on a bound that was
-// derived by a dual argument and does not exist in the original problem
-static void retrieve_dual_bound_change(Solution *sol, int k, bool is_upper_bound,
-                                       double original_bound)
-{
-    assert(sol->x[k] != COL_NOT_RETRIEVED && sol->z[k] != COL_NOT_RETRIEVED);
-    bool on_this_side = is_upper_bound ? (sol->z[k] < 0) : (sol->z[k] > 0);
-    bool at_original =
-        !IS_ABS_INF(original_bound) && IS_EQUAL_FEAS_TOL(sol->x[k], original_bound);
-
-    if (on_this_side && !at_original)
-    {
-        sol->z[k] = 0.0;
-    }
-}
-
 // yi = yi - (ajk / aik) yj whenever we make the jth constraint sparser by
 // zeroing out xk using equality row i
 void retrieve_added_row(Solution *sol, int i, int j, double ratio)
@@ -569,13 +553,6 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
                 decode_deleted_row_zk(indices + start, vals + start, len);
             retrieve_deleted_row_zk(sol, &r);
         }
-        else if (type == DUAL_BOUND_CHANGE)
-        {
-            DualBoundChangeRecord r =
-                decode_dual_bound_change(indices + start, vals + start, len);
-            retrieve_dual_bound_change(sol, r.col, r.is_upper_bound,
-                                       r.original_bound);
-        }
         else if (type == ADDED_ROW)
         {
             AddedRowRecord r = decode_added_row(indices + start, vals + start, len);
@@ -822,20 +799,6 @@ void save_retrieval_deleted_row_zk(PostsolveInfo *info, int row, int col, double
     iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);
-}
-
-void save_retrieval_dual_bound_change(PostsolveInfo *info, int col,
-                                      bool is_upper_bound, double original_bound,
-                                      double implied_bound)
-{
-    u16Vec_append(info->type, DUAL_BOUND_CHANGE);
-    iVec_append(info->indices, col);
-    iVec_append(info->indices, is_upper_bound ? 1 : 0);
-    dVec_append(info->vals, original_bound);
-    dVec_append(info->vals, implied_bound);
-    iVec_append(info->starts, (int) info->indices->len);
-    assert(info->starts->len == info->type->len + 1);
-    assert(info->indices->len == info->vals->len);
 }
 
 void save_retrieval_added_row(PostsolveInfo *info, int i, int j, double ratio)
