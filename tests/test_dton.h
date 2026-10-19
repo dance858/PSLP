@@ -709,7 +709,7 @@ static double dton_removed_eq_residual(const double *Ax, const int *Ai,
     return mx;
 }
 
-static void dton_stationary_reduced_point(const PresolvedProblem *red, double *x,
+static void dton_stationary_reduced_point(const ProblemData *red, double *x,
                                           double *y, double *z)
 {
     for (size_t j = 0; j < red->n; ++j)
@@ -764,7 +764,7 @@ static char *dton_check_postsolve(double *Ax, int *Ai, int *Ap, int m, int n,
     }
 
     // the test must have exercised the elimination
-    const PresolvedProblem *red = ps->reduced_prob;
+    const ProblemData *red = ps->reduced_prob;
     const u16Vec *types = ps->prob->constraints->state->postsolve_info->type;
     int n_dton = 0;
     for (size_t t = 0; t < types->len; ++t)
@@ -927,7 +927,7 @@ static char *test_dton_free_subst()
         new_presolver(Ax, Ai, Ap, 3, 4, 7, lhs, rhs, lbs, ubs, c, stgs);
     mu_assert("presolver allocation failed", presolver != NULL);
     mu_assert("must reduce", run_presolver(presolver) == REDUCED);
-    const PresolvedProblem *red = presolver->reduced_prob;
+    const ProblemData *red = presolver->reduced_prob;
     mu_assert("x1 eliminated", red->n == 3);
     mu_assert("stay lb unchanged", red->lbs[0] == 0.0);
     mu_assert("stay ub unchanged", red->ubs[0] == 10.0);
@@ -954,7 +954,7 @@ static char *test_dton_primal_ray()
     double lbs[] = {0, 0, 0, 0};
     double ubs[] = {10, 10, 10, 10};
     double c[] = {1, 1, 1, 1};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, m, n, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -995,7 +995,7 @@ static char *test_dton_dual_ray()
     double lbs[] = {0, 0, 0};
     double ubs[] = {INF, INF, INF};
     double c[] = {-1, 0, 0};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, m, n, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();

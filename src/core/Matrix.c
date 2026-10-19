@@ -85,6 +85,37 @@ Matrix *matrix_alloc(size_t n_rows, size_t n_cols, size_t nnz)
     return A;
 }
 
+bool matrix_is_symmetric(const Matrix *A)
+{
+    int j, k, l, rel;
+
+    if (A->m != A->n)
+    {
+        return false;
+    }
+
+    for (k = 0; k < A->m; ++k)
+    {
+        for (j = A->p[k].start; j < A->p[k].end; ++j)
+        {
+            l = A->i[j];
+
+            if (l == k)
+            {
+                continue;
+            }
+
+            rel = sorted_find(A->i + A->p[l].start, A->p[l].end - A->p[l].start, k);
+            if (rel == -1 || A->x[A->p[l].start + rel] != A->x[j])
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 bool matrix_valid_csr_input(const int *Ai, const int *Ap, size_t n_rows,
                             size_t n_cols, size_t nnz)
 {

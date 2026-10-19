@@ -22,6 +22,8 @@
 #include "CoreTransformations.h"
 #include "Debugger.h"
 #include "Locks.h"
+#include "Matrix.h"
+#include "Numerics.h"
 #include "Problem.h"
 #include "SimpleReductions.h"
 #include "State.h"
@@ -34,6 +36,7 @@ static inline PresolveStatus _simple_dual_fix(Problem *prob, double ck, double l
                                               int col, iVec *cols_to_inf)
 {
     assert(!HAS_TAG(col_tag, C_TAG_INACTIVE));
+    assert(!col_in_P(prob->constraints->state, col));
 
     // --------------------------------------------------
     // see if we can fix the variable to its lower bound
@@ -107,9 +110,83 @@ static inline PresolveStatus _simple_dual_fix(Problem *prob, double ck, double l
     return UNCHANGED;
 }
 
+/* Dual fix for a variable k in P with diagonal Pkk > 0. The derivative of the
+   objective in xk is gk = ck + sum_{l != k} Pkl xl + Pkk xk, and [gmin, gmax]
+   bounds the first two terms over the bounds of the other variables. Without
+   down-locks xk can be decreased freely, so every optimal solution has gk <= 0
+   or xk = lb; when gk > 0 over the whole box (gmin + Pkk lb >= 0), xk is fixed
+   at lb. Symmetrically, without up-locks xk is fixed at ub when
+   gmax + Pkk ub <= 0. A diagonal-only row without locks is fixed at
+   clip(-ck / Pkk, lb, ub). */
+static inline void P_dual_fix(Problem *prob, int col)
+{
+    const Constraints *constraints = prob->constraints;
+    const Bound *bounds = constraints->bounds;
+    const Matrix *P = prob->obj->P;
+    ColTag col_tag = constraints->col_tags[col];
+    Lock lock = constraints->state->col_locks[col];
+    bool lb_inf = HAS_TAG(col_tag, C_TAG_LB_INF);
+    bool ub_inf = HAS_TAG(col_tag, C_TAG_UB_INF);
+    double lb = bounds[col].lb;
+    double ub = bounds[col].ub;
+    assert(!HAS_TAG(col_tag, C_TAG_INACTIVE));
+    assert(lock.down == 0 || lock.up == 0);
+
+    // an infinite bound is stored as +-INF, so gmin / gmax become infinite
+    // when they depend on one and the tests below fail by themselves
+    double Pkk = 0.0, gmin = prob->obj->c[col], gmax = gmin;
+    for (int jj = P->p[col].start; jj < P->p[col].end; ++jj)
+    {
+        int l = P->i[jj];
+        double Pkl = P->x[jj];
+        if (l == col)
+        {
+            Pkk = Pkl;
+            continue;
+        }
+        gmin += MIN(Pkl * bounds[l].lb, Pkl * bounds[l].ub);
+        gmax += MAX(Pkl * bounds[l].lb, Pkl * bounds[l].ub);
+    }
+    if (Pkk <= 0.0)
+    {
+        return;
+    }
+
+    // diagonal-only row without locks: xk = clip(x*, lb, ub). No locks means
+    // every row of the column has two infinite sides, so the value only
+    // reaches the offset and the activities of free rows; its size is immaterial.
+    if (lock.down == 0 && lock.up == 0 && constraints->state->P_row_sizes[col] == 1)
+    {
+        double val = -prob->obj->c[col] / Pkk;
+        if (!lb_inf && val < lb)
+        {
+            val = lb;
+        }
+        else if (!ub_inf && val > ub)
+        {
+            val = ub;
+        }
+        fix_col(prob, col, val);
+        return;
+    }
+
+    // no down-locks and gk > 0 over the box: xk = lb
+    if (lock.down == 0 && !lb_inf && gmin + Pkk * lb >= 0.0)
+    {
+        fix_col(prob, col, lb);
+        return;
+    }
+
+    // no up-locks and gk < 0 over the box: xk = ub
+    if (lock.up == 0 && !ub_inf && gmax + Pkk * ub <= 0.0)
+    {
+        fix_col(prob, col, ub);
+    }
+}
+
 PresolveStatus simple_dual_fix(Problem *prob)
 {
-    assert(prob->constraints->state->empty_cols->len == 0);
+    assert(empty_cols_drained(prob));
     DEBUG(verify_problem_up_to_date(prob->constraints));
 
     Constraints *constraints = prob->constraints;
@@ -129,6 +206,13 @@ PresolveStatus simple_dual_fix(Problem *prob)
         if (HAS_TAG(col_tags[k], C_TAG_INACTIVE) ||
             (locks[k].up > 0 && locks[k].down > 0))
         {
+            continue;
+        }
+
+        /* if column appears in quadratic term */
+        if (col_in_P(constraints->state, (int) k))
+        {
+            P_dual_fix(prob, (int) k);
             continue;
         }
 

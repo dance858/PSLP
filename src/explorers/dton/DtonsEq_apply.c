@@ -340,7 +340,12 @@ void dton_apply(Problem *prob, DtonWorkspace *dton_work, int *deferred,
     for (int ii = 0; ii < substs->n_recs; ++ii)
     {
         const DtonSubst *rec = substs->recs + substs->order[ii];
-        if (obj->c[rec->k] != 0.0)
+        if (rec->Pkk != 0.0)
+        {
+            sub_diag_var_in_obj_dton(prob, rec->k, rec->target, rec->mult,
+                                     rec->shift);
+        }
+        else if (obj->c[rec->k] != 0.0)
         {
             sub_var_in_obj_dton(obj, rec->k, rec->target, rec->mult, rec->shift);
         }
@@ -348,6 +353,7 @@ void dton_apply(Problem *prob, DtonWorkspace *dton_work, int *deferred,
         assert(!HAS_TAG(col_tags[rec->k], C_TAG_INACTIVE));
         RESET_TAG(col_tags[rec->k], C_TAG_INACTIVE);
         col_sizes[rec->k] = SIZE_INACTIVE_COL;
+        mark_P_row_inactive(prob, rec->k);
     }
 }
 

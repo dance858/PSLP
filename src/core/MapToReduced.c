@@ -159,7 +159,8 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
             // PARALLEL_ROW record that follows
         }
         else if (type == FIXED_COL || type == FIXED_COL_INF || type == SUB_COL ||
-                 type == SUB_COL_DTON || type == DELETED_ROW)
+                 type == SUB_COL_DTON || type == DELETED_ROW ||
+                 type == DELETED_ROW_ZK)
         {
             // only affects a removed row or column
         }
@@ -196,8 +197,9 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
     }
 }
 
-/* z = c - A^T y for the reduced problem */
-static void compute_reduced_dual_slack(double *z, const PresolvedProblem *prob,
+/* z = c - A^T y for the reduced problem. This assumes an LP; for a QP the term
+   P x is missing, which is why 'map_original_sol_to_reduced' refuses QPs. */
+static void compute_reduced_dual_slack(double *z, const ProblemData *prob,
                                        const double *y)
 {
     memcpy(z, prob->c, prob->n * sizeof(double));
@@ -217,7 +219,7 @@ void map_original_sol_to_reduced(Presolver *presolver, const double *x,
 {
     State *data = presolver->prob->constraints->state;
     const Mapping *maps = data->work->mappings;
-    const PresolvedProblem *reduced_prob = presolver->reduced_prob;
+    const ProblemData *reduced_prob = presolver->reduced_prob;
     size_t n_cols_orig = presolver->stats->n_cols_original;
     size_t n_rows_orig = presolver->stats->n_rows_original;
     double *work;
@@ -226,6 +228,14 @@ void map_original_sol_to_reduced(Presolver *presolver, const double *x,
     {
         fprintf(stderr, "PSLP error: map_original_sol_to_reduced is not supported "
                         "with lp_fold yet! Outputs are left untouched. \n");
+        return;
+    }
+
+    /* 'stats' survives 'free_presolver_reduced_problem', unlike the reduced P */
+    if (presolver->stats->Pnnz_original > 0)
+    {
+        fprintf(stderr, "PSLP error: map_original_sol_to_reduced is not supported "
+                        "for QPs yet! Outputs are left untouched. \n");
         return;
     }
 

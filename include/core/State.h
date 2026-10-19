@@ -22,6 +22,7 @@
 #include "Postsolver.h"
 #include "Tags.h"
 #include "iVec.h"
+#include <stdbool.h>
 
 // forward declarations
 struct Mapping;
@@ -46,16 +47,26 @@ typedef struct State
     int *row_sizes;
     int *col_sizes;
 
+    /* row sizes of P, SIZE_INACTIVE_COL for removed variables, NULL for an LP */
+    int *P_row_sizes;
+
     iVec *fixed_cols_to_delete;
     iVec *sub_cols_to_delete;
     iVec *rows_to_delete;
 } State;
 
 /* Constructor and destructor */
-State *new_state(int *row_sizes, int *col_sizes, struct Lock *col_locks,
-                 size_t n_rows, size_t n_cols, struct Activity *activities,
-                 struct Work *work, const RowTag *row_tags);
+State *new_state(int *row_sizes, int *col_sizes, int *P_row_sizes,
+                 struct Lock *col_locks, size_t n_rows, size_t n_cols,
+                 struct Activity *activities, struct Work *work,
+                 const RowTag *row_tags);
 void free_state(State *data);
+
+/* True if column k has a non-empty row in P. */
+static inline bool col_in_P(const State *data, int k)
+{
+    return data->P_row_sizes != NULL && data->P_row_sizes[k] != 0;
+}
 
 /* Maintains consistency of all internal data structures when columns and
    removes are deleted */

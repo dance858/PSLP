@@ -6,17 +6,20 @@
 [![Coverage Status](https://coveralls.io/repos/github/dance858/PSLP/badge.svg?branch=main)](https://coveralls.io/github/dance858/PSLP?branch=main)
 
 
-**PSLP** is a fast, dependency-free presolver for linear programs (LPs) of the form
+**PSLP** is a fast, dependency-free presolver for linear programs (LPs) and convex
+quadratic programs (QPs) of the form
 
 $$
 \begin{array}{ll}
-\text{minimize} & c^T x \\
+\text{minimize} & \tfrac{1}{2} x^T P x + c^T x \\
 \text{subject to} & \underline{b} \leq Ax \leq \overline{b} \\
-& \underline{x} \leq x \leq \overline{x}.
+& \underline{x} \leq x \leq \overline{x},
 \end{array}
 $$
 
-**PSLP** simplifies LPs before they are passed to a solver by detecting redundant
+with $P$ symmetric positive semidefinite ($P = 0$ for an LP).
+
+**PSLP** simplifies LPs and QPs before they are passed to a solver by detecting redundant
 constraints and fixing variables etc. It is written in C99 and is lightweight with no external
 dependencies. Happy presolving!
 
@@ -45,15 +48,23 @@ After this, you should be able to import the public API using `#include "PSLP_AP
 The public C API is defined in the header file `PSLP_API.h`. The other files 
 in that folder contain some trivial public data structures. The API consists of three main operations:
 
-1. **Initialization** — performed using `new_presolver()`, which creates and
-   initializes internal data structures used by the presolver.  
+1. **Initialization** — performed using `new_presolver_from_problem()`, which
+   creates and initializes internal data structures used by the presolver. The
+   problem is given in the struct `ProblemData`, with the quadratic
+   objective matrix $P$ as the full symmetric matrix in CSR form (left unset for
+   an LP) and an optional constant objective term `obj_offset`. For an LP,
+   `new_presolver()` takes the problem data as arguments.
 
 2. **Presolve** — performed using `run_presolver()`, which executes the presolve
-   routines to reduce the LP. The reduced LP is available in the struct
-   `reduced_prob` of the presolver struct.
+   routines to reduce the problem. The reduced problem is available as a
+   `ProblemData` in the field `reduced_prob` of the presolver struct (including
+   the reduced $P$ in `Px`, `Pi`, `Pp`, `Pnnz` and the objective offset
+   `obj_offset`, which accounts for the input offset and the variables fixed by
+   the presolver).
 
 3. **Postsolve** — performed using `postsolve()`, which recovers a primal-dual
-   solution to the original LP from a primal-dual solution to the reduced problem.
+   solution to the original problem from a primal-dual solution to the reduced
+   problem, where the bound multipliers are $z = Px + c - A^T y$.
 
 In addition, `map_original_sol_to_reduced()` maps a primal-dual point of the
 original LP to the reduced LP, e.g. to warm start a solver on the reduced

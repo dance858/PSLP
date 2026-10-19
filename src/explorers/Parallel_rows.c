@@ -650,7 +650,6 @@ PresolveStatus remove_parallel_rows(Constraints *constraints)
 {
     assert(constraints->state->ston_rows->len == 0);
     assert(constraints->state->empty_rows->len == 0);
-    assert(constraints->state->empty_cols->len == 0);
     DEBUG(verify_problem_up_to_date(constraints));
 
     int *parallel_rows = constraints->state->work->iwork_n_rows;

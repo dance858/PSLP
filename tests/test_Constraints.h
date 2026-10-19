@@ -45,8 +45,8 @@ static char *test_1_constraints()
     RowTag *row_tags = new_rowtags(lhs, rhs, n_rows);
     ColTag col_tags[4] = {0};
     Settings *stgs = default_settings();
-    State *data = new_state(row_sizes, col_sizes, locks, n_rows, n_cols, activities,
-                            NULL, row_tags);
+    State *data = new_state(row_sizes, col_sizes, NULL, locks, n_rows, n_cols,
+                            activities, NULL, row_tags);
     Constraints *constraints =
         constraints_new(A, AT, lhs, rhs, bounds, data, row_tags, col_tags);
 
@@ -126,8 +126,8 @@ static char *test_2_constraints()
     ColTag col_tags[10] = {0};
     Settings *stgs = default_settings();
     Activity activities[10] = {0};
-    State *data = new_state(row_sizes, col_sizes, locks, n_rows, n_cols, activities,
-                            NULL, row_tags);
+    State *data = new_state(row_sizes, col_sizes, NULL, locks, n_rows, n_cols,
+                            activities, NULL, row_tags);
     Constraints *constraints =
         constraints_new(A, AT, lhs, rhs, bounds, data, row_tags, col_tags);
 
@@ -209,8 +209,8 @@ static char *test_3_constraints()
     Activity activities[3] = {0};
     ColTag col_tags[4] = {0};
     Settings *stgs = default_settings();
-    State *data = new_state(row_sizes, col_sizes, locks, n_rows, n_cols, activities,
-                            NULL, row_tags);
+    State *data = new_state(row_sizes, col_sizes, NULL, locks, n_rows, n_cols,
+                            activities, NULL, row_tags);
     Constraints *constraints =
         constraints_new(A, AT, lhs, rhs, bounds, data, row_tags, col_tags);
 
@@ -286,8 +286,8 @@ static char *test_4_constraints()
     Activity activities[10] = {0};
     ColTag col_tags[10] = {0};
     Settings *stgs = default_settings();
-    State *data = new_state(row_sizes, col_sizes, locks, n_rows, n_cols, activities,
-                            NULL, row_tags);
+    State *data = new_state(row_sizes, col_sizes, NULL, locks, n_rows, n_cols,
+                            activities, NULL, row_tags);
     Constraints *constraints =
         constraints_new(A, AT, lhs, rhs, bounds, data, row_tags, col_tags);
 

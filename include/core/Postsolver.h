@@ -60,6 +60,9 @@ enum ReductionTypes
     // only required for mapping a solution to the reduced problem
     PARALLEL_ROW = 1 << 11,
     SIDE_RELAXED = 1 << 12,
+
+    // required for the dual postsolve of a QP
+    DELETED_ROW_ZK = 1 << 13,
 };
 
 typedef struct PostsolveInfo
@@ -133,13 +136,20 @@ void retrieve_added_rows(Solution *sol, int i, const int *rows, const double *va
    ------------------------------------------------------------------------- */
 
 /* Saves the information required to retrieve variable xk that was fixed
-   to val. To recover the dual variable we need zk = ck - ak^T y
-   * info->vals stores    [val, ck, ak[0], ak[1], .., dots, ak[len - 1]
-   * info->indices stores [col, dummy, rows[0], rows[1], ... rows[len - 1]].
+   to val. To recover the dual variable we need
+       zk = ck + sum_l Pkl xl - ak^T y,
+   where (Pvals, Pcols) is row k of P restricted to the columns still active
+   when xk was fixed (including the diagonal) and ck is the linear coefficient
+   at that moment. For an LP, P_len is 0.
+   * info->vals stores    [val, ck, ak[0], .., ak[len - 1],
+                           Pvals[0], .., Pvals[P_len - 1]]
+   * info->indices stores [col, P_len, rows[0], .., rows[len - 1],
+                           Pcols[0], .., Pcols[P_len - 1]].
    len is 0 for an empty column.
 */
 void save_retrieval_fixed_col(PostsolveInfo *info, int col, double val, double ck,
-                              const double *vals, const int *rows, size_t len);
+                              const double *vals, const int *rows, size_t len,
+                              const double *Pvals, const int *Pcols, size_t P_len);
 
 typedef struct FixedColRecord
 {
@@ -149,6 +159,9 @@ typedef struct FixedColRecord
     int len;
     const int *rows;
     const double *vals;
+    int P_len;
+    const int *P_cols;
+    const double *P_vals;
 } FixedColRecord;
 
 static inline FixedColRecord decode_fixed_col(const int *indices, const double *vals,
@@ -156,13 +169,16 @@ static inline FixedColRecord decode_fixed_col(const int *indices, const double *
 {
     FixedColRecord r;
     assert(record_len >= 2);
-    assert(indices[1] == DUMMY_VALUE);
     r.col = indices[0];
+    r.P_len = indices[1];
     r.val = vals[0];
     r.ck = vals[1];
-    r.len = record_len - 2;
+    r.len = record_len - 2 - r.P_len;
+    assert(r.len >= 0 && r.P_len >= 0);
     r.rows = indices + 2;
     r.vals = vals + 2;
+    r.P_cols = indices + 2 + r.len;
+    r.P_vals = vals + 2 + r.len;
     return r;
 }
 
@@ -372,6 +388,42 @@ static inline DeletedRowRecord decode_deleted_row(const int *indices,
     (void) record_len; // only used by the assert
     r.row = indices[0];
     r.val = vals[0];
+    return r;
+}
+
+/* Recovers yi when equality row i (coefficient aik) eliminated a column k that
+   appears in P. The multiplier needs the gradient at k, hence x, so the LP
+   records leave the P part out of yi. This record is saved before them,
+   replays after them and adds it:
+       yi += (zk + Pkk xk) / aik,   zk = 0.
+   For a fixed xk, FIXED_COL (which holds row k of P) has already put the P
+   part into zk and Pkk = 0. For an xk substituted by the doubleton
+   eliminator, SUB_COL_DTON leaves zk = 0 and Pkk is the diagonal of row k of
+   P at that time (its only entry, see diagonal_only_P_entry).
+   * info->vals stores    [aik, Pkk]
+   * info->indices stores [row, col]
+*/
+void save_retrieval_deleted_row_zk(PostsolveInfo *info, int row, int col, double aik,
+                                   double Pkk);
+
+typedef struct DeletedRowZkRecord
+{
+    int row;
+    int col;
+    double aik;
+    double Pkk;
+} DeletedRowZkRecord;
+
+static inline DeletedRowZkRecord
+decode_deleted_row_zk(const int *indices, const double *vals, int record_len)
+{
+    DeletedRowZkRecord r;
+    assert(record_len == 2);
+    (void) record_len; // only used by the assert
+    r.row = indices[0];
+    r.col = indices[1];
+    r.aik = vals[0];
+    r.Pkk = vals[1];
     return r;
 }
 
