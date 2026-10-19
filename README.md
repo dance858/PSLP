@@ -1,4 +1,4 @@
-# PSLP — A Lightweight C Presolver for Linear Programs
+# PSLP — A Lightweight Presolver for Linear and Quadratic Programs
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Build and Test Status](https://img.shields.io/github/actions/workflow/status/dance858/PSLP/cmake.yml?branch=main)](https://github.com/dance858/PSLP/actions)
@@ -25,23 +25,25 @@ dependencies. Happy presolving!
 
 ---
 ## Installation
-**PSLP** is built using CMake. If you wish to use **PSLP** in your own CMake-based project, a simple approach is to do as follows.
-First, create a folder `third_party` in your project root and add PSLP as a submodule by running the following command
-in your terminal:
-```code
-git submodule add https://github.com/dance858/PSLP.git third_party/PSLP
-```
-Next, add **PSLP** as a subdirectory by adding the following line to your CMakeLists.txt:
-```code
-add_subdirectory(third_party/PSLP EXCLUDE_FROM_ALL)
-```
-Finally, link your project to PSLP by adding the following line to your CMakeLists.txt
-(replace YOUR_PROJECT with your actual target name):
-```code
+**PSLP** is built using CMake and has no external dependencies. The simplest way to use
+**PSLP** in your own CMake-based project is to fetch a release tag with `FetchContent`
+and link against the `PSLP` target:
+```cmake
+include(FetchContent)
+FetchContent_Declare(
+  pslp
+  GIT_REPOSITORY https://github.com/dance858/PSLP.git
+  GIT_TAG        v0.2.0
+)
+FetchContent_MakeAvailable(pslp)
 target_link_libraries(YOUR_PROJECT PRIVATE PSLP)
 ```
+After this, you can include the public API using `#include "PSLP_API.h"`.
 
-After this, you should be able to import the public API using `#include "PSLP_API.h"`.
+Alternatively, add the repository as a git submodule and use
+`add_subdirectory(third_party/PSLP EXCLUDE_FROM_ALL)`, or build and install
+**PSLP** with `cmake --install` and use `find_package(PSLP)` together with the
+`PSLP::PSLP` target.
 
 ---
 ## API
@@ -71,16 +73,13 @@ original LP to the reduced LP, e.g. to warm start a solver on the reduced
 problem from a solution of the original one. See `PSLP_API.h` for details.
 
 Detailed descriptions of each function and all associated data structures are
-documented in the `PSLP` folder. A video tutorial is available [here](https://www.youtube.com/watch?v=ASYi21eCB-8).
-Note that since the video was recorded, `PSLP_inf` has been removed. Infinite variable bounds or constraint limits
-should now be represented using the IEEE-754 encoding. (For example, in C, use `INFINITY` defined in `math.h`).
-
+documented in the `PSLP` folder. A slightly outdated video tutorial is available [here](https://www.youtube.com/watch?v=ASYi21eCB-8).
 
 ---
 ## Citation
 If you find this repository useful, please consider giving it a star. If you wish to cite this work, you may use the following bibtex. 
 ```bibtex
-@misc{Cederberg26
+@misc{Cederberg26,
   title = {{Presolving for {GPU}-Accelerated First-Order LP Solvers}},
   author = {Daniel Cederberg and Stephen Boyd},
   year = {2026},
@@ -89,3 +88,10 @@ If you find this repository useful, please consider giving it a star. If you wis
   primaryClass = {math.OC},
   note = {arXiv:2604.23951}
 }
+```
+
+---
+## Acknowledgements
+**PSLP** is an open-source project developed and maintained by Daniel Cederberg, with
+substantial contributions from Zedong Peng. It has also benefited from bug reports,
+suggestions and patches from many users, which are gratefully acknowledged.
