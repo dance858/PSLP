@@ -571,6 +571,13 @@ PresolveStatus remove_ston_cols__(Problem *prob)
     for (kk = 0; kk < ston_cols->len; ++kk)
     {
         k = ston_cols->data[kk];
+
+        /* A column that grew through a doubleton substitution and shrank back
+           to a singleton is listed twice; its first entry may have eliminated it. */
+        if (col_sizes[k] != 1)
+        {
+            continue;
+        }
         i = AT->i[AT->p[k].start];
         Aik = AT->x[AT->p[k].start];
 
@@ -662,7 +669,6 @@ PresolveStatus remove_ston_cols(Problem *prob)
     assert(prob->constraints->state->empty_rows->len == 0);
     assert(prob->constraints->state->empty_cols->len == 0);
     DEBUG(verify_problem_up_to_date(prob->constraints));
-    DEBUG(verify_no_duplicates_sort(prob->constraints->state->ston_cols));
 
     PresolveStatus status = UNCHANGED;
 

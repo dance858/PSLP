@@ -149,11 +149,9 @@ void verify_ston_cols(const Constraints *constraints)
     size_t n_cols = constraints->n;
     char *lookup = ps_calloc(n_cols, sizeof(char));
 
-    // verify that all appended columns are ston columns or
-    // empty/inactive
+    // the list may hold columns that are no longer singletons, even twice
     for (size_t i = 0; i < ston_cols->len; ++i)
     {
-        PSLP_ASSERT(col_sizes[ston_cols->data[i]] <= 1);
         lookup[ston_cols->data[i]] = 1;
     }
 
