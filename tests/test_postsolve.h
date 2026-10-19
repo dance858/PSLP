@@ -36,7 +36,7 @@ static char *test_0_postsolve()
     double lbs[] = {-10, -10, -10, -10, -10, -10, -10, -10};
     double ubs[] = {10, 10, 10, 10, 10, 10, 10, 10};
     double c[] = {-1, 1, -1, 1, -1, 2, -0.2, 0.7};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -122,7 +122,7 @@ static char *test_1_postsolve()
     double lbs[] = {-10, -10, -10, -10, -10, -10, -10, -10};
     double ubs[] = {10, 10, 10, 10, 10, 10, 10, 10};
     double c[] = {-1, 1, -1, 1, -1, 2, -0.2, 0.7};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -183,7 +183,7 @@ static char *test_singleton_eq()
     double lbs[] = {-5.0, -5, -5, -5, -5};
     double ubs[] = {5.0, 5, 5, 5, 5};
     double c[] = {1.0, 2, -1, 3, -2};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -252,7 +252,7 @@ static char *test_1_postsolve_implied_bound_active()
     double lbs[] = {-10, -10, -10, -10, -10, -10, -10, -10};
     double ubs[] = {10, 10, 10, 10, 4.0 - 8.0 / 5.0, 10, 10, 10};
     double c[] = {-1, 1, -1, 1, -1, 2, -0.2, 0.7};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -312,7 +312,7 @@ static char *test_singleton_ineq_row()
     double lbs[] = {-1.0, 0, 0};
     double ubs[] = {INF, INF, INF};
     double c[] = {3.0, 1, 2};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -381,7 +381,7 @@ static char *test_2_postsolve()
     double lbs[] = {-INF, -INF, 0, 0, 0};
     double ubs[] = {INF, INF, INF, INF, INF};
     double c[] = {1, 1, -1, 3, 2};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -437,7 +437,7 @@ static char *test_implied_free_col_ston_in_inequality_postsolve()
     double lbs[] = {0.0, 8, 0.0, 0.0};
     double ubs[] = {INF, INF, INF, INF};
     double c[] = {1.0, 2, -4, -3};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -595,7 +595,7 @@ static char *test_col_ston_dual_fix()
     double lbs[] = {0.0, 1, 0, 0};
     double ubs[] = {INF, INF, INF, INF};
     double c[] = {4.0, 1, -2, 7};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -658,7 +658,7 @@ static char *test_3_postsolve()
     double lbs[] = {-INF, -INF, -INF, 0, 0, 0, 0, 0, 0, 0, -INF};
     double ubs[] = {INF, INF, INF, 1, 2, 3, 4, 3, 6, 7, 8};
     double c[] = {1.0, 1, 1.03, -5, 2.3, 3.1, -2, 1.05, -3, 4, 1};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -725,7 +725,7 @@ static char *test_4_postsolve()
     double lbs[] = {-10, -10, -10, -INF, -10};
     double ubs[] = {10, 10, 10, 10, 10};
     double c[] = {1, -2, 1, 0, 3};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -800,7 +800,7 @@ static char *test_6_postsolve()
     double lbs[] = {-1, -2, -3, -4, -5, -6, -7, -8};
     double ubs[] = {1, 2, 3, 4, 5, 6, 7, 8};
     double c[] = {2, 3, -4, -3, -6, 6, 3, 1};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -866,7 +866,7 @@ static char *test_7_postsolve()
     double lbs[] = {-1, -2, -3, -4, -5, -6, -7, -8};
     double ubs[] = {1, 2, 3, 4, 5, 6, 7, 8};
     double c[] = {2, 3, -4, -3, -6, 6, 3, 1};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -932,7 +932,7 @@ static char *test_8_postsolve()
     double lbs[] = {-INF, 0, 0, 0, 0};
     double ubs[] = {INF, INF, INF, INF, INF};
     double c[] = {2, -1, -1, 3, 2};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -1002,7 +1002,7 @@ static char *test_9_postsolve()
     double lbs[] = {0, 0, 0};
     double ubs[] = {INF, INF, INF};
     double c[] = {1.0, 1.1, 1.2};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -1063,7 +1063,7 @@ static char *test_pathological_ston_one()
     double lbs[] = {3.0, -5, -5, -5};
     double ubs[] = {INF, 5, 5, 5};
     double c[] = {1.0, 2, 3, -4};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -1124,7 +1124,7 @@ static char *test_pathological_ston_two()
     double lbs[] = {3.0, -5, -5, -5};
     double ubs[] = {INF, 5, 5, 5};
     double c[] = {-2.0, 2, 3, -4};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -1184,7 +1184,7 @@ static char *test_fix_col_inf()
     double lbs[] = {-1.0, -INF, 0.5};
     double ubs[] = {INF, INF, INF};
     double c[] = {1.0, 0, 2};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();

@@ -199,7 +199,7 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
 }
 
 /* z = c - A^T y for the reduced problem */
-static void compute_reduced_dual_slack(double *z, const PresolvedProblem *prob,
+static void compute_reduced_dual_slack(double *z, const ProblemData *prob,
                                        const double *y)
 {
     memcpy(z, prob->c, prob->n * sizeof(double));
@@ -219,7 +219,7 @@ void map_original_sol_to_reduced(Presolver *presolver, const double *x,
 {
     State *data = presolver->prob->constraints->state;
     const Mapping *maps = data->work->mappings;
-    const PresolvedProblem *reduced_prob = presolver->reduced_prob;
+    const ProblemData *reduced_prob = presolver->reduced_prob;
     size_t n_cols_orig = presolver->stats->n_cols_original;
     size_t n_rows_orig = presolver->stats->n_rows_original;
     double *work;

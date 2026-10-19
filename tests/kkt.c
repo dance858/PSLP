@@ -6,12 +6,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-PresolvedProblem problem_from_csr_qp(double *Ax, int *Ai, int *Ap, int n_rows,
-                                     int n_cols, int nnz, double *lhs, double *rhs,
-                                     double *lbs, double *ubs, double *c, double *Px,
-                                     int *Pi, int *Pp, int Pnnz)
+ProblemData problem_from_csr_qp(double *Ax, int *Ai, int *Ap, int n_rows, int n_cols,
+                                int nnz, double *lhs, double *rhs, double *lbs,
+                                double *ubs, double *c, double *Px, int *Pi, int *Pp,
+                                int Pnnz)
 {
-    PresolvedProblem prob;
+    ProblemData prob;
     prob.Ax = Ax;
     prob.Ai = Ai;
     prob.Ap = Ap;
@@ -31,16 +31,16 @@ PresolvedProblem problem_from_csr_qp(double *Ax, int *Ai, int *Ap, int n_rows,
     return prob;
 }
 
-PresolvedProblem problem_from_csr(double *Ax, int *Ai, int *Ap, int n_rows,
-                                  int n_cols, int nnz, double *lhs, double *rhs,
-                                  double *lbs, double *ubs, double *c)
+ProblemData problem_from_csr(double *Ax, int *Ai, int *Ap, int n_rows, int n_cols,
+                             int nnz, double *lhs, double *rhs, double *lbs,
+                             double *ubs, double *c)
 {
     return problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs,
                                c, NULL, NULL, NULL, 0);
 }
 
 /* true if the problem has a quadratic objective term */
-static bool has_P(const PresolvedProblem *prob)
+static bool has_P(const ProblemData *prob)
 {
     return prob->Pp != NULL && prob->Pnnz > 0;
 }
@@ -72,7 +72,7 @@ static double clip(double v, double l, double u)
     return v;
 }
 
-void kkt_residuals(const PresolvedProblem *prob, const double *x, const double *y,
+void kkt_residuals(const ProblemData *prob, const double *x, const double *y,
                    const double *z, KKTResiduals *out)
 {
     const size_t m = prob->m, n = prob->n;
@@ -186,7 +186,7 @@ void kkt_residuals(const PresolvedProblem *prob, const double *x, const double *
     free(Px_vec);
 }
 
-bool is_kkt_point(const PresolvedProblem *prob, const double *x, const double *y,
+bool is_kkt_point(const ProblemData *prob, const double *x, const double *y,
                   const double *z, double tol)
 {
     KKTResiduals r;
@@ -214,8 +214,7 @@ bool is_kkt_point(const PresolvedProblem *prob, const double *x, const double *y
     return true;
 }
 
-bool is_primal_ray_certificate(const PresolvedProblem *prob, const double *y,
-                               double tol)
+bool is_primal_ray_certificate(const ProblemData *prob, const double *y, double tol)
 {
     const size_t m = prob->m, n = prob->n;
     double *z = (double *) calloc(n > 0 ? n : 1, sizeof(double));
@@ -304,8 +303,7 @@ static bool is_recession_component(double a, double l, double u, double tol)
     return true;
 }
 
-bool is_dual_ray_certificate(const PresolvedProblem *prob, const double *d,
-                             double tol)
+bool is_dual_ray_certificate(const ProblemData *prob, const double *d, double tol)
 {
     for (size_t i = 0; i < prob->m; ++i)
     {

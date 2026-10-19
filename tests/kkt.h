@@ -8,7 +8,7 @@
 
        min  c^T x   s.t.  lhs <= A x <= rhs,   lbs <= x <= ubs,
 
-   given as a PresolvedProblem (CSR matrix, sides, bounds, objective). The
+   given as a ProblemData (CSR matrix, sides, bounds, objective). The
    dual convention is  A^T y + z = c,  y_i >= 0 on an active lhs, y_i <= 0 on
    an active rhs, z_j >= 0 at a lower bound, z_j <= 0 at an upper bound, i.e.
    the convention of postsolve().
@@ -51,26 +51,26 @@ typedef struct
     double x_norm;     // ||x||_2, for scaling the bound-violation threshold
 } KKTResiduals;
 
-/* Wraps CSR arrays as a PresolvedProblem with obj_offset = 0 and P = 0. The
+/* Wraps CSR arrays as a ProblemData with obj_offset = 0 and P = 0. The
    argument order matches new_presolver so a test builds it from its local
    arrays. */
-PresolvedProblem problem_from_csr(double *Ax, int *Ai, int *Ap, int n_rows,
-                                  int n_cols, int nnz, double *lhs, double *rhs,
-                                  double *lbs, double *ubs, double *c);
+ProblemData problem_from_csr(double *Ax, int *Ai, int *Ap, int n_rows, int n_cols,
+                             int nnz, double *lhs, double *rhs, double *lbs,
+                             double *ubs, double *c);
 
 /* Same with the quadratic objective matrix P (full symmetric CSR). */
-PresolvedProblem problem_from_csr_qp(double *Ax, int *Ai, int *Ap, int n_rows,
-                                     int n_cols, int nnz, double *lhs, double *rhs,
-                                     double *lbs, double *ubs, double *c, double *Px,
-                                     int *Pi, int *Pp, int Pnnz);
+ProblemData problem_from_csr_qp(double *Ax, int *Ai, int *Ap, int n_rows, int n_cols,
+                                int nnz, double *lhs, double *rhs, double *lbs,
+                                double *ubs, double *c, double *Px, int *Pi, int *Pp,
+                                int Pnnz);
 
-void kkt_residuals(const PresolvedProblem *prob, const double *x, const double *y,
+void kkt_residuals(const ProblemData *prob, const double *x, const double *y,
                    const double *z, KKTResiduals *out);
 
 /* True iff bound_viol / (1 + ||x||), primal_res_rel, dual_res_rel,
    z_comp_slack / (1 + ||z||), y_comp_slack / (1 + ||y||) and gap_rel are all
    <= tol. Prints the first violated quantity. */
-bool is_kkt_point(const PresolvedProblem *prob, const double *x, const double *y,
+bool is_kkt_point(const ProblemData *prob, const double *x, const double *y,
                   const double *z, double tol);
 
 /* True iff y is a Farkas certificate of primal infeasibility: with
@@ -80,14 +80,12 @@ bool is_kkt_point(const PresolvedProblem *prob, const double *x, const double *y
    sum_{z_j < 0} lb_j z_j is < -tol. This is the sign convention of
    postsolve_primal_infeas_ray (y_i >= 0 on an rhs-active row), the opposite
    of postsolve(). Prints the reason on failure. */
-bool is_primal_ray_certificate(const PresolvedProblem *prob, const double *y,
-                               double tol);
+bool is_primal_ray_certificate(const ProblemData *prob, const double *y, double tol);
 
 /* True iff d is a certificate of dual infeasibility (unboundedness): a
    recession direction of the constraint set ((A d)_i = 0 on two-sided rows,
    <= 0 on rhs-only rows, >= 0 on lhs-only rows, analogously for the bounds)
    with P d = 0 and c^T d < -tol. Prints the reason on failure. */
-bool is_dual_ray_certificate(const PresolvedProblem *prob, const double *d,
-                             double tol);
+bool is_dual_ray_certificate(const ProblemData *prob, const double *d, double tol);
 
 #endif // KKT_H

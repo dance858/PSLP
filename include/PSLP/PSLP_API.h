@@ -20,14 +20,15 @@
    files in the folder "PSLP", it includes the input/output data structs
    and the API functions.
 
-   The presolver handles problems of the form
+   The presolver handles quadratic programs of the form
 
-       minimize    (1/2) x'Px + c'x
+       minimize    (1/2) x'Px + c'x + obj_offset
        subject to  lhs <= Ax <= rhs
                    lbs <= x <= ubs
 
    with P symmetric positive semidefinite. An LP is the special case P = 0
-   (see new_presolver). */
+   (see new_presolver). The same struct, ProblemData, describes the problem
+   given to the presolver and the reduced problem it returns. */
 #ifndef PRESOLVER_H
 #define PRESOLVER_H
 
@@ -62,18 +63,27 @@ extern "C"
         bool lp_fold;
         double max_time;
         bool verbose;
-        /* Threads PSLP may use. 0 is automatic: the smaller of 8 and the
-           processors the system reports. Clamped to [1, 64]. Ignored on
-           Windows. */
+
+        /* Some parts of PSLP are multi-threaded. This setting controls the
+           number of threads PSLP may use. The value 0 means that PSLP chooses
+           the number of threads automatically, which is the smaller of 8 and
+           the number of processors the system reports. Note that this setting
+           is ignored on Windows, where PSLP always runs single-threaded. */
         int n_threads;
     } Settings;
 
-    /* struct corresponding to the problem to presolve,
-           min (1/2) x'Px + c'x  s.t.  lhs <= Ax <= rhs,  lbs <= x <= ubs.
-       Optional parts are left NULL or 0, so an LP leaves P unset. */
+    /* struct corresponding to a problem
+           min (1/2) x'Px + c'x + obj_offset
+           s.t. lhs <= Ax <= rhs,  lbs <= x <= ubs.
+       It is used both for the problem given to the presolver and for the
+       reduced problem returned in 'reduced_prob'. Optional parts are left
+       NULL or 0, so an LP leaves P unset. The arrays of the reduced problem
+       are owned by the presolver and stay valid until
+       'free_presolver_reduced_problem' or 'free_presolver' is called; the
+       user must not modify or free them. */
     typedef struct
     {
-        // CSR format of a matrix A of size m x n with nnz non-zeros
+        /* CSR format of a matrix A of size m x n with nnz non-zeros */
         const double *Ax;
         const int *Ai;
         const int *Ap;
@@ -81,12 +91,12 @@ extern "C"
         size_t n;
         size_t nnz;
 
-        // lhs and rhs in the form lhs <= Ax <= rhs
+        /* lhs and rhs in the form lhs <= Ax <= rhs */
         const double *lhs;
         const double *rhs;
         const double *c;
 
-        // variable bounds lbs <= x <= ubs
+        /* variable bounds lbs <= x <= ubs */
         const double *lbs;
         const double *ubs;
 
@@ -97,42 +107,16 @@ extern "C"
         const int *Pi;
         const int *Pp;
         size_t Pnnz;
-    } OriginalProblem;
 
-    /* struct corresponding to the presolved problem */
-    typedef struct
-    {
-        // CSR format of a matrix A of size m x n with nnz non-zeros
-        double *Ax;
-        int *Ai;
-        int *Ap;
-        size_t m;
-        size_t n;
-        size_t nnz;
-
-        // lhs and rhs in the form lhs <= Ax <= rhs
-        double *lhs;
-        double *rhs;
-        double *c;
-
-        // variable bounds lbs <= x <= ubs
-        double *lbs;
-        double *ubs;
-
-        /* CSR format of the reduced quadratic objective matrix P (n x n,
-           full symmetric matrix, Pnnz non-zeros). For an LP the three
-           arrays are NULL and Pnnz is 0. */
-        double *Px;
-        int *Pi;
-        int *Pp;
-        size_t Pnnz;
-
-        /* offset to be added to the objective value. (When the presolver fixes
-           variables, it adds an offset to the objective. This offset should
-           possibly be taken into account on the solver side when evaluating the
-           relative optimality gap of the reduced problem.) */
+        /* constant offset of the objective. On input it is the constant term
+           of the objective (0 for most problems). In the reduced problem it
+           is the input offset plus what the presolver adds when it fixes
+           variables, so that objective values of the original and the
+           reduced problem agree. This offset should possibly be taken into
+           account on the solver side when evaluating the relative optimality
+           gap of the reduced problem. */
         double obj_offset;
-    } PresolvedProblem;
+    } ProblemData;
 
     /* struct corresponding to the presolver:
          - 'stats' contains statistics about the presolving process
@@ -149,7 +133,7 @@ extern "C"
         struct PresolveStats *stats;
         const Settings *stgs;
         struct Problem *prob;
-        PresolvedProblem *reduced_prob;
+        ProblemData *reduced_prob;
         struct Solution *sol;
     } Presolver;
 
@@ -160,19 +144,18 @@ extern "C"
     void set_settings_false(Settings *stgs);
 
     /* Initialize presolver, allocate memory, and build internal data structures.
-       The presolver maintains internal deep copies of all arrays of 'problem'
-       and drops explicit zeros of P. The user is responsible for freeing the
-       presolver using 'free_presolver'. Since the row pointers are ints, nnz and
-       Pnnz must be at most INT_MAX. The function returns NULL if the allocation
-       fails, nnz or Pnnz is too large, Pnnz > 0 with a NULL array of P, the CSR
-       structure of P is invalid (see matrix_valid_csr_input) or P is not exactly
-       symmetric. Positive semidefiniteness of P is not checked. lp_fold is
-       skipped when P has entries. */
-    Presolver *new_presolver_from_problem(const OriginalProblem *problem,
+       The presolver maintains internal deep copies of all arrays of 'problem'.
+       The user is responsible for freeing the presolver using 'free_presolver'.
+       'nnz' and 'Pnnz' can be at most INT_MAX. The 'obj_offset' of 'problem'
+       is carried over to the reduced problem.
+
+       The function returns NULL if the allocation fails, nnz or Pnnz is too large,
+       or if the input data is invalid. */
+    Presolver *new_presolver_from_problem(const ProblemData *problem,
                                           const Settings *stgs);
 
-    /* Same as new_presolver_from_problem for an LP, with the problem data
-       given as arguments. */
+    /* Same as new_presolver_from_problem for an LP with obj_offset = 0, with
+       the problem data given as arguments. */
     Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap,
                              size_t m, size_t n, size_t nnz, const double *lhs,
                              const double *rhs, const double *lbs, const double *ubs,

@@ -233,21 +233,21 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
                          const double *lbs, const double *ubs, const double *c,
                          const Settings *stgs)
 {
-    OriginalProblem problem = {.Ax = Ax,
-                               .Ai = Ai,
-                               .Ap = Ap,
-                               .m = m,
-                               .n = n,
-                               .nnz = nnz,
-                               .lhs = lhs,
-                               .rhs = rhs,
-                               .c = c,
-                               .lbs = lbs,
-                               .ubs = ubs};
+    ProblemData problem = {.Ax = Ax,
+                           .Ai = Ai,
+                           .Ap = Ap,
+                           .m = m,
+                           .n = n,
+                           .nnz = nnz,
+                           .lhs = lhs,
+                           .rhs = rhs,
+                           .c = c,
+                           .lbs = lbs,
+                           .ubs = ubs};
     return new_presolver_from_problem(&problem, stgs);
 }
 
-Presolver *new_presolver_from_problem(const OriginalProblem *problem,
+Presolver *new_presolver_from_problem(const ProblemData *problem,
                                       const Settings *stgs)
 {
     const double *Ax = problem->Ax;
@@ -435,6 +435,7 @@ Presolver *new_presolver_from_problem(const OriginalProblem *problem,
     presolver = (Presolver *) ps_malloc(1, sizeof(Presolver));
     obj = objective_new(c_copy, P);
     if (!presolver || !obj) goto cleanup;
+    obj->offset = problem->obj_offset;
     presolver->sol = NULL; /* allocated by the first postsolve call */
     presolver->stgs = stgs;
     presolver->prob = new_problem(constraints, obj);
@@ -444,8 +445,7 @@ Presolver *new_presolver_from_problem(const OriginalProblem *problem,
     presolver->stats->n_rows_folded = A->m;
     presolver->stats->n_cols_folded = A->n;
     presolver->stats->Pnnz_original = Pnnz_stripped;
-    presolver->reduced_prob =
-        (PresolvedProblem *) ps_calloc(1, sizeof(PresolvedProblem));
+    presolver->reduced_prob = (ProblemData *) ps_calloc(1, sizeof(ProblemData));
     DEBUG(run_debugger_problem(presolver->prob, false));
 
     clock_gettime(CLOCK_MONOTONIC, &timer.end);
@@ -703,7 +703,7 @@ run_medium_explorers(Problem *prob, const Settings *stgs, PresolveStats *stats)
 
 void populate_presolved_problem(Presolver *presolver)
 {
-    PresolvedProblem *reduced_prob = presolver->reduced_prob;
+    ProblemData *reduced_prob = presolver->reduced_prob;
     Constraints *constraints = presolver->prob->constraints;
     Matrix *A = constraints->A;
     reduced_prob->m = A->m;
@@ -716,21 +716,24 @@ void populate_presolved_problem(Presolver *presolver)
     reduced_prob->c = presolver->prob->obj->c;
     reduced_prob->obj_offset = presolver->prob->obj->offset;
 
-    // create bounds arrays
-    reduced_prob->lbs = (double *) malloc(A->n * sizeof(double));
-    reduced_prob->ubs = (double *) malloc(A->n * sizeof(double));
+    /* The arrays of 'reduced_prob' are const for the user, so the ones the
+       presolver allocates here are filled through local pointers. */
+    double *lbs = (double *) malloc(A->n * sizeof(double));
+    double *ubs = (double *) malloc(A->n * sizeof(double));
     for (int i = 0; i < A->n; i++)
     {
-        reduced_prob->lbs[i] = constraints->bounds[i].lb;
-        reduced_prob->ubs[i] = constraints->bounds[i].ub;
+        lbs[i] = constraints->bounds[i].lb;
+        ubs[i] = constraints->bounds[i].ub;
     }
+    reduced_prob->lbs = lbs;
+    reduced_prob->ubs = ubs;
 
-    // create row pointers
-    reduced_prob->Ap = (int *) malloc((A->m + 1) * sizeof(int));
+    int *Ap = (int *) malloc((A->m + 1) * sizeof(int));
     for (int i = 0; i < A->m + 1; i++)
     {
-        reduced_prob->Ap[i] = A->p[i].start;
+        Ap[i] = A->p[i].start;
     }
+    reduced_prob->Ap = Ap;
 
     /* For an LP the arrays of P stay NULL and Pnnz stays 0. */
     const Matrix *P = presolver->prob->obj->P;
@@ -742,11 +745,28 @@ void populate_presolved_problem(Presolver *presolver)
     reduced_prob->Px = P->x;
     reduced_prob->Pi = P->i;
     reduced_prob->Pnnz = P->nnz;
-    reduced_prob->Pp = (int *) malloc((P->m + 1) * sizeof(int));
+    int *Pp = (int *) malloc((P->m + 1) * sizeof(int));
     for (int i = 0; i < P->m + 1; i++)
     {
-        reduced_prob->Pp[i] = P->p[i].start;
+        Pp[i] = P->p[i].start;
     }
+    reduced_prob->Pp = Pp;
+}
+
+/* Frees the arrays of the reduced problem that the presolver allocated in
+   'populate_presolved_problem' (the others alias internal storage). They are
+   const for the user, so the qualifier is cast away here; the memory came from
+   malloc. */
+static void free_reduced_problem_arrays(ProblemData *reduced_prob)
+{
+    free((void *) reduced_prob->Ap);
+    free((void *) reduced_prob->Pp);
+    free((void *) reduced_prob->lbs);
+    free((void *) reduced_prob->ubs);
+    reduced_prob->Ap = NULL;
+    reduced_prob->Pp = NULL;
+    reduced_prob->lbs = NULL;
+    reduced_prob->ubs = NULL;
 }
 
 static inline void print_start_message(const PresolveStats *stats)
@@ -932,7 +952,7 @@ void free_presolver_reduced_problem(Presolver *presolver)
         return;
     }
 
-    PresolvedProblem *reduced_prob = presolver->reduced_prob;
+    ProblemData *reduced_prob = presolver->reduced_prob;
     Problem *prob = presolver->prob;
     if (prob)
     {
@@ -964,10 +984,7 @@ void free_presolver_reduced_problem(Presolver *presolver)
     reduced_prob->c = NULL;
     reduced_prob->Px = NULL;
     reduced_prob->Pi = NULL;
-    PS_FREE(reduced_prob->Ap);
-    PS_FREE(reduced_prob->Pp);
-    PS_FREE(reduced_prob->lbs);
-    PS_FREE(reduced_prob->ubs);
+    free_reduced_problem_arrays(reduced_prob);
 }
 
 /* Allocates presolver->sol on the first postsolve call. Returns false (and
@@ -1049,7 +1066,7 @@ void postsolve_primal_infeas_ray(Presolver *presolver, const double *y,
     PresolveStats *stats = presolver->stats;
     State *data = presolver->prob->constraints->state;
     PostsolveInfo *postsolve_info = data->postsolve_info;
-    PresolvedProblem *reduced_prob = presolver->reduced_prob;
+    const ProblemData *reduced_prob = presolver->reduced_prob;
     size_t len_z = MAX((size_t) 1, stats->n_cols_reduced);
     double *z;
     assert(reduced_prob != NULL);
@@ -1144,10 +1161,7 @@ void free_presolver(Presolver *presolver)
 
     if (presolver->reduced_prob)
     {
-        PS_FREE(presolver->reduced_prob->Ap);
-        PS_FREE(presolver->reduced_prob->Pp);
-        PS_FREE(presolver->reduced_prob->lbs);
-        PS_FREE(presolver->reduced_prob->ubs);
+        free_reduced_problem_arrays(presolver->reduced_prob);
         PS_FREE(presolver->reduced_prob);
     }
 

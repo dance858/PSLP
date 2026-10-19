@@ -208,8 +208,7 @@ static char *test_04_presolver()
 }
 
 /* True when two presolved problems are identical. */
-static bool same_presolved_problem(const PresolvedProblem *a,
-                                   const PresolvedProblem *b)
+static bool same_presolved_problem(const ProblemData *a, const ProblemData *b)
 {
     return a->m == b->m && a->n == b->n && a->nnz == b->nnz &&
            a->obj_offset == b->obj_offset &&

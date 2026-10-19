@@ -1140,7 +1140,7 @@ static FoldTestLP folded_lp(const FoldApplyResult *r)
     return p;
 }
 
-static PresolvedProblem lp_problem(FoldTestLP *p)
+static ProblemData lp_problem(FoldTestLP *p)
 {
     return problem_from_csr(p->Ax, p->Ai, p->Ap, p->m, p->n, p->nnz, p->lhs, p->rhs,
                             p->lb, p->ub, p->c);
@@ -1165,7 +1165,7 @@ static const char *test_fold_postsolve_lift(void)
     mu_assert("folded costs", f.c[0] == -3.0 && f.c[1] == -6.0);
 
     double x_f[2] = {0, 1}, y_f[1] = {-3}, z_f[2] = {0, -3};
-    PresolvedProblem folded = lp_problem(&f);
+    ProblemData folded = lp_problem(&f);
     mu_assert("folded point is KKT", is_kkt_point(&folded, x_f, y_f, z_f, 1e-9));
     double x[6], y[3], z[6];
     fold_postsolve(r.maps, p.m, p.n, x_f, y_f, z_f, x, y, z);
@@ -1179,7 +1179,7 @@ static const char *test_fold_postsolve_lift(void)
     {
         mu_assert("y divided by the row class size", y[i] == -1.0);
     }
-    PresolvedProblem original = lp_problem(&p);
+    ProblemData original = lp_problem(&p);
     mu_assert("lifted point is KKT", is_kkt_point(&original, x, y, z, 1e-9));
     flp_free(&f);
     apply_result_free(&r);
@@ -1205,7 +1205,7 @@ static const char *test_fold_postsolve_class_sizes(void)
     mu_assert("folded data", f.Ax[0] == 3.0 && f.c[0] == -3.0);
 
     double x_f[1] = {0.5}, y_f[1] = {-0.5}, z_f[1] = {-1.5};
-    PresolvedProblem folded = lp_problem(&f);
+    ProblemData folded = lp_problem(&f);
     mu_assert("folded point is KKT", is_kkt_point(&folded, x_f, y_f, z_f, 1e-9));
     double x[3], y[2], z[3];
     fold_postsolve(r.maps, p.m, p.n, x_f, y_f, z_f, x, y, z);
@@ -1218,7 +1218,7 @@ static const char *test_fold_postsolve_class_sizes(void)
     {
         mu_assert("y divided by the row class size", y[i] == -0.25);
     }
-    PresolvedProblem original = lp_problem(&p);
+    ProblemData original = lp_problem(&p);
     mu_assert("lifted point is KKT", is_kkt_point(&original, x, y, z, 1e-9));
     flp_free(&f);
     apply_result_free(&r);
@@ -1283,7 +1283,7 @@ static const char *test_fold_presolver_lift(void)
                                        constraints->AT->nnz == 2);
     mu_assert("maps kept", constraints->state->work->fold_maps != NULL);
     mu_assert("presolve", run_presolver(presolver) != INFEASIBLE);
-    const PresolvedProblem *reduced = presolver->reduced_prob;
+    const ProblemData *reduced = presolver->reduced_prob;
     mu_assert("reduced 1 x 2",
               reduced->m == 1 && reduced->n == 2 && reduced->nnz == 2);
     mu_assert("folded data", reduced->c[0] == -3.0 && reduced->c[1] == -6.0 &&
@@ -1310,7 +1310,7 @@ static const char *test_fold_presolver_lift(void)
     {
         mu_assert("y divided by the row class size", sol->y[i] == -1.0);
     }
-    PresolvedProblem original = lp_problem(&p);
+    ProblemData original = lp_problem(&p);
     mu_assert("lifted point is KKT",
               is_kkt_point(&original, sol->x, sol->y, sol->z, 1e-9));
     free_presolver(presolver);
@@ -1402,7 +1402,7 @@ static const char *test_fold_presolver_full_settings(void)
     mu_assert("x lifted", all_equal(sol->x, 6, 1.0));
     mu_assert("y lifted", all_equal(sol->y, 3, 0.0));
     mu_assert("z lifted", all_equal(sol->z, 6, -1.0));
-    PresolvedProblem original = lp_problem(&p);
+    ProblemData original = lp_problem(&p);
     mu_assert("lifted point is KKT",
               is_kkt_point(&original, sol->x, sol->y, sol->z, 1e-9));
     free_presolver(presolver);
@@ -1413,7 +1413,7 @@ static const char *test_fold_presolver_full_settings(void)
 }
 
 /* True when two presolved problems are identical. */
-static bool fold_same_presolved(const PresolvedProblem *a, const PresolvedProblem *b)
+static bool fold_same_presolved(const ProblemData *a, const ProblemData *b)
 {
     return a->m == b->m && a->n == b->n && a->nnz == b->nnz &&
            a->obj_offset == b->obj_offset &&

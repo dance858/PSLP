@@ -63,7 +63,7 @@ int main()
     {
         Pp[i] = 1;
     }
-    OriginalProblem problem = {};
+    ProblemData problem = {};
     problem.Ax = Ax;
     problem.Ai = Ai;
     problem.Ap = Ap;

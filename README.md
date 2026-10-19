@@ -50,14 +50,17 @@ in that folder contain some trivial public data structures. The API consists of 
 
 1. **Initialization** — performed using `new_presolver_from_problem()`, which
    creates and initializes internal data structures used by the presolver. The
-   problem is given in the struct `OriginalProblem`, with the quadratic
+   problem is given in the struct `ProblemData`, with the quadratic
    objective matrix $P$ as the full symmetric matrix in CSR form (left unset for
-   an LP). For an LP, `new_presolver()` takes the problem data as arguments.
+   an LP) and an optional constant objective term `obj_offset`. For an LP,
+   `new_presolver()` takes the problem data as arguments.
 
 2. **Presolve** — performed using `run_presolver()`, which executes the presolve
-   routines to reduce the problem. The reduced problem is available in the struct
-   `reduced_prob` of the presolver struct (including the reduced $P$ in
-   `Px`, `Pi`, `Pp`, `Pnnz`).
+   routines to reduce the problem. The reduced problem is available as a
+   `ProblemData` in the field `reduced_prob` of the presolver struct (including
+   the reduced $P$ in `Px`, `Pi`, `Pp`, `Pnnz` and the objective offset
+   `obj_offset`, which accounts for the input offset and the variables fixed by
+   the presolver).
 
 3. **Postsolve** — performed using `postsolve()`, which recovers a primal-dual
    solution to the original problem from a primal-dual solution to the reduced

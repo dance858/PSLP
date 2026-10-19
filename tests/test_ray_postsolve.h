@@ -639,7 +639,7 @@ static char *test_infeasible_rhs_change_primal_ray_postsolve()
     double lbs[] = {0, 0};
     double ubs[] = {INF, INF};
     double c[] = {0, 0};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -679,7 +679,7 @@ static char *test_infeasible_lhs_change_primal_ray_postsolve()
     double lbs[] = {0, 0};
     double ubs[] = {INF, INF};
     double c[] = {0, 0};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -722,7 +722,7 @@ static char *test_infeasible_both_sides_changed_primal_ray_postsolve()
     double lbs[] = {0, 0};
     double ubs[] = {INF, INF};
     double c[] = {0, 0};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -762,7 +762,7 @@ static char *test_infeasible_bound_change_primal_ray_postsolve()
     double lbs[] = {0, 0};
     double ubs[] = {10, 10};
     double c[] = {0, 0};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -801,7 +801,7 @@ static char *test_infeasible_parallel_col_primal_ray_postsolve()
     double lbs[] = {0, 0, 0};
     double ubs[] = {10, 10, 10};
     double c[] = {0, 0, 0};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -840,7 +840,7 @@ static char *test_infeasible_fix_col_inf_primal_ray_postsolve()
     double lbs[] = {0, 0, -INF};
     double ubs[] = {INF, INF, INF};
     double c[] = {0, 0, 0};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -878,7 +878,7 @@ static char *test_unbounded_fix_col_inf_dual_ray_postsolve()
     double lbs[] = {0, 0, -INF};
     double ubs[] = {INF, INF, INF};
     double c[] = {-1, -1, 0};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -918,7 +918,7 @@ static char *test_unbounded_negated_fix_col_inf_dual_ray_postsolve()
     double lbs[] = {0, 0, -INF};
     double ubs[] = {INF, INF, INF};
     double c[] = {-1, -1, 0};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();

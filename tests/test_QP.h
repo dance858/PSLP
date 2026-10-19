@@ -90,21 +90,21 @@ static Presolver *qp_presolver(const double *Ax, const int *Ai, const int *Ap,
                                const int *Pi, const int *Pp, size_t Pnnz,
                                const Settings *stgs)
 {
-    OriginalProblem problem = {.Ax = Ax,
-                               .Ai = Ai,
-                               .Ap = Ap,
-                               .m = m,
-                               .n = n,
-                               .nnz = nnz,
-                               .lhs = lhs,
-                               .rhs = rhs,
-                               .c = c,
-                               .lbs = lbs,
-                               .ubs = ubs,
-                               .Px = Px,
-                               .Pi = Pi,
-                               .Pp = Pp,
-                               .Pnnz = Pnnz};
+    ProblemData problem = {.Ax = Ax,
+                           .Ai = Ai,
+                           .Ap = Ap,
+                           .m = m,
+                           .n = n,
+                           .nnz = nnz,
+                           .lhs = lhs,
+                           .rhs = rhs,
+                           .c = c,
+                           .lbs = lbs,
+                           .ubs = ubs,
+                           .Px = Px,
+                           .Pi = Pi,
+                           .Pp = Pp,
+                           .Pnnz = Pnnz};
     return new_presolver_from_problem(&problem, stgs);
 }
 
@@ -344,7 +344,7 @@ static char *test_3_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == REDUCED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     mu_assert("reduced dims", red->m == 1 && red->n == 2 && red->nnz == 2);
     mu_assert("reduced offset", red->obj_offset == 6.0);
     mu_assert("reduced c", red->c[0] == -1.0 && red->c[1] == 1.0);
@@ -366,7 +366,7 @@ static char *test_3_qp()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -408,7 +408,7 @@ static char *test_4_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == REDUCED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     mu_assert("reduced dims", red->m == 1 && red->n == 3 && red->nnz == 2);
     mu_assert("reduced offset", red->obj_offset == -3.0);
     mu_assert("reduced P nnz", red->Pnnz == 5);
@@ -437,7 +437,7 @@ static char *test_4_qp()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -477,7 +477,7 @@ static char *test_5_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == REDUCED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     mu_assert("reduced dims", red->m == 0 && red->n == 2 && red->nnz == 0);
     mu_assert("reduced offset", red->obj_offset == -10.0);
     mu_assert("reduced c", red->c[0] == 1.0 && red->c[1] == 0.0);
@@ -500,7 +500,7 @@ static char *test_5_qp()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -540,7 +540,7 @@ static char *test_6_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == REDUCED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     const int *col_map = presolver->prob->constraints->state->work->mappings->cols;
     mu_assert("x1 substituted, x0 kept",
               col_map[0] == 0 && col_map[1] == -1 && col_map[2] == 1);
@@ -563,7 +563,7 @@ static char *test_6_qp()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -613,7 +613,7 @@ static char *test_7_qp()
     mu_assert("postsolve values",
               is_solution_correct(presolver->sol->x, x, presolver->sol->y, y,
                                   presolver->sol->z, z, n_rows, n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -652,7 +652,7 @@ static char *test_8_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == REDUCED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     mu_assert("reduced dims", red->m == 1 && red->n == 2);
     mu_assert("reduced c", red->c[0] == 1.0 && red->c[1] == -1.0);
     mu_assert("reduced P", red->Pnnz == 1 && red->Px[0] == 2.0 && red->Pi[0] == 0);
@@ -667,7 +667,7 @@ static char *test_8_qp()
     mu_assert("ray values", ABS(d[0] - correct_d[0]) <= QP_TOL &&
                                 ABS(d[1] - correct_d[1]) <= QP_TOL &&
                                 ABS(d[2] - correct_d[2]) <= QP_TOL);
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("ray certificate", is_dual_ray_certificate(&orig, d, QP_TOL));
@@ -707,7 +707,7 @@ static char *test_9_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == REDUCED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     mu_assert("reduced dims", red->m == 0 && red->n == 0 && red->Pnnz == 0);
     mu_assert("reduced offset", red->obj_offset == 0.0);
 
@@ -720,7 +720,7 @@ static char *test_9_qp()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -760,7 +760,7 @@ static char *test_10_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == REDUCED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     const int *col_map = presolver->prob->constraints->state->work->mappings->cols;
     mu_assert("x1 substituted, x0 kept",
               col_map[0] == 0 && col_map[1] == -1 && col_map[2] == 1);
@@ -781,7 +781,7 @@ static char *test_10_qp()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -819,7 +819,7 @@ static char *test_11_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == REDUCED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     mu_assert("reduced dims", red->m == 0 && red->n == 0 && red->Pnnz == 0);
     mu_assert("reduced offset", red->obj_offset == 0.0);
 
@@ -832,7 +832,7 @@ static char *test_11_qp()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -873,7 +873,7 @@ static char *test_12_qp()
     mu_assert("init", presolver != NULL);
     run_presolver(presolver);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     mu_assert("reduced dims", red->m == 1 && red->n == 3 && red->Pnnz == 1);
     mu_assert("ub tightened", red->ubs[0] == 2.0 && red->lbs[0] == 0.0);
     mu_assert("other bounds unchanged", red->ubs[1] == 10.0 && red->ubs[2] == 10.0);
@@ -885,7 +885,7 @@ static char *test_12_qp()
     mu_assert("postsolve values",
               is_solution_correct(presolver->sol->x, x, presolver->sol->y, y,
                                   presolver->sol->z, z, n_rows, n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -953,7 +953,7 @@ static char *test_15_qp()
         mu_assert("init", presolver != NULL);
         mu_assert("status", run_presolver(presolver) == REDUCED);
 
-        PresolvedProblem *red = presolver->reduced_prob;
+        ProblemData *red = presolver->reduced_prob;
         mu_assert("reduced dims", red->m == 0 && red->n == 0 && red->Pnnz == 0);
         mu_assert("reduced offset", red->obj_offset == 17.75);
 
@@ -968,7 +968,7 @@ static char *test_15_qp()
                   is_solution_correct(
                       presolver->sol->x, correct_x, presolver->sol->y, correct_y,
                       presolver->sol->z, correct_z, n_rows, n_cols, QP_TOL));
-        PresolvedProblem orig =
+        ProblemData orig =
             problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs,
                                 lbs, ubs, c, Px, Pi, Pp, Pp[n_cols]);
         mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -1008,7 +1008,7 @@ static char *test_16_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == REDUCED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     mu_assert("reduced dims", red->m == 2 && red->n == 2);
 
     double y_red[] = {-1, 1};
@@ -1020,7 +1020,7 @@ static char *test_16_qp()
     mu_assert("ray values", ABS(y[0] - correct_y[0]) <= QP_TOL &&
                                 ABS(y[1] - correct_y[1]) <= QP_TOL &&
                                 ABS(y[2] - correct_y[2]) <= QP_TOL);
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("ray certificate", is_primal_ray_certificate(&orig, y, QP_TOL));
@@ -1059,7 +1059,7 @@ static char *test_17_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == REDUCED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     mu_assert("reduced dims", red->m == 1 && red->n == 2 && red->Pnnz == 0);
     mu_assert("reduced c", red->c[0] == -1.0 && red->c[1] == -1.0);
     mu_assert("reduced offset", red->obj_offset == -5.0);
@@ -1078,7 +1078,7 @@ static char *test_17_qp()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -1119,7 +1119,7 @@ static char *test_18_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == REDUCED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     const int *col_map = presolver->prob->constraints->state->work->mappings->cols;
     mu_assert("x0 substituted",
               col_map[0] == -1 && col_map[1] == 0 && col_map[2] == 1);
@@ -1142,7 +1142,7 @@ static char *test_18_qp()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -1215,7 +1215,7 @@ static char *test_20_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == UNCHANGED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     mu_assert("reduced dims",
               red->m == 2 && red->n == 3 && red->nnz == 4 && red->Pnnz == 7);
     mu_assert("row kept", red->lhs[0] == 1.0 && red->rhs[0] == 1.0);
@@ -1227,7 +1227,7 @@ static char *test_20_qp()
     mu_assert("postsolve values",
               is_solution_correct(presolver->sol->x, x, presolver->sol->y, y,
                                   presolver->sol->z, z, n_rows, n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -1270,7 +1270,7 @@ static char *test_21_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == REDUCED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     const int *col_map = presolver->prob->constraints->state->work->mappings->cols;
     mu_assert("x0 substituted", col_map[0] == -1 && col_map[1] == 0 &&
                                     col_map[2] == 1 && col_map[3] == 2);
@@ -1303,7 +1303,7 @@ static char *test_21_qp()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -1345,7 +1345,7 @@ static char *test_22_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == REDUCED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     const int *col_map = presolver->prob->constraints->state->work->mappings->cols;
     mu_assert("x0, x1 substituted", col_map[0] == -1 && col_map[1] == -1 &&
                                         col_map[2] == 0 && col_map[3] == 1);
@@ -1368,7 +1368,7 @@ static char *test_22_qp()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -1411,7 +1411,7 @@ static char *test_23_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == REDUCED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     const int *col_map = presolver->prob->constraints->state->work->mappings->cols;
     mu_assert("x0 fixed", col_map[0] == -1 && col_map[1] == 0 && col_map[2] == 1 &&
                               col_map[3] == 2);
@@ -1439,7 +1439,7 @@ static char *test_23_qp()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -1481,7 +1481,7 @@ static char *test_24_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == REDUCED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     const int *col_map = presolver->prob->constraints->state->work->mappings->cols;
     mu_assert("x0 fixed", col_map[0] == -1 && col_map[1] == 0 && col_map[2] == 1);
     mu_assert("reduced dims", red->m == 2 && red->n == 2 && red->nnz == 4);
@@ -1502,7 +1502,7 @@ static char *test_24_qp()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -1545,7 +1545,7 @@ static char *test_25_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == REDUCED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     const int *col_map = presolver->prob->constraints->state->work->mappings->cols;
     mu_assert("x1 substituted",
               col_map[0] == 0 && col_map[1] == -1 && col_map[2] == 1);
@@ -1568,7 +1568,7 @@ static char *test_25_qp()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -1609,7 +1609,7 @@ static char *test_26_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == REDUCED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     const int *col_map = presolver->prob->constraints->state->work->mappings->cols;
     mu_assert("x1 substituted", col_map[0] == 0 && col_map[1] == -1 &&
                                     col_map[2] == 1 && col_map[3] == 2);
@@ -1637,7 +1637,7 @@ static char *test_26_qp()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -1676,7 +1676,7 @@ static char *test_27_qp()
     mu_assert("init", presolver != NULL);
     mu_assert("status", run_presolver(presolver) == REDUCED);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     mu_assert("everything removed",
               red->m == 0 && red->n == 0 && red->nnz == 0 && red->Pnnz == 0);
     mu_assert("offset", ABS(red->obj_offset - 0.04) <= QP_TOL);
@@ -1690,7 +1690,7 @@ static char *test_27_qp()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -1732,7 +1732,7 @@ static char *test_28_qp()
     mu_assert("init", presolver != NULL);
     run_presolver(presolver);
 
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     mu_assert("reduced dims", red->m == 1 && red->n == 3 && red->Pnnz == 4);
     mu_assert("ub tightened", red->ubs[0] == 1.5 && red->lbs[0] == -10.0);
     mu_assert("other bounds unchanged", red->lbs[1] == 0.0 && red->ubs[1] == 1.0 &&
@@ -1746,7 +1746,7 @@ static char *test_28_qp()
     mu_assert("postsolve values",
               is_solution_correct(presolver->sol->x, x, presolver->sol->y, y,
                                   presolver->sol->z, z, n_rows, n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -1790,7 +1790,7 @@ static char *test_29_qp()
     const Matrix *P = presolver->prob->obj->P;
     mu_assert("P unchanged", P->m == 6 && P->n == 6 && P->nnz == 1);
     mu_assert("presolve", run_presolver(presolver) != INFEASIBLE);
-    PresolvedProblem *red = presolver->reduced_prob;
+    ProblemData *red = presolver->reduced_prob;
     mu_assert("reduced dims",
               red->m == 3 && red->n == 6 && red->nnz == 6 && red->Pnnz == 1);
 
@@ -1802,7 +1802,7 @@ static char *test_29_qp()
     mu_assert("postsolve values",
               is_solution_correct(presolver->sol->x, x, presolver->sol->y, y,
                                   presolver->sol->z, z, n_rows, n_cols, QP_TOL));
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
     mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
@@ -1821,6 +1821,66 @@ static char *test_29_qp()
     mu_assert("reduced lp", presolver->reduced_prob->m == 1 &&
                                 presolver->reduced_prob->n == 2 &&
                                 presolver->reduced_prob->Pnnz == 0);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/*  The objective offset of the input is carried over to the reduced problem.
+    Same problem as test_3_qp, given with obj_offset = 2.5: the presolver adds
+    6 when it fixes x0, so the reduced offset is 8.5. */
+static char *test_30_qp()
+{
+    double Ax[] = {1, 1, 1};
+    int Ai[] = {0, 1, 2};
+    int Ap[] = {0, 1, 3};
+    int n_rows = 2, n_cols = 3;
+    double lhs[] = {2, -INF};
+    double rhs[] = {2, 3};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {10, 10, 10};
+    double c[] = {1, -3, 1};
+    double Px[] = {2, 1, 1, 2};
+    int Pi[] = {0, 1, 0, 1};
+    int Pp[] = {0, 2, 4, 4};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    ProblemData problem = {.Ax = Ax,
+                           .Ai = Ai,
+                           .Ap = Ap,
+                           .m = (size_t) n_rows,
+                           .n = (size_t) n_cols,
+                           .nnz = 3,
+                           .lhs = lhs,
+                           .rhs = rhs,
+                           .c = c,
+                           .lbs = lbs,
+                           .ubs = ubs,
+                           .Px = Px,
+                           .Pi = Pi,
+                           .Pp = Pp,
+                           .Pnnz = 4,
+                           .obj_offset = 2.5};
+    Presolver *presolver = new_presolver_from_problem(&problem, stgs);
+    mu_assert("init", presolver != NULL);
+    mu_assert("status", run_presolver(presolver) == REDUCED);
+
+    const ProblemData *red = presolver->reduced_prob;
+    mu_assert("reduced dims", red->m == 1 && red->n == 2 && red->nnz == 2);
+    mu_assert("reduced offset", red->obj_offset == 8.5);
+
+    double x[] = {0.5, 0};
+    double y[] = {0};
+    double z[] = {0, 1};
+    postsolve(presolver, x, y, z);
+    ProblemData orig =
+        problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
+                            ubs, c, Px, Pi, Pp, Pp[n_cols]);
+    orig.obj_offset = 2.5;
+    mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                                  presolver->sol->z, QP_TOL));
 
     PS_FREE(stgs);
     free_presolver(presolver);
@@ -1856,6 +1916,7 @@ static const char *all_tests_qp()
     mu_run_test(test_27_qp, counter_qp);
     mu_run_test(test_28_qp, counter_qp);
     mu_run_test(test_29_qp, counter_qp);
+    mu_run_test(test_30_qp, counter_qp);
     return 0;
 }
 
