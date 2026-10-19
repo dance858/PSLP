@@ -160,7 +160,7 @@ static inline PresolveStatus remove_stonrow(Problem *prob, int row)
         // saved before fix_col since it must be replayed after FIXED_COL.
         if (k_in_P)
         {
-            save_retrieval_deleted_row_zk(postsolve_info, row, k, aik, 0.0, -1, 0.0);
+            save_retrieval_deleted_row_zk(postsolve_info, row, k, aik, 0.0);
         }
 
         if (fix_col(prob, k, rhs / aik) == INFEASIBLE)

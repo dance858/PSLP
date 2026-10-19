@@ -66,9 +66,7 @@
             column with an undetermined sign stays
    Test 24: coupled dual fix at ub of a column with down-locks only
    Test 25: doubleton equality row with both variables coupled to each other
-            only: the sparser one is substituted, P_jj, c_j and the offset
-            change, the multiplier needs P_kj x_j (DELETED_ROW_ZK)
-   Test 26: the same when the stay column keeps a coupling to a third variable
+            only stays (no substitution with fill-in or into a coupled row)
    Test 29: lp_fold leaves a QP unfolded; P = 0 through new_presolver_from_problem
             folds as an LP
 */
@@ -1084,8 +1082,8 @@ static char *test_18_qp()
 /*  dton_choose_subst_qp: without P it is dton_choose_subst; with one column
     in P the other one is substituted, whatever its coefficient; with both in
     P the column that can be substituted without fill-in (sub0 / sub1: a
-    positive diagonal alone, or coupled to the other column only) is
-    substituted (dton_choose_subst decides when both can be), and a row
+    positive diagonal alone) is substituted (dton_choose_subst decides when
+    both can be), and a row
     without one is left alone. */
 static char *test_19_qp()
 {
@@ -1444,12 +1442,8 @@ static char *test_24_qp()
 /*  Doubleton equality row with both variables coupled to each other only.
     min. (1/2) x'Px + x2,  P = [2 1 0; 1 2 0; 0 0 0]
     s.t. x0 + x1 = 2, x0 + x2 <= 5, -10 <= x <= 10
-    Only dton_eq is enabled. Row 1 of P holds the diagonal and column 0, so
-    x1 = 2 - x0 can be substituted without fill-in (x1 is the sparser column):
-    P00 = 2 + 2 - 2 = 2, c0 = -(0 + 2 * 2) + 1 * 2 = -2, offset 2 * 2 = 4,
-    P01 removed, and the bounds of x1 transfer to -8 <= x0 <= 10.
-    Reduced solution (x0, x2) = (1, -10), y = 0, z = (0, 1). Postsolve: x1 = 1
-    and y0 = (P10 x0 + P11 x1) / a01 = 3. */
+    Only dton_eq is enabled. Neither row of P is a diagonal alone, so the
+    row is left alone. Solution x = (1, 1, -10), y = (3, 0), z = (0, 0, 1). */
 static char *test_25_qp()
 {
     double Ax[] = {1, 1, 1, 1};
@@ -1471,100 +1465,16 @@ static char *test_25_qp()
     Presolver *presolver = qp_presolver(Ax, Ai, Ap, n_rows, n_cols, 4, lhs, rhs, lbs,
                                         ubs, c, Px, Pi, Pp, 4, stgs);
     mu_assert("init", presolver != NULL);
-    mu_assert("status", run_presolver(presolver) == REDUCED);
+    mu_assert("status", run_presolver(presolver) == UNCHANGED);
 
-    ProblemData *red = presolver->reduced_prob;
-    const int *col_map = presolver->prob->constraints->state->work->mappings->cols;
-    mu_assert("x1 substituted",
-              col_map[0] == 0 && col_map[1] == -1 && col_map[2] == 1);
-    mu_assert("reduced dims", red->m == 1 && red->n == 2 && red->nnz == 2);
-    mu_assert("reduced P", red->Pnnz == 1 && red->Px[0] == 2.0 && red->Pi[0] == 0 &&
-                               red->Pp[1] == 1 && red->Pp[2] == 1);
-    mu_assert("reduced c", red->c[0] == -2.0 && red->c[1] == 1.0);
-    mu_assert("reduced offset", red->obj_offset == 4.0);
-    mu_assert("reduced bounds", red->lbs[0] == -8.0 && red->ubs[0] == 10.0);
+    const ProblemData *red = presolver->reduced_prob;
+    mu_assert("row stays", red->m == 2 && red->n == 3 && red->nnz == 4);
+    mu_assert("P unchanged", red->Pnnz == 4 && red->Px[1] == 1.0);
 
-    double x[] = {1, -10};
-    double y[] = {0};
-    double z[] = {0, 1};
+    double x[] = {1, 1, -10};
+    double y[] = {3, 0};
+    double z[] = {0, 0, 1};
     postsolve(presolver, x, y, z);
-
-    double correct_x[] = {1, 1, -10};
-    double correct_y[] = {3, 0};
-    double correct_z[] = {0, 0, 1};
-    mu_assert("postsolve values",
-              is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
-                                  correct_y, presolver->sol->z, correct_z, n_rows,
-                                  n_cols, QP_TOL));
-    ProblemData orig =
-        problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
-                            ubs, c, Px, Pi, Pp, Pp[n_cols]);
-    mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
-                                  presolver->sol->z, QP_TOL));
-
-    PS_FREE(stgs);
-    free_presolver(presolver);
-    return 0;
-}
-
-/*  As test 25, but the stay column x0 is also coupled to x3, so x0 cannot be
-    substituted (fill-in) and x1 must be, whatever the column sizes.
-    min. (1/2) x'Px + x2,  P = [2 1 0 1; 1 2 0 0; 0 0 0 0; 1 0 0 2]
-    s.t. x0 + x1 = 2, x0 + x2 <= 5, x2 + x3 <= 4, -10 <= x <= 10
-    Only dton_eq is enabled. x1 = 2 - x0: P00 = 2, P03 = P30 = 1, P33 = 2,
-    c0 = -2, offset 4. Reduced solution (x0, x2, x3) = (4/3, -10, -2/3),
-    y = 0, z = (0, 1, 0). Postsolve: x1 = 2/3, y0 = (4/3 + 2 * 2/3) / 1 = 8/3. */
-static char *test_26_qp()
-{
-    double Ax[] = {1, 1, 1, 1, 1, 1};
-    int Ai[] = {0, 1, 0, 2, 2, 3};
-    int Ap[] = {0, 2, 4, 6};
-    int n_rows = 3, n_cols = 4;
-    double lhs[] = {2, -INF, -INF};
-    double rhs[] = {2, 5, 4};
-    double lbs[] = {-10, -10, -10, -10};
-    double ubs[] = {10, 10, 10, 10};
-    double c[] = {0, 0, 1, 0};
-    double Px[] = {2, 1, 1, 1, 2, 1, 2};
-    int Pi[] = {0, 1, 3, 0, 1, 0, 3};
-    int Pp[] = {0, 3, 5, 5, 7};
-
-    Settings *stgs = default_settings();
-    set_settings_false(stgs);
-    stgs->dton_eq = true;
-    Presolver *presolver = qp_presolver(Ax, Ai, Ap, n_rows, n_cols, 6, lhs, rhs, lbs,
-                                        ubs, c, Px, Pi, Pp, 7, stgs);
-    mu_assert("init", presolver != NULL);
-    mu_assert("status", run_presolver(presolver) == REDUCED);
-
-    ProblemData *red = presolver->reduced_prob;
-    const int *col_map = presolver->prob->constraints->state->work->mappings->cols;
-    mu_assert("x1 substituted", col_map[0] == 0 && col_map[1] == -1 &&
-                                    col_map[2] == 1 && col_map[3] == 2);
-    mu_assert("reduced dims", red->m == 2 && red->n == 3 && red->nnz == 4);
-    double Px_correct[] = {2, 1, 1, 2};
-    int Pi_correct[] = {0, 2, 0, 2};
-    int Pp_correct[] = {0, 2, 2, 4};
-    mu_assert("reduced P", red->Pnnz == 4 &&
-                               ARRAYS_EQUAL_DOUBLE(Px_correct, red->Px, 4) &&
-                               ARRAYS_EQUAL_INT(Pi_correct, red->Pi, 4) &&
-                               ARRAYS_EQUAL_INT(Pp_correct, red->Pp, 4));
-    double c_correct[] = {-2, 1, 0};
-    mu_assert("reduced c", ARRAYS_EQUAL_DOUBLE(c_correct, red->c, 3));
-    mu_assert("reduced offset", red->obj_offset == 4.0);
-
-    double x[] = {4.0 / 3.0, -10, -2.0 / 3.0};
-    double y[] = {0, 0};
-    double z[] = {0, 1, 0};
-    postsolve(presolver, x, y, z);
-
-    double correct_x[] = {4.0 / 3.0, 2.0 / 3.0, -10, -2.0 / 3.0};
-    double correct_y[] = {8.0 / 3.0, 0, 0};
-    double correct_z[] = {0, 0, 1, 0};
-    mu_assert("postsolve values",
-              is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
-                                  correct_y, presolver->sol->z, correct_z, n_rows,
-                                  n_cols, QP_TOL));
     ProblemData orig =
         problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
                             ubs, c, Px, Pi, Pp, Pp[n_cols]);
@@ -1730,7 +1640,6 @@ static const char *all_tests_qp()
     mu_run_test(test_23_qp, counter_qp);
     mu_run_test(test_24_qp, counter_qp);
     mu_run_test(test_25_qp, counter_qp);
-    mu_run_test(test_26_qp, counter_qp);
     mu_run_test(test_29_qp, counter_qp);
     mu_run_test(test_30_qp, counter_qp);
     return 0;

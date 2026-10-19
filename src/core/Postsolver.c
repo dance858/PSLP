@@ -285,7 +285,7 @@ void retrieve_deleted_row(Solution *sol, int row, double val)
     sol->y[row] = val;
 }
 
-// yi += (zk + Pkk xk + Pkj xj) / aik and zk = 0 after the LP records, see
+// yi += (zk + Pkk xk) / aik and zk = 0 after the LP records, see
 // save_retrieval_deleted_row_zk
 static void retrieve_deleted_row_zk(Solution *sol, const DeletedRowZkRecord *r)
 {
@@ -293,11 +293,6 @@ static void retrieve_deleted_row_zk(Solution *sol, const DeletedRowZkRecord *r)
     assert(sol->x[r->col] != COL_NOT_RETRIEVED);
     assert(sol->z[r->col] != COL_NOT_RETRIEVED);
     double grad = sol->z[r->col] + r->Pkk * sol->x[r->col];
-    if (r->j >= 0)
-    {
-        assert(sol->x[r->j] != COL_NOT_RETRIEVED);
-        grad += r->Pkj * sol->x[r->j];
-    }
     sol->y[r->row] += grad / r->aik;
     sol->z[r->col] = 0.0;
 }
@@ -786,16 +781,13 @@ void save_retrieval_deleted_row(PostsolveInfo *info, int row, double val)
 }
 
 void save_retrieval_deleted_row_zk(PostsolveInfo *info, int row, int col, double aik,
-                                   double Pkk, int j, double Pkj)
+                                   double Pkk)
 {
-    assert((j == -1) == (Pkj == 0.0));
     u16Vec_append(info->type, DELETED_ROW_ZK);
     iVec_append(info->indices, row);
     iVec_append(info->indices, col);
-    iVec_append(info->indices, j);
     dVec_append(info->vals, aik);
     dVec_append(info->vals, Pkk);
-    dVec_append(info->vals, Pkj);
     iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);

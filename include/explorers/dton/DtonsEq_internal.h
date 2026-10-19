@@ -46,8 +46,6 @@ typedef struct DtonSubst
     double mult; /* x_k = shift + mult * x_target */
     double shift;
     double Pkk; /* diagonal of a substituted column in P, 0 otherwise */
-    double Pkj; /* its coupling to the stay column j when that is the only other
-                   entry of its row of P, 0 otherwise */
 } DtonSubst;
 
 /* Phases 1-2: the round's substitutions in claim order, compacted after

@@ -395,42 +395,35 @@ static inline DeletedRowRecord decode_deleted_row(const int *indices,
    appears in P. The multiplier needs the gradient at k, hence x, so the LP
    records leave the P part out of yi. This record is saved before them,
    replays after them and adds it:
-       yi += (zk + Pkk xk + Pkj xj) / aik,   zk = 0.
+       yi += (zk + Pkk xk) / aik,   zk = 0.
    For a fixed xk, FIXED_COL (which holds row k of P) has already put the P
-   part into zk and Pkk = Pkj = 0. For an xk substituted by the doubleton
-   eliminator, SUB_COL_DTON leaves zk = 0 and (Pkk, Pkj) is row k of P at that
-   time: the diagonal and, when xk was coupled to the stay column j of the
-   row, that coupling (sub_coupled_var_in_obj_dton); otherwise j = -1 and
-   Pkj = 0.
-   * info->vals stores    [aik, Pkk, Pkj]
-   * info->indices stores [row, col, j]
+   part into zk and Pkk = 0. For an xk substituted by the doubleton
+   eliminator, SUB_COL_DTON leaves zk = 0 and Pkk is the diagonal of row k of
+   P at that time (its only entry, see diagonal_only_P_entry).
+   * info->vals stores    [aik, Pkk]
+   * info->indices stores [row, col]
 */
 void save_retrieval_deleted_row_zk(PostsolveInfo *info, int row, int col, double aik,
-                                   double Pkk, int j, double Pkj);
+                                   double Pkk);
 
 typedef struct DeletedRowZkRecord
 {
     int row;
     int col;
-    int j;
     double aik;
     double Pkk;
-    double Pkj;
 } DeletedRowZkRecord;
 
 static inline DeletedRowZkRecord
 decode_deleted_row_zk(const int *indices, const double *vals, int record_len)
 {
     DeletedRowZkRecord r;
-    assert(record_len == 3);
+    assert(record_len == 2);
     (void) record_len; // only used by the assert
     r.row = indices[0];
     r.col = indices[1];
-    r.j = indices[2];
     r.aik = vals[0];
     r.Pkk = vals[1];
-    r.Pkj = vals[2];
-    assert((r.j == -1) == (r.Pkj == 0.0));
     return r;
 }
 

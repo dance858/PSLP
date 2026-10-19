@@ -340,15 +340,7 @@ void dton_apply(Problem *prob, DtonWorkspace *dton_work, int *deferred,
     for (int ii = 0; ii < substs->n_recs; ++ii)
     {
         const DtonSubst *rec = substs->recs + substs->order[ii];
-        if (rec->Pkj != 0.0)
-        {
-            /* row j of P holds k, so j is claimed by no other row this round
-               and the composed survivor is j itself */
-            assert(rec->target == rec->j);
-            sub_coupled_var_in_obj_dton(prob, rec->k, rec->j, rec->mult, rec->shift,
-                                        rec->Pkk, rec->Pkj);
-        }
-        else if (rec->Pkk != 0.0)
+        if (rec->Pkk != 0.0)
         {
             sub_diag_var_in_obj_dton(prob, rec->k, rec->target, rec->mult,
                                      rec->shift, rec->Pkk);
