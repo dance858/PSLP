@@ -164,8 +164,7 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
         {
             // only affects a removed row or column
         }
-        else if (type == BOUND_CHANGE_NO_ROW || type == BOUND_CHANGE_THE_ROW ||
-                 type == DUAL_BOUND_CHANGE)
+        else if (type == BOUND_CHANGE_NO_ROW || type == BOUND_CHANGE_THE_ROW)
         {
             // bound changes do not touch A, so (x, y) carry over unchanged
         }

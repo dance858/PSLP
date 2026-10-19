@@ -114,13 +114,10 @@ static inline PresolveStatus _simple_dual_fix(Problem *prob, double ck, double l
    objective in xk is gk = ck + sum_{l != k} Pkl xl + Pkk xk, and [gmin, gmax]
    bounds the first two terms over the bounds of the other variables. Without
    down-locks xk can be decreased freely, so every optimal solution has gk <= 0
-   or xk = lb, i.e. xk <= max(lb, -gmin / Pkk): xk = lb when the maximum is lb
-   (gmin + Pkk lb >= 0), otherwise the upper bound is tightened to -gmin / Pkk.
-   Symmetrically, without up-locks xk >= min(ub, -gmax / Pkk). A diagonal-only
-   row without locks is fixed at clip(-ck / Pkk, lb, ub). An implied bound is
-   only applied when it is finite, not huge and tighter by FEAS_TOL
-   (dual_tighten_bound, postsolve record DUAL_BOUND_CHANGE); it is never
-   binding at an exact optimum of the reduced problem. */
+   or xk = lb; when gk > 0 over the whole box (gmin + Pkk lb >= 0), xk is fixed
+   at lb. Symmetrically, without up-locks xk is fixed at ub when
+   gmax + Pkk ub <= 0. A diagonal-only row without locks is fixed at
+   clip(-ck / Pkk, lb, ub). */
 static inline void P_dual_fix(Problem *prob, int col)
 {
     const Constraints *constraints = prob->constraints;
@@ -175,38 +172,17 @@ static inline void P_dual_fix(Problem *prob, int col)
         return;
     }
 
-    // no down-locks: xk <= max(lb, -gmin / Pkk)
-    if (lock.down == 0)
+    // no down-locks and gk > 0 over the box: xk = lb
+    if (lock.down == 0 && !lb_inf && gmin + Pkk * lb >= 0.0)
     {
-        if (!lb_inf && gmin + Pkk * lb >= 0.0)
-        {
-            fix_col(prob, col, lb);
-            return;
-        }
-        double implied_ub = -gmin / Pkk;
-        if (!IS_ABS_INF(gmin) && !IS_HUGE(implied_ub) &&
-            (ub_inf || implied_ub <= ub - FEAS_TOL))
-        {
-            dual_tighten_bound(prob, col, implied_ub, true);
-            ub = implied_ub;
-            ub_inf = false;
-        }
+        fix_col(prob, col, lb);
+        return;
     }
 
-    // no up-locks: xk >= min(ub, -gmax / Pkk)
-    if (lock.up == 0)
+    // no up-locks and gk < 0 over the box: xk = ub
+    if (lock.up == 0 && !ub_inf && gmax + Pkk * ub <= 0.0)
     {
-        if (!ub_inf && gmax + Pkk * ub <= 0.0)
-        {
-            fix_col(prob, col, ub);
-            return;
-        }
-        double implied_lb = -gmax / Pkk;
-        if (!IS_ABS_INF(gmax) && !IS_HUGE(implied_lb) &&
-            (lb_inf || implied_lb >= lb + FEAS_TOL))
-        {
-            dual_tighten_bound(prob, col, implied_lb, false);
-        }
+        fix_col(prob, col, ub);
     }
 }
 
