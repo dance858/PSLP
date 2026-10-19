@@ -72,15 +72,13 @@ extern "C"
         int n_threads;
     } Settings;
 
-    /* struct corresponding to a problem
-           min (1/2) x'Px + c'x + obj_offset
-           s.t. lhs <= Ax <= rhs,  lbs <= x <= ubs.
-       It is used both for the problem given to the presolver and for the
-       reduced problem returned in 'reduced_prob'. Optional parts are left
-       NULL or 0, so an LP leaves P unset. The arrays of the reduced problem
-       are owned by the presolver and stay valid until
-       'free_presolver_reduced_problem' or 'free_presolver' is called; the
-       user must not modify or free them. */
+    /* struct corresponding to a problem min (1/2) x'Px + c'x + obj_offset s.t.
+           lhs <= Ax <= rhs,  lbs <= x <= ubs. It is used both for the problem
+           given to the presolver and for the reduced problem returned in
+           'reduced_prob'. For an LP, set P to NULL and Pnnz to 0. The arrays of
+           the reduced problem are owned by the presolver and stay valid until
+           'free_presolver_reduced_problem' or 'free_presolver' is called. The
+           user must not modify or free them. */
     typedef struct
     {
         /* CSR format of a matrix A of size m x n with nnz non-zeros */
@@ -101,20 +99,18 @@ extern "C"
         const double *ubs;
 
         /* CSR format of the quadratic objective matrix P (n x n, full
-           symmetric matrix with sorted column indices, Pnnz non-zeros).
-           Pp == NULL or Pnnz == 0 means P = 0, i.e. an LP. */
+           symmetric matrix). */
         const double *Px;
         const int *Pi;
         const int *Pp;
         size_t Pnnz;
 
-        /* constant offset of the objective. On input it is the constant term
-           of the objective (0 for most problems). In the reduced problem it
-           is the input offset plus what the presolver adds when it fixes
-           variables, so that objective values of the original and the
-           reduced problem agree. This offset should possibly be taken into
-           account on the solver side when evaluating the relative optimality
-           gap of the reduced problem. */
+        /* Constant offset of the objective. On input it is the constant term of
+           the objective (0 for most problems). In the reduced problem it is the
+           input offset plus what the presolver adds when it fixes variables, so
+           that objective values of the original and the reduced problem agree.
+           This offset should be taken into account on the solver side when
+           evaluating the relative optimality gap of the reduced problem. */
         double obj_offset;
     } ProblemData;
 
@@ -122,7 +118,7 @@ extern "C"
          - 'stats' contains statistics about the presolving process
          - 'stgs' contains the settings used for presolving
          - 'prob' contains the internal problem representation used during
-            presolving (never needs to be accessed by the user)
+            presolving (it never needs to be accessed by the user)
          - 'reduced_prob' contains the presolved problem after running
             'run_presolver'
          - 'sol' contains the solution to the original problem after running
@@ -169,22 +165,20 @@ extern "C"
     PresolveStatus run_presolver(Presolver *presolver);
 
     /* Free the presolved problem data owned by 'presolver' after the caller has
-       copied all arrays in 'reduced_prob'. This does not free 'presolver'; the
-       caller must still call 'free_presolver' after postsolve. Normal postsolve
-       and dual-infeasibility-ray postsolve remain available. Primal-
+       copied all arrays in 'reduced_prob'. This does not free 'presolver', and
+       the caller must still call 'free_presolver' after postsolve. Normal
+       postsolve and dual-infeasibility-ray postsolve remain available. Primal-
        infeasibility-ray postsolve is no longer available because it requires
        the reduced constraint matrix. */
     void free_presolver_reduced_problem(Presolver *presolver);
 
     /* Postsolve the problem given the primal-dual solution (x, y, z) of the
        reduced problem, where z = Px + c - A'y are the multipliers of the
-       variable bounds (z = c - A'y for an LP): z >= 0 for a variable at its
-       lower bound, z <= 0 at its upper bound, y >= 0 for a row active at its
-       lhs and y <= 0 at its rhs. The function populates presolver->sol, so if
-       you're looking for the solution to the original problem, you want to
-       look there. If the solver has added the offset to the objective when
-       solving the reduced problem, the optimal value of the original problem
-       is the same as that of the reduced problem. */
+       variable bounds (z = c - A'y for an LP). The convention is that z >= 0
+       for a variable at its lower bound, z <= 0 at its upper bound, y >= 0 for
+       a row active at its lhs and y <= 0 at its rhs. The function populates
+       presolver->sol, so if you're looking for the solution to the original
+       problem, you want to look there. */
     void postsolve(Presolver *presolver, const double *x, const double *y,
                    const double *z);
 
@@ -201,7 +195,10 @@ extern "C"
 
        The semantics are as follows. If (x, y) is an optimal primal-dual point
        of the original problem and 'relax_bounds' is false, (x_red, y_red,
-       z_red) is an optimal primal-dual point of the reduced problem. */
+       z_red) is an optimal primal-dual point of the reduced problem.
+
+       This function is currently only implemented for LPs. For a QP it prints
+       an error and leaves x_red, y_red and z_red untouched. */
     void map_original_sol_to_reduced(Presolver *presolver, const double *x,
                                      const double *y, double *x_red, double *y_red,
                                      double *z_red);

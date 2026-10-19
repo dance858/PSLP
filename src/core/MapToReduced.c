@@ -198,7 +198,8 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
     }
 }
 
-/* z = c - A^T y for the reduced problem */
+/* z = c - A^T y for the reduced problem. This assumes an LP; for a QP the term
+   P x is missing, which is why 'map_original_sol_to_reduced' refuses QPs. */
 static void compute_reduced_dual_slack(double *z, const ProblemData *prob,
                                        const double *y)
 {
@@ -228,6 +229,14 @@ void map_original_sol_to_reduced(Presolver *presolver, const double *x,
     {
         fprintf(stderr, "PSLP error: map_original_sol_to_reduced is not supported "
                         "with lp_fold yet! Outputs are left untouched. \n");
+        return;
+    }
+
+    /* 'stats' survives 'free_presolver_reduced_problem', unlike the reduced P */
+    if (presolver->stats->Pnnz_original > 0)
+    {
+        fprintf(stderr, "PSLP error: map_original_sol_to_reduced is not supported "
+                        "for QPs yet! Outputs are left untouched. \n");
         return;
     }
 
