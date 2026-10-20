@@ -27,4 +27,12 @@ void fold_postsolve(const FoldMaps *maps, int n_rows, int n_cols,
                     const double *x_folded, const double *y_folded,
                     const double *z_folded, double *x, double *y, double *z);
 
+/* Maps a primal-dual point of the original problem to the folded one, the
+   inverse of 'fold_postsolve' on optimal points: x averaged over each column
+   class, y summed over each row class. Either part is skipped when its output
+   is NULL. */
+void fold_map_to_folded(const FoldMaps *maps, int n_rows, int n_cols,
+                        const double *x, const double *y, double *x_folded,
+                        double *y_folded);
+
 #endif // FOLD_POSTSOLVE_H
