@@ -139,33 +139,45 @@ void radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
 }
 
 // --- Single-key radix sort ---
+//
+// One core serves radix_sort_by_key (the key of element x is keys[x]) and
+// sort_ints (keys NULL: the key is x itself). The test on keys is loop
+// invariant and folds away once the core is inlined into each wrapper.
 
-static void insertion_sort_by_key(int *indices, size_t n, const int *keys)
+static inline uint32_t sort_key(const int *keys, int x)
+{
+    return (uint32_t) (keys ? keys[x] : x);
+}
+
+static void insertion_sort_core(int *v, size_t n, const int *keys)
 {
     for (size_t i = 1; i < n; i++)
     {
-        int idx = indices[i];
-        int idx_key = keys[idx];
+        int x = v[i];
+        uint32_t x_key = sort_key(keys, x);
         size_t j = i;
-        while (j > 0 && keys[indices[j - 1]] > idx_key)
+        while (j > 0 && sort_key(keys, v[j - 1]) > x_key)
         {
-            indices[j] = indices[j - 1];
+            v[j] = v[j - 1];
             j--;
         }
-        indices[j] = idx;
+        v[j] = x;
     }
 }
 
-void radix_sort_by_key(int *indices, size_t n, const int *keys, int *aux)
+// Stable LSD radix sort of v by sort_key, one byte per pass. A pass whose
+// byte is the same in every element is skipped: a stable scatter into a
+// single bucket would leave the array unchanged. aux holds n ints.
+static void radix_sort_core(int *v, size_t n, const int *keys, int *aux)
 {
-    if (n < 256)
+    if (n < RADIX_SORT_INSERTION_MAX)
     {
-        insertion_sort_by_key(indices, n, keys);
+        insertion_sort_core(v, n, keys);
         return;
     }
 
     size_t counts[256];
-    int *src = indices, *dst = aux;
+    int *src = v, *dst = aux;
 
     for (int pass = 0; pass < 4; pass++)
     {
@@ -175,26 +187,23 @@ void radix_sort_by_key(int *indices, size_t n, const int *keys, int *aux)
         memset(counts, 0, 256 * sizeof(size_t));
         for (size_t i = 0; i < n; i++)
         {
-            unsigned byte = ((uint32_t) keys[src[i]] >> shift) & 0xFF;
+            unsigned byte = (sort_key(keys, src[i]) >> shift) & 0xFF;
             counts[byte]++;
         }
 
-        // skip pass if all values fall in one bucket
-        if (pass > 0)
+        // skip the pass if every element falls in one bucket
+        int skip = 0;
+        for (int b = 0; b < 256; b++)
         {
-            int skip = 0;
-            for (int b = 0; b < 256; b++)
+            if (counts[b] == n)
             {
-                if (counts[b] == n)
-                {
-                    skip = 1;
-                    break;
-                }
+                skip = 1;
+                break;
             }
-            if (skip)
-            {
-                continue;
-            }
+        }
+        if (skip)
+        {
+            continue;
         }
 
         // prefix sum
@@ -206,10 +215,10 @@ void radix_sort_by_key(int *indices, size_t n, const int *keys, int *aux)
             total += c;
         }
 
-        // scatter (forward — stable)
+        // scatter (forward: stable)
         for (size_t i = 0; i < n; i++)
         {
-            unsigned byte = ((uint32_t) keys[src[i]] >> shift) & 0xFF;
+            unsigned byte = (sort_key(keys, src[i]) >> shift) & 0xFF;
             dst[counts[byte]++] = src[i];
         }
 
@@ -219,11 +228,21 @@ void radix_sort_by_key(int *indices, size_t n, const int *keys, int *aux)
         dst = tmp;
     }
 
-    // if result ended up in aux, copy back to indices
-    if (src != indices)
+    // if the result ended up in aux, copy it back
+    if (src != v)
     {
-        memcpy(indices, src, n * sizeof(int));
+        memcpy(v, src, n * sizeof(int));
     }
+}
+
+void radix_sort_by_key(int *indices, size_t n, const int *keys, int *aux)
+{
+    radix_sort_core(indices, n, keys, aux);
+}
+
+void sort_ints(int *v, size_t n, int *aux)
+{
+    radix_sort_core(v, n, NULL, aux);
 }
 
 // --- Parallel radix sort infrastructure ---
