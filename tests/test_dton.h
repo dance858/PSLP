@@ -88,24 +88,44 @@ static char *test_dton_workspace()
 
 static char *test_dton_choose_subst()
 {
-    // the larger coefficient is substituted, whatever the column sizes
+    // equal column sizes: the larger coefficient, 1 on a tie
     double v12[] = {1.0, 2.0};
-    mu_assert("larger c1", dton_choose_subst(v12, 3, 3) == 1);
-    mu_assert("larger c1 beats singleton c0", dton_choose_subst(v12, 1, 5) == 1);
-    mu_assert("larger c1 beats sparser c0", dton_choose_subst(v12, 2, 3) == 1);
     double v21[] = {2.0, 1.0};
-    mu_assert("larger c0", dton_choose_subst(v21, 3, 3) == 0);
     double vhuge[] = {1e9, 1.0};
-    mu_assert("huge pivot substituted", dton_choose_subst(vhuge, 3, 3) == 0);
     double vtiny[] = {1e-9, 1.0};
-    mu_assert("tiny pivot avoided", dton_choose_subst(vtiny, 3, 3) == 1);
-
-    // equal magnitude: singleton column first, then the sparser column
     double v11[] = {1.0, -1.0};
-    mu_assert("singleton c0", dton_choose_subst(v11, 1, 5) == 0);
-    mu_assert("singleton c1", dton_choose_subst(v11, 5, 1) == 1);
-    mu_assert("sparser c0", dton_choose_subst(v11, 2, 3) == 0);
-    mu_assert("sparser c1", dton_choose_subst(v11, 3, 2) == 1);
+    mu_assert("larger c1", dton_choose_subst(v12, 3, 3) == 1);
+    mu_assert("larger c0", dton_choose_subst(v21, 3, 3) == 0);
+    mu_assert("huge pivot substituted", dton_choose_subst(vhuge, 3, 3) == 0);
+    mu_assert("tiny pivot avoided", dton_choose_subst(vtiny, 3, 3) == 1);
+    mu_assert("equal magnitude and size: c1", dton_choose_subst(v11, 3, 3) == 1);
+    mu_assert("singletons: c1", dton_choose_subst(v11, 1, 1) == 1);
+
+    // different sizes: the sparser column, whatever the coefficients
+    mu_assert("sparser c0 beats larger c1", dton_choose_subst(v12, 1, 5) == 0);
+    mu_assert("sparser c0 by one", dton_choose_subst(v12, 2, 3) == 0);
+    mu_assert("sparser c1 beats larger c0", dton_choose_subst(v21, 5, 1) == 1);
+    mu_assert("sparser c1 by one", dton_choose_subst(v21, 3, 2) == 1);
+    mu_assert("huge dense coefficient vetoes sparse c1",
+              dton_choose_subst(vhuge, 5, 1) == 0);
+    mu_assert("sparser c0, equal magnitude", dton_choose_subst(v11, 1, 5) == 0);
+    mu_assert("sparser c1, equal magnitude", dton_choose_subst(v11, 5, 1) == 1);
+    mu_assert("huge sparse pivot", dton_choose_subst(vhuge, 1, 5) == 0);
+
+    // the pivot veto: a sparse coefficient below DTON_PIVOT_RATIO times the
+    // dense one hands the elimination to the denser column
+    double vtiny_neg[] = {-1e-9, 1.0};
+    double vtiny_c1[] = {1.0, 1e-9};
+    double vedge[] = {DTON_PIVOT_RATIO, 1.0};
+    double vbelow[] = {0.999 * DTON_PIVOT_RATIO, 1.0};
+    mu_assert("tiny sparse c0 vetoed", dton_choose_subst(vtiny, 1, 5) == 1);
+    mu_assert("sign ignored", dton_choose_subst(vtiny_neg, 1, 5) == 1);
+    mu_assert("tiny sparse c1 vetoed", dton_choose_subst(vtiny_c1, 5, 1) == 0);
+    mu_assert("ratio exactly at the threshold: no veto",
+              dton_choose_subst(vedge, 1, 5) == 0);
+    mu_assert("ratio just below: veto", dton_choose_subst(vbelow, 1, 5) == 1);
+    mu_assert("tiny dense coefficient: no veto",
+              dton_choose_subst(vtiny, 5, 1) == 1);
 
     return 0;
 }
@@ -161,7 +181,7 @@ static char *test_dton_claim_conflict()
     return 0;
 }
 
-/* Chain x0 -> x1 -> x2: r0 eliminates x0 into x1 (singleton rule), r1
+/* Chain x0 -> x1 -> x2: r0 eliminates x0 into x1 (sparser column), r1
    eliminates x1 into x2 (larger coefficient); composition maps both onto
    the final survivor x2 with hand-computed maps and depths. */
 static char *test_dton_chain_depth2()
@@ -456,14 +476,16 @@ static char *test_dton_apply_substitution()
    the substitution never touched is kept verbatim. */
 static char *test_dton_cancellation()
 {
-    // r0: x0 + 2 x1 = 0          (eliminates x1 = -0.5 x0)
+    // r0: x0 + 2 x1 = 0          (eliminates x1 = -0.5 x0: x0 and x1 both
+    //                             sit in three rows, the coefficient decides)
     // r1: 0.5 x0 + x1 + x2 <= 5  (x0 entry cancels: 0.5 - 0.5 = 0 -> dropped)
     // r2: x1 + 1e-12 x3 + x4 <= 7 (tiny untouched x3 entry must survive)
-    double Ax[] = {1, 2, 0.5, 1, 1, 1, 1e-12, 1};
-    int Ai[] = {0, 1, 0, 1, 2, 1, 3, 4};
-    int Ap[] = {0, 2, 5, 8};
-    double lhs[] = {0, -INF, -INF};
-    double rhs[] = {0, 5, 7};
+    // r3: x0 + x4 <= 10          (gives x0 its third row; untouched)
+    double Ax[] = {1, 2, 0.5, 1, 1, 1, 1e-12, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 1, 2, 1, 3, 4, 0, 4};
+    int Ap[] = {0, 2, 5, 8, 10};
+    double lhs[] = {0, -INF, -INF, -INF};
+    double rhs[] = {0, 5, 7, 10};
     double lbs[] = {0, 0, 0, 0, 0};
     double ubs[] = {10, 10, 10, 10, 10};
     double c[] = {0, 0, 0, 0, 0};
@@ -472,7 +494,7 @@ static char *test_dton_cancellation()
     set_settings_false(stgs);
     stgs->dton_eq = true;
     Presolver *presolver =
-        new_presolver(Ax, Ai, Ap, 3, 5, 8, lhs, rhs, lbs, ubs, c, stgs);
+        new_presolver(Ax, Ai, Ap, 4, 5, 10, lhs, rhs, lbs, ubs, c, stgs);
     mu_assert("presolver allocation failed", presolver != NULL);
 
     Problem *prob = presolver->prob;
@@ -497,7 +519,7 @@ static char *test_dton_cancellation()
     mu_assert("r2 fill value", A->x[A->p[2].start] == -0.5);
     mu_assert("r2 tiny entry kept", A->x[A->p[2].start + 1] == 1e-12);
 
-    mu_assert("final nnz", A->nnz == 4);
+    mu_assert("final nnz", A->nnz == 6);
 
     DEBUG(run_debugger(constraints, false));
 
@@ -563,7 +585,7 @@ static char *test_dton_chain_empties_matrix()
 
 /* Within-round chain: bound transfer must run deepest link first and
    read the intermediate column's bounds LIVE. r0: x0 + x1 = 1 claims
-   x0 -> x1 (singleton rule); r1: 2 x1 + x2 = 4 claims x1 -> x2 (larger
+   x0 -> x1 (sparser column); r1: 2 x1 + x2 = 4 claims x1 -> x2 (larger
    coefficient; the r2 pad keeps x2 non-singleton). Depth-descending
    transfer: x0 in [0,1] gives x1 in [0,1], and the UPDATED x1 bounds give
    x2 = 4 - 2 x1 in [2, 4]. A stale snapshot of x1's claim-time bounds
@@ -820,37 +842,40 @@ static char *test_dton_postsolve_single_link()
 }
 
 /* Depth-2 chain x0 -> x1 -> x2 with both eliminated columns in a kept row,
-   so the owner-row multipliers need the deeper owner row and the kept row. */
+   so the owner-row multipliers need the deeper owner row and the kept row.
+   r3 gives x2 the size of x1, so r1's coefficient 2 eliminates x1. */
 static char *test_dton_postsolve_chain()
 {
-    // r0: x0 + x1 = 1, r1: 2 x1 + x2 = 4, r2: 2 x0 + x1 + x2 + x3 <= 10
-    double Ax[] = {1, 1, 2, 1, 2, 1, 1, 1};
-    int Ai[] = {0, 1, 1, 2, 0, 1, 2, 3};
-    int Ap[] = {0, 2, 4, 8};
-    double lhs[] = {1, 4, -INF};
-    double rhs[] = {1, 4, 10};
-    double lbs[] = {0, 0, 0, 0};
-    double ubs[] = {10, 10, 10, 10};
-    double c[] = {1, 2, 3, 4};
-    return dton_check_postsolve(Ax, Ai, Ap, 3, 4, 8, lhs, rhs, lbs, ubs, c, false,
-                                1e9);
-}
-
-/* Tree: x0 -> x2 and x1 -> x2 (two heads), x2 -> x3; the column of x2 holds
-   two owner rows of the same round. */
-static char *test_dton_postsolve_tree()
-{
-    // r0: x0 + x2 = 1, r1: x1 + x2 = 1, r2: 2 x2 + x3 = 4,
-    // r3: x0 + 2 x1 + 3 x2 + x3 <= 10
-    double Ax[] = {1, 1, 1, 1, 2, 1, 1, 2, 3, 1};
-    int Ai[] = {0, 2, 1, 2, 2, 3, 0, 1, 2, 3};
-    int Ap[] = {0, 2, 4, 6, 10};
-    double lhs[] = {1, 1, 4, -INF};
-    double rhs[] = {1, 1, 4, 10};
+    // r0: x0 + x1 = 1, r1: 2 x1 + x2 = 4, r2: 2 x0 + x1 + x2 + x3 <= 10,
+    // r3: x2 + x3 <= 10
+    double Ax[] = {1, 1, 2, 1, 2, 1, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 1, 2, 0, 1, 2, 3, 2, 3};
+    int Ap[] = {0, 2, 4, 8, 10};
+    double lhs[] = {1, 4, -INF, -INF};
+    double rhs[] = {1, 4, 10, 10};
     double lbs[] = {0, 0, 0, 0};
     double ubs[] = {10, 10, 10, 10};
     double c[] = {1, 2, 3, 4};
     return dton_check_postsolve(Ax, Ai, Ap, 4, 4, 10, lhs, rhs, lbs, ubs, c, false,
+                                1e9);
+}
+
+/* Tree: x0 -> x2 and x1 -> x2 (two heads), x2 -> x3; the column of x2 holds
+   two owner rows of the same round. r4 and r5 give x3 the size of x2, so
+   r2's coefficient 2 eliminates x2. */
+static char *test_dton_postsolve_tree()
+{
+    // r0: x0 + x2 = 1, r1: x1 + x2 = 1, r2: 2 x2 + x3 = 4,
+    // r3: x0 + 2 x1 + 3 x2 + x3 <= 10, r4: x3 + x4 <= 10, r5: x3 + x5 <= 10
+    double Ax[] = {1, 1, 1, 1, 2, 1, 1, 2, 3, 1, 1, 1, 1, 1};
+    int Ai[] = {0, 2, 1, 2, 2, 3, 0, 1, 2, 3, 3, 4, 3, 5};
+    int Ap[] = {0, 2, 4, 6, 10, 12, 14};
+    double lhs[] = {1, 1, 4, -INF, -INF, -INF};
+    double rhs[] = {1, 1, 4, 10, 10, 10};
+    double lbs[] = {0, 0, 0, 0, 0, 0};
+    double ubs[] = {10, 10, 10, 10, 10, 10};
+    double c[] = {1, 2, 3, 4, 5, 6};
+    return dton_check_postsolve(Ax, Ai, Ap, 6, 6, 14, lhs, rhs, lbs, ubs, c, false,
                                 1e9);
 }
 
@@ -1077,22 +1102,23 @@ static bool dton_spans_ordered(const Matrix *AT)
     return true;
 }
 
-/* Same substitution with four fill-in rows: x0's column {r0, r5} grows to
-   5 > 2 entries, so it moves to the tail reserved by the initial transpose. */
+/* Same substitution with four fill-in rows: x0 and x1 both sit in five rows,
+   so the coefficient 2 eliminates x1, and x0's column {r0, r5..r8} grows to
+   8 > 5 entries, so it moves to the tail reserved by the initial transpose. */
 static char *test_dton_merge_relocate()
 {
-    // r0: x0 + 2 x1 = 1, r1..r4: x1 + x_{2..5} <= 5, r5: x0 + x6 <= 5
-    double Ax[] = {1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-    int Ai[] = {0, 1, 1, 2, 1, 3, 1, 4, 1, 5, 0, 6};
-    int Ap[] = {0, 2, 4, 6, 8, 10, 12};
-    double lhs[] = {1, -INF, -INF, -INF, -INF, -INF};
-    double rhs[] = {1, 5, 5, 5, 5, 5};
-    double lbs[] = {0, 0, 0, 0, 0, 0, 0};
-    double ubs[] = {10, 10, 10, 10, 10, 10, 10};
-    double c[] = {1, 1, 1, 1, 1, 1, 1};
+    // r0: x0 + 2 x1 = 1, r1..r4: x1 + x_{2..5} <= 5, r5..r8: x0 + x_{6..9} <= 5
+    double Ax[] = {1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 1, 2, 1, 3, 1, 4, 1, 5, 0, 6, 0, 7, 0, 8, 0, 9};
+    int Ap[] = {0, 2, 4, 6, 8, 10, 12, 14, 16, 18};
+    double lhs[] = {1, -INF, -INF, -INF, -INF, -INF, -INF, -INF, -INF};
+    double rhs[] = {1, 5, 5, 5, 5, 5, 5, 5, 5};
+    double lbs[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    double ubs[] = {10, 10, 10, 10, 10, 10, 10, 10, 10, 10};
+    double c[] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
     Settings *stgs;
     Presolver *ps =
-        dton_new_presolver(Ax, Ai, Ap, 6, 7, 12, lhs, rhs, lbs, ubs, c, &stgs, 1e9);
+        dton_new_presolver(Ax, Ai, Ap, 9, 10, 18, lhs, rhs, lbs, ubs, c, &stgs, 1e9);
     mu_assert("presolver allocation failed", ps != NULL);
     Constraints *constraints = ps->prob->constraints;
     const Matrix *AT = constraints->AT;
@@ -1111,12 +1137,12 @@ static char *test_dton_merge_relocate()
               AT->n_alloc == old_alloc &&
                   (size_t) dton_work->AT_slots.tail_next <= AT->n_alloc &&
                   (size_t) dton_work->AT_slots.tail_base < AT->n_alloc);
-    mu_assert("relocated slot fits exactly", dton_work->AT_slots.cap[0] == 5);
+    mu_assert("relocated slot fits exactly", dton_work->AT_slots.cap[0] == 8);
     mu_assert("neighbour untouched", AT->p[2].start == old_start_x2);
-    int rows[] = {1, 2, 3, 4, 5};
-    double vals[] = {-0.5, -0.5, -0.5, -0.5, 1};
-    mu_assert("x0 column content", dton_col_is(AT, 0, rows, vals, 5));
-    mu_assert("x0 size", constraints->state->col_sizes[0] == 5);
+    int rows[] = {1, 2, 3, 4, 5, 6, 7, 8};
+    double vals[] = {-0.5, -0.5, -0.5, -0.5, 1, 1, 1, 1};
+    mu_assert("x0 column content", dton_col_is(AT, 0, rows, vals, 8));
+    mu_assert("x0 size", constraints->state->col_sizes[0] == 8);
     mu_assert("spans now out of order", !dton_spans_ordered(AT));
 
     DEBUG(run_debugger(constraints, false));
@@ -1126,7 +1152,7 @@ static char *test_dton_merge_relocate()
     AT = constraints->AT;
     mu_assert("rebuild orders spans", dton_spans_ordered(AT));
     mu_assert("caps invalidated", !dton_work->AT_slots_valid);
-    mu_assert("x0 content after rebuild", dton_col_is(AT, 0, rows, vals, 5));
+    mu_assert("x0 content after rebuild", dton_col_is(AT, 0, rows, vals, 8));
     DEBUG(run_debugger(constraints, false));
 
     free_presolver(ps);
@@ -1196,15 +1222,15 @@ static char *test_dton_merge_full_presolve()
 /* The chain LP through the rebuild fallback on every round. */
 static char *test_dton_postsolve_chain_rebuild_path()
 {
-    double Ax[] = {1, 1, 2, 1, 2, 1, 1, 1};
-    int Ai[] = {0, 1, 1, 2, 0, 1, 2, 3};
-    int Ap[] = {0, 2, 4, 8};
-    double lhs[] = {1, 4, -INF};
-    double rhs[] = {1, 4, 10};
+    double Ax[] = {1, 1, 2, 1, 2, 1, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 1, 2, 0, 1, 2, 3, 2, 3};
+    int Ap[] = {0, 2, 4, 8, 10};
+    double lhs[] = {1, 4, -INF, -INF};
+    double rhs[] = {1, 4, 10, 10};
     double lbs[] = {0, 0, 0, 0};
     double ubs[] = {10, 10, 10, 10};
     double c[] = {1, 2, 3, 4};
-    return dton_check_postsolve(Ax, Ai, Ap, 3, 4, 8, lhs, rhs, lbs, ubs, c, false,
+    return dton_check_postsolve(Ax, Ai, Ap, 4, 4, 10, lhs, rhs, lbs, ubs, c, false,
                                 0.0);
 }
 
@@ -1270,13 +1296,15 @@ static char *test_dton_record_growth()
    relative to its sources:
      A: x110 + x120 = 1     -> x110 = 1 - x120       (sparser column; target
                                                       x120 present in r0)
-     B: x120 + 2 x130 = 1   -> x130 = (1 - x120) / 2 (larger coefficient;
+     B: x120 + 2 x130 = 1   -> x130 = (1 - x120) / 2 (sparser column;
         target x120 again, so it sits between its two sources)
-     C: x5 + 2 x150 = 1     -> x150 = (1 - x5) / 2   (target x5 absent from
-                                                      r0: inserted)
+     C: x5 + 2 x150 = 1     -> x150 = (1 - x5) / 2   (equal sizes, larger
+                                                      coefficient; target x5
+                                                      absent from r0: inserted)
      D: x30 + 2 x_{L+1} = 1 -> x_{L+1} eliminated    (not in r0; target x30
                                                       present without a source)
-   Row r_last: x120 + x_L <= 5 keeps x120 in a non-owner row.
+   Row r_last: x5 + x120 + x_L <= 5 keeps x120 in a non-owner row and gives
+   x5 the size of x150.
    ------------------------------------------------------------------------ */
 typedef struct
 {
@@ -1290,7 +1318,7 @@ static void dton_long_lp_build(DtonLongLP *lp, int L, double coef120)
     lp->L = L;
     lp->n = L + 2;
     lp->m = 1 + 4 + 1;
-    lp->nnz = (L - 1) + 2 * 4 + 2;
+    lp->nnz = (L - 1) + 2 * 4 + 3;
     lp->Ax = (double *) calloc((size_t) lp->nnz, sizeof(double));
     lp->Ai = (int *) calloc((size_t) lp->nnz, sizeof(int));
     lp->Ap = (int *) calloc((size_t) lp->m + 1, sizeof(int));
@@ -1325,8 +1353,11 @@ static void dton_long_lp_build(DtonLongLP *lp, int L, double coef120)
         lp->lhs[r] = lp->rhs[r] = 1;
         r++;
     }
-    // r_last: x120 + x_L <= 5
+    // r_last: x5 + x120 + x_L <= 5
     lp->Ap[r] = p;
+    lp->Ai[p] = 5;
+    lp->Ax[p] = 1;
+    p++;
     lp->Ai[p] = 120;
     lp->Ax[p] = 1;
     p++;
@@ -1690,9 +1721,11 @@ static char *test_dton_e2e_full_settings()
 static char *test_dton_ston_worklist_duplicate()
 {
     /* columns: 0 = w, 1 = j, 2 = k, 3 = t, 4 = u, 5 = v
-       rows: w + j = 1, j + 10 k = 10, 5 k + 2 t = 1, k + t + u >= 1.3,
-             u + v >= 0, u - v >= -10 */
-    double Ax[] = {1, 1, 1, 10, 5, 2, 1, 1, 1, 1, 1, 1, -1};
+       rows: w + j = 1, 1e-6 j + 10 k = 10, 5 k + 2 t = 1, k + t + u >= 1.3,
+             u + v >= 0, u - v >= -10
+       (the tiny coefficient of the sparser j vetoes its elimination, so k
+       is substituted as the scenario needs) */
+    double Ax[] = {1, 1, 1e-6, 10, 5, 2, 1, 1, 1, 1, 1, 1, -1};
     int Ai[] = {0, 1, 1, 2, 2, 3, 2, 3, 4, 4, 5, 4, 5};
     int Ap[] = {0, 2, 4, 6, 9, 11, 13};
     double lhs[] = {1, 10, 1, 1.3, 0, -10};

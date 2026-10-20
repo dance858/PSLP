@@ -30,20 +30,31 @@
 #include "Tags.h"
 
 /* Decides which of the two entries of a doubleton equality row to
-   substitute. Returns the index (0 or 1). */
+   substitute. Returns the index (0 or 1). The sparser column, since every
+   row it sits in is swept; the coefficient only decides between columns of
+   equal size, or vetoes a pivot below DTON_PIVOT_RATIO of the other one. */
 int dton_choose_subst(const double *row_vals, int col_size0, int col_size1)
 {
     double a_abs = ABS(row_vals[0]);
     double b_abs = ABS(row_vals[1]);
 
-    /* Choose the column with the larger absolute value. */
-    if (a_abs != b_abs)
+    /* Equal sizes: the column with the larger absolute value. */
+    if (col_size0 == col_size1)
     {
         return (a_abs > b_abs) ? 0 : 1;
     }
 
-    /* Equal magnitude: the sparser column. */
-    return (col_size0 < col_size1) ? 0 : 1;
+    int sparse = (col_size0 < col_size1) ? 0 : 1;
+    double sparse_abs = (sparse == 0) ? a_abs : b_abs;
+    double dense_abs = (sparse == 0) ? b_abs : a_abs;
+
+    /* Numerical veto: dividing by the sparser column's coefficient would
+       blow the substituted row up. */
+    if (sparse_abs < DTON_PIVOT_RATIO * dense_abs)
+    {
+        return 1 - sparse;
+    }
+    return sparse;
 }
 
 /* Which entry (0 or 1) of a doubleton equality row to substitute, or -1 when

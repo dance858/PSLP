@@ -131,7 +131,17 @@ static inline void bitmap_set(uint64_t *bits, int index)
    initializes them. Once per call of the eliminator, before any kernel runs. */
 void dton_workspace_init(DtonWorkspace *dton_work, struct Work *work);
 
-/* Which entry (0 or 1) of a doubleton equality row to substitute. */
+/* The sparser column of a doubleton equality row is eliminated unless its
+   coefficient is below this fraction of the other coefficient (then the
+   denser column is). Bounds |dir_mult| = |aij / aik| by 1 / DTON_PIVOT_RATIO
+   per link. Eliminating the denser column costs a sweep of every row it
+   sits in: on synthetic-design-match that was 135 rows of 2.85M entries per
+   substitution, 1.5M substitutions. */
+#define DTON_PIVOT_RATIO 1e-3
+
+/* Which entry (0 or 1) of a doubleton equality row to substitute: the
+   sparser column, unless DTON_PIVOT_RATIO vetoes it. Equal sizes: the larger
+   coefficient, and 1 when those are equal too. */
 int dton_choose_subst(const double *row_vals, int col_size0, int col_size1);
 
 /* QP version of dton_choose_subst. A column with entries in P can only be
