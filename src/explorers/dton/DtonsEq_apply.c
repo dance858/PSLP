@@ -177,9 +177,7 @@ static void dton_sweep_row_finish(Problem *prob, int row, int old_len, int new_l
 
 /* Rewrites a row of A in place. Every entry of an eliminated column moves
    onto the surviving column it is expressed in. A modified entry below
-   ZERO_TOL is dropped. The other entries are kept unchanged. The touched
-   columns are sorted with sort_ints, linear in the row length: an insertion
-   sort here took 385 s per 2.85M-entry row of synthetic-design-match. */
+   ZERO_TOL is dropped. The other entries are kept unchanged. */
 static void dton_sweep_row(Problem *prob, DtonWorkspace *dton_work, int row,
                            int *deferred, int *n_deferred)
 {

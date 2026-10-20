@@ -1427,9 +1427,8 @@ static char *test_dton_cancellation_log()
 
 /* ------------------------------------------------------------------------
    Long row with scattered targets. A row of L - K entries receives K targets
-   that arrive in reverse order, which the old insertion sort of the sweep
-   made quadratic (385 s on a 2.85M-entry row). The sweep must stay linear
-   and produce the exact row.
+   that arrive in reverse order, which an insertion sort of the row would
+   make quadratic. The sweep must stay linear and produce the exact row.
 
    Columns [0, L). r0 holds every column but the holes h_i = 2i + 1, i < K,
    coefficient 1, rhs 1000. K doubleton rows x_{h_i} + 2 x_{s_i} = 1 with
