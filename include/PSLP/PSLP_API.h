@@ -197,10 +197,7 @@ extern "C"
 
        The semantics are as follows. If (x, y) is an optimal primal-dual point
        of the original problem and 'relax_bounds' is false, (x_red, y_red,
-       z_red) is an optimal primal-dual point of the reduced problem. With
-       'lp_fold' the point is first mapped to the folded problem: x is averaged
-       over each column class and y summed over each row class, which keeps
-       optimality.
+       z_red) is an optimal primal-dual point of the reduced problem.
 
        This function is currently only implemented for LPs. For a QP it prints
        an error and leaves x_red, y_red and z_red untouched. */
