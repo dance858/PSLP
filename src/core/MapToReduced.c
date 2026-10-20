@@ -20,7 +20,8 @@
    (the inverse direction of postsolve), e.g. to warm start a solver on the
    reduced problem. The public entry point is 'map_original_sol_to_reduced' in
    PSLP_API.h; the core replay of the recorded reductions is
-   'postsolver_map_to_reduced', declared in Postsolver.h. */
+   'postsolver_map_to_reduced', declared in Postsolver.h. With a fold the
+   records live in the folded problem, so the point is folded first. */
 
 #include "Constraints.h"
 #include "Memory_wrapper.h"
@@ -32,6 +33,7 @@
 #include "State.h"
 #include "Workspace.h"
 #include "dVec.h"
+#include "fold_postsolve.h"
 #include "iVec.h"
 #include "u16Vec.h"
 #include <assert.h>
@@ -219,17 +221,15 @@ void map_original_sol_to_reduced(Presolver *presolver, const double *x,
 {
     State *data = presolver->prob->constraints->state;
     const Mapping *maps = data->work->mappings;
+    const FoldMaps *fold_maps = data->work->fold_maps;
     const ProblemData *reduced_prob = presolver->reduced_prob;
     size_t n_cols_orig = presolver->stats->n_cols_original;
     size_t n_rows_orig = presolver->stats->n_rows_original;
+    /* the dimensions the records live in; the original ones without a fold */
+    size_t n_cols_fold = presolver->stats->n_cols_folded;
+    size_t n_rows_fold = presolver->stats->n_rows_folded;
+    size_t n_fold = n_cols_fold + n_rows_fold;
     double *work;
-
-    if (data->work->fold_maps)
-    {
-        fprintf(stderr, "PSLP error: map_original_sol_to_reduced is not supported "
-                        "with lp_fold yet! Outputs are left untouched. \n");
-        return;
-    }
 
     /* 'stats' survives 'free_presolver_reduced_problem', unlike the reduced P */
     if (presolver->stats->Pnnz_original > 0)
@@ -268,9 +268,10 @@ void map_original_sol_to_reduced(Presolver *presolver, const double *x,
         return;
     }
 
-    // scratch space of the original dimensions (we do not use presolver->sol
-    // since it may hold a solution obtained by postsolve)
-    work = (double *) ps_malloc(n_cols_orig + n_rows_orig + 1, sizeof(double));
+    // scratch space for the replay and, with a fold, for the folded point (we
+    // do not use presolver->sol or the folded scratch of postsolve since they
+    // may hold a solution obtained by postsolve)
+    work = (double *) ps_malloc(n_fold * (fold_maps ? 2 : 1) + 1, sizeof(double));
     if (!work)
     {
         fprintf(stderr,
@@ -279,9 +280,20 @@ void map_original_sol_to_reduced(Presolver *presolver, const double *x,
         return;
     }
 
+    if (fold_maps)
+    {
+        // x averaged over each column class, y summed over each row class
+        double *x_fold = work + n_fold;
+        double *y_fold = x_fold + n_cols_fold;
+        fold_map_to_folded(fold_maps, (int) n_rows_orig, (int) n_cols_orig, x, y,
+                           x_red ? x_fold : NULL, y_red ? y_fold : NULL);
+        x = x_fold;
+        y = y_fold;
+    }
+
     postsolver_map_to_reduced(data->postsolve_info, maps->cols, maps->rows,
-                              n_cols_orig, n_rows_orig, x, y, work,
-                              work + n_cols_orig, x_red, y_red);
+                              n_cols_fold, n_rows_fold, x, y, work,
+                              work + n_cols_fold, x_red, y_red);
     PS_FREE(work);
 
     // project onto the (possibly tightened) bounds of the reduced problem. The

@@ -1319,27 +1319,114 @@ static const char *test_fold_presolver_lift(void)
     return 0;
 }
 
-/* The forward map and the ray postsolves are not supported with a fold: they
-   print an error and leave their outputs untouched. */
-static const char *test_fold_refuses_map_to_reduced(void)
+/* The forward map folds the point first, x averaged over each column class
+   and y summed over each row class, and then replays the records in the folded
+   problem. The symmetric optimum of the simplex copies maps to the folded KKT
+   point of test_fold_presolver_lift. */
+static const char *test_fold_map_to_reduced(void)
 {
     FoldTestLP p = simplex_copies();
     Settings *stgs = fold_only_settings();
     Presolver *presolver = fold_presolver(&p, stgs);
     mu_assert("presolver", presolver && run_presolver(presolver) != INFEASIBLE);
+    const ProblemData *reduced = presolver->reduced_prob;
     double x[6] = {0, 1, 0, 1, 0, 1}, y[3] = {-1, -1, -1};
-    double x_red[2] = {DUMMY_VALUE, DUMMY_VALUE}, y_red[1] = {DUMMY_VALUE};
-    double z_red[2] = {DUMMY_VALUE, DUMMY_VALUE};
+    double x_red[2], y_red[1], z_red[2];
     map_original_sol_to_reduced(presolver, x, y, x_red, y_red, z_red);
-    mu_assert("x_red untouched", all_equal(x_red, 2, DUMMY_VALUE));
-    mu_assert("y_red untouched", all_equal(y_red, 1, DUMMY_VALUE));
-    mu_assert("z_red untouched", all_equal(z_red, 2, DUMMY_VALUE));
+    mu_assert("x averaged", x_red[0] == 0.0 && x_red[1] == 1.0);
+    mu_assert("y summed", y_red[0] == -3.0);
+    mu_assert("z recomputed", z_red[0] == 0.0 && z_red[1] == -3.0);
+    mu_assert("mapped point is KKT",
+              is_kkt_point(reduced, x_red, y_red, z_red, 1e-9));
+    double x_only[2] = {DUMMY_VALUE, DUMMY_VALUE}, y_only[1] = {DUMMY_VALUE};
+    map_original_sol_to_reduced(presolver, x, NULL, x_only, NULL, NULL);
+    map_original_sol_to_reduced(presolver, NULL, y, NULL, y_only, NULL);
+    mu_assert("x alone", x_only[0] == 0.0 && x_only[1] == 1.0);
+    mu_assert("y alone", y_only[0] == -3.0);
     free_presolver(presolver);
     free_settings(stgs);
     flp_free(&p);
     return 0;
 }
 
+/* Three copies of  min -x0 - x1  s.t.  x0 + x1 <= 1,  0 <= x0 <= 1,
+   0 <= x1 <= 2  have the optimal face x0 + x1 = 1. An optimum that differs per
+   copy averages to the optimum of the folded problem. */
+static const char *test_fold_map_asymmetric_primal(void)
+{
+    static const int Ap[2] = {0, 2}, Ai[2] = {0, 1};
+    static const double Ax[2] = {1, 1};
+    FoldTestLP b = flp_new(1, 2, 2, Ap, Ai, Ax);
+    flp_fill_rows(&b, -INF, 1);
+    flp_fill_cols(&b, 0, 1, -1);
+    b.ub[1] = 2;
+    FoldTestLP p = flp_replicate(&b, 3);
+    flp_free(&b);
+    Settings *stgs = fold_only_settings();
+    Presolver *presolver = fold_presolver(&p, stgs);
+    mu_assert("presolver", presolver && run_presolver(presolver) != INFEASIBLE);
+    const ProblemData *reduced = presolver->reduced_prob;
+    mu_assert("reduced 1 x 2", reduced->m == 1 && reduced->n == 2 &&
+                                   reduced->c[0] == -3.0 && reduced->c[1] == -3.0);
+    double x[6] = {1, 0, 0, 1, 0.5, 0.5}, y[3] = {-1, -1, -1};
+    double x_red[2], y_red[1], z_red[2];
+    map_original_sol_to_reduced(presolver, x, y, x_red, y_red, z_red);
+    mu_assert("x averaged", x_red[0] == 0.5 && x_red[1] == 0.5);
+    mu_assert("y summed", y_red[0] == -3.0);
+    mu_assert("z recomputed", z_red[0] == 0.0 && z_red[1] == 0.0);
+    mu_assert("mapped point is KKT",
+              is_kkt_point(reduced, x_red, y_red, z_red, 1e-9));
+    free_presolver(presolver);
+    free_settings(stgs);
+    flp_free(&p);
+    return 0;
+}
+
+/* Three copies of  min -x0 - 2 x1  s.t.  x0 + x1 <= 1,  2 x0 + 2 x1 <= 2,
+   0 <= x <= 1  fold to one row of each kind, and parallel rows then removes
+   one of them, so the replay runs in the folded problem. The multipliers of
+   the two rows are split differently in each copy; every split is optimal. */
+static const char *test_fold_map_then_parallel_rows(void)
+{
+    static const int Ap[3] = {0, 2, 4}, Ai[4] = {0, 1, 0, 1};
+    static const double Ax[4] = {1, 1, 2, 2};
+    FoldTestLP b = flp_new(2, 2, 4, Ap, Ai, Ax);
+    flp_fill_rows(&b, -INF, 1);
+    b.rhs[1] = 2;
+    flp_fill_cols(&b, 0, 1, -1);
+    b.c[1] = -2;
+    FoldTestLP p = flp_replicate(&b, 3);
+    flp_free(&b);
+    Settings *stgs = fold_only_settings();
+    stgs->parallel_rows = true;
+    Presolver *presolver = fold_presolver(&p, stgs);
+    mu_assert("presolver", presolver && run_presolver(presolver) != INFEASIBLE);
+    const PresolveStats *stats = presolver->stats;
+    mu_assert("folded 2 x 2",
+              stats->n_rows_folded == 2 && stats->n_cols_folded == 2);
+    const ProblemData *reduced = presolver->reduced_prob;
+    mu_assert("reduced 1 x 2",
+              reduced->m == 1 && reduced->n == 2 && reduced->nnz == 2);
+    double x[6] = {0, 1, 0, 1, 0, 1}, y[6] = {-1, 0, 0, -0.5, -0.5, -0.25};
+    double x_red[2], y_red[1], z_red[2];
+    map_original_sol_to_reduced(presolver, x, y, x_red, y_red, z_red);
+    mu_assert("x averaged", x_red[0] == 0.0 && x_red[1] == 1.0);
+    mu_assert("z recomputed", z_red[0] == 0.0 && z_red[1] == -3.0);
+    mu_assert("mapped point is KKT",
+              is_kkt_point(reduced, x_red, y_red, z_red, 1e-9));
+    postsolve(presolver, x_red, y_red, z_red);
+    ProblemData original = lp_problem(&p);
+    const Solution *sol = presolver->sol;
+    mu_assert("round trip is KKT",
+              is_kkt_point(&original, sol->x, sol->y, sol->z, 1e-9));
+    free_presolver(presolver);
+    free_settings(stgs);
+    flp_free(&p);
+    return 0;
+}
+
+/* The ray postsolves are not supported with a fold: they print an error and
+   leave their outputs untouched. */
 static const char *test_fold_refuses_primal_ray(void)
 {
     FoldTestLP p = simplex_copies();
@@ -1495,7 +1582,9 @@ static const char *all_tests_fold(void)
     mu_run_test(test_fold_postsolve_lift, counter_fold);
     mu_run_test(test_fold_postsolve_class_sizes, counter_fold);
     mu_run_test(test_fold_presolver_lift, counter_fold);
-    mu_run_test(test_fold_refuses_map_to_reduced, counter_fold);
+    mu_run_test(test_fold_map_to_reduced, counter_fold);
+    mu_run_test(test_fold_map_asymmetric_primal, counter_fold);
+    mu_run_test(test_fold_map_then_parallel_rows, counter_fold);
     mu_run_test(test_fold_refuses_primal_ray, counter_fold);
     mu_run_test(test_fold_refuses_dual_ray, counter_fold);
     mu_run_test(test_fold_presolver_full_settings, counter_fold);
