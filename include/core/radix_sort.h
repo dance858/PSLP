@@ -46,8 +46,15 @@ void parallel_radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
                               const int *coeff_hashes, int *aux,
                               struct ThreadPool *pool);
 
+// Below this many elements the single-key sorts are an insertion sort.
+#define RADIX_SORT_INSERTION_MAX 64
+
 // Single-key LSD radix sort. Sorts indices by keys[indices[i]]
 // ascending (unsigned order). Stable. aux must have space for n ints.
 void radix_sort_by_key(int *indices, size_t n, const int *keys, int *aux);
+
+// Sorts v[0..n) ascending in unsigned order, linear in n. aux must have
+// space for n ints.
+void sort_ints(int *v, size_t n, int *aux);
 
 #endif /* RADIX_SORT_H */
