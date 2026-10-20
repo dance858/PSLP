@@ -1395,6 +1395,140 @@ static char *test_dton_cancellation_log()
 }
 
 /* ------------------------------------------------------------------------
+   Long row with scattered targets. A row of L - K entries receives K targets
+   that arrive in reverse order, which the old insertion sort of the sweep
+   made quadratic (385 s on a 2.85M-entry row). The sweep must stay linear
+   and produce the exact row.
+
+   Columns [0, L). r0 holds every column but the holes h_i = 2i + 1, i < K,
+   coefficient 1, rhs 1000. K doubleton rows x_{h_i} + 2 x_{s_i} = 1 with
+   s_i = L - 1 - i (column sizes 2 and 2, so the coefficient 2 picks x_{s_i}
+   for elimination: x_{s_i} = (1 - x_{h_i}) / 2, the target h_i is absent from
+   r0). One more doubleton x_0 + 2 x_{L-K-1} = 1 (sizes 2 and 2 as well)
+   maps onto a target r0 already holds. r_last = sum_i x_{h_i} <= 1000 gives
+   every hole its second entry. Walking r0 ascending meets s_{K-1} before
+   s_0, so the new targets arrive as h_{K-1} > ... > h_0.
+   ------------------------------------------------------------------------ */
+static void dton_scatter_lp_build(DtonLongLP *lp, int L, int K)
+{
+    lp->L = L;
+    lp->n = L;
+    lp->m = 1 + K + 1 + 1;
+    lp->nnz = (L - K) + 2 * K + 2 + K;
+    lp->Ax = (double *) calloc((size_t) lp->nnz, sizeof(double));
+    lp->Ai = (int *) calloc((size_t) lp->nnz, sizeof(int));
+    lp->Ap = (int *) calloc((size_t) lp->m + 1, sizeof(int));
+    lp->lhs = (double *) calloc((size_t) lp->m, sizeof(double));
+    lp->rhs = (double *) calloc((size_t) lp->m, sizeof(double));
+    lp->lbs = (double *) calloc((size_t) lp->n, sizeof(double));
+    lp->ubs = (double *) calloc((size_t) lp->n, sizeof(double));
+    lp->c = (double *) calloc((size_t) lp->n, sizeof(double));
+    int p = 0, r = 0;
+    // r0: every column but the holes
+    lp->Ap[r] = p;
+    for (int j = 0; j < L; ++j)
+    {
+        if (j % 2 == 1 && j < 2 * K) continue;
+        lp->Ai[p] = j;
+        lp->Ax[p] = 1.0;
+        p++;
+    }
+    lp->lhs[r] = -INF;
+    lp->rhs[r] = 1000;
+    r++;
+    // doubletons x_{h_i} + 2 x_{s_i} = 1
+    for (int i = 0; i < K; ++i)
+    {
+        lp->Ap[r] = p;
+        lp->Ai[p] = 2 * i + 1;
+        lp->Ax[p] = 1.0;
+        p++;
+        lp->Ai[p] = L - 1 - i;
+        lp->Ax[p] = 2.0;
+        p++;
+        lp->lhs[r] = lp->rhs[r] = 1;
+        r++;
+    }
+    // x_0 + 2 x_{L-K-1} = 1
+    lp->Ap[r] = p;
+    lp->Ai[p] = 0;
+    lp->Ax[p] = 1.0;
+    p++;
+    lp->Ai[p] = L - K - 1;
+    lp->Ax[p] = 2.0;
+    p++;
+    lp->lhs[r] = lp->rhs[r] = 1;
+    r++;
+    // r_last: sum of the holes <= 1000
+    lp->Ap[r] = p;
+    for (int i = 0; i < K; ++i)
+    {
+        lp->Ai[p] = 2 * i + 1;
+        lp->Ax[p] = 1.0;
+        p++;
+    }
+    lp->lhs[r] = -INF;
+    lp->rhs[r] = 1000;
+    r++;
+    lp->Ap[r] = p;
+    assert(r == lp->m && p == lp->nnz);
+    for (int j = 0; j < lp->n; ++j)
+    {
+        lp->lbs[j] = 0;
+        lp->ubs[j] = 10;
+        lp->c[j] = 1 + (j % 3);
+    }
+}
+
+static char *test_dton_long_row_sweep()
+{
+    const int L = 100000, K = 1000;
+    DtonLongLP lp;
+    dton_scatter_lp_build(&lp, L, K);
+    Settings *stgs;
+    Presolver *ps =
+        dton_new_presolver(lp.Ax, lp.Ai, lp.Ap, lp.m, lp.n, lp.nnz, lp.lhs, lp.rhs,
+                           lp.lbs, lp.ubs, lp.c, &stgs, 1e9);
+    mu_assert("presolver allocation failed", ps != NULL);
+    remove_dton_eq_rows(ps->prob);
+    const Constraints *cs = ps->prob->constraints;
+    const Matrix *A = cs->A;
+    mu_assert("merge path taken", cs->state->work->dton->merge_round);
+
+    // r0: columns [0, L-K-1) all present, in order
+    int start = A->p[0].start;
+    int len = cs->state->row_sizes[0];
+    mu_assert("r0 length", len == L - K - 1);
+    for (int j = 0; j < len; ++j)
+    {
+        mu_assert("r0 ascending and complete", A->i[start + j] == j);
+        double expected = (j == 0) ? 0.5 : (j % 2 == 1 && j < 2 * K) ? -0.5 : 1.0;
+        mu_assert("r0 value", A->x[start + j] == expected);
+    }
+    mu_assert("r0 rhs shifted", cs->rhs[0] == 1000 - 0.5 * K - 0.5);
+    mu_assert("nnz of A", A->nnz == (size_t) (L - 1));
+
+    // every source is eliminated, every hole sits in r0 and r_last
+    for (int i = 0; i < K; ++i)
+    {
+        int h = 2 * i + 1, s = L - 1 - i;
+        mu_assert("source inactive", HAS_TAG(cs->col_tags[s], C_TAG_INACTIVE));
+        mu_assert("hole size", cs->state->col_sizes[h] == 2);
+        int at = cs->AT->p[h].start;
+        mu_assert("hole column", cs->AT->i[at] == 0 && cs->AT->x[at] == -0.5 &&
+                                     cs->AT->i[at + 1] == lp.m - 1 &&
+                                     cs->AT->x[at + 1] == 1.0);
+    }
+    mu_assert("x_{L-K-1} inactive",
+              HAS_TAG(cs->col_tags[L - K - 1], C_TAG_INACTIVE));
+    DEBUG(run_debugger(cs, false));
+    free_presolver(ps);
+    PS_FREE(stgs);
+    dton_long_lp_free(&lp);
+    return 0;
+}
+
+/* ------------------------------------------------------------------------
    Infeasible bound transfers. A transferred bound that contradicts the stay
    column's bounds means the row and the two columns' bounds are
    inconsistent: the eliminator must report INFEASIBLE instead of dropping
@@ -1613,6 +1747,7 @@ static const char *all_tests_dton()
     mu_run_test(test_dton_postsolve_chain_rebuild_path, counter_dton);
     mu_run_test(test_dton_record_growth, counter_dton);
     mu_run_test(test_dton_cancellation_log, counter_dton);
+    mu_run_test(test_dton_long_row_sweep, counter_dton);
     mu_run_test(test_dton_infeasible_transfer, counter_dton);
     mu_run_test(test_dton_infeasible_two_rows, counter_dton);
     mu_run_test(test_dton_infeasible_chain, counter_dton);

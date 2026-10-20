@@ -29,6 +29,7 @@
 #include "State.h"
 #include "Tags.h"
 #include "Workspace.h"
+#include "radix_sort.h"
 
 /* Phases 4 and 5 of a round. Phase 4 (dton_apply) substitutes the eliminated
    columns in A: every entry of an eliminated column moves onto the surviving
@@ -176,7 +177,9 @@ static void dton_sweep_row_finish(Problem *prob, int row, int old_len, int new_l
 
 /* Rewrites a row of A in place. Every entry of an eliminated column moves
    onto the surviving column it is expressed in. A modified entry below
-   ZERO_TOL is dropped. The other entries are kept unchanged. */
+   ZERO_TOL is dropped. The other entries are kept unchanged. The touched
+   columns are sorted with sort_ints, linear in the row length: an insertion
+   sort here took 385 s per 2.85M-entry row of synthetic-design-match. */
 static void dton_sweep_row(Problem *prob, DtonWorkspace *dton_work, int row,
                            int *deferred, int *n_deferred)
 {
@@ -209,7 +212,7 @@ static void dton_sweep_row(Problem *prob, DtonWorkspace *dton_work, int row,
     }
 
     /* sort the row so the column indices within the row are increasing */
-    sparse_accumulator_sort(acc);
+    sort_ints(acc->touched, (size_t) acc->n_touched, dton_work->sort_aux);
 
     /* write the nonzeros of the modified row back to A and log modified entries */
     int write_pos = start;

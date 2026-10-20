@@ -105,6 +105,7 @@ typedef struct DtonWorkspace
     uint64_t *swept_rows; /* [ceil(n_rows / 64)] bitmap of the rows the round sweeps.
                              Zero between rounds. */
     SparseAccumulator acc;
+    int *sort_aux; /* [n_cols] scratch of the sweep's sort_ints */
     DtonLog log;
     RowSlots AT_slots;   /* slots of A transpose's rows */
     bool AT_slots_valid; /* 'AT_slots' matches the layout of A transpose */

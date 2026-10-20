@@ -25,7 +25,9 @@
 /* Builds a sparse vector of length n from (column, value) contributions.
    Contributions to the same column are summed, and each column also keeps
    the OR of its flag bits. The touched columns are listed in the order they
-   were first added, and sparse_accumulator_sort puts them in ascending order. */
+   were first added. A caller that needs them ascending sorts 'touched' itself
+   with sort_ints (radix_sort.h), never with an insertion sort: the number of
+   touched columns is unbounded. */
 typedef struct SparseAccumulator
 {
     int *stamp;     /* [n] version that last touched the column */
@@ -46,9 +48,5 @@ void sparse_accumulator_clear(SparseAccumulator *acc);
 
 void sparse_accumulator_add(SparseAccumulator *acc, int col, double val,
                             uint8_t flag);
-
-/* Sorts the touched columns ascending. Insertion sort, meant for short
-   vectors. */
-void sparse_accumulator_sort(SparseAccumulator *acc);
 
 #endif // CORE_SPARSEACCUMULATOR_H

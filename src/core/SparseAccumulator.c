@@ -50,19 +50,3 @@ void sparse_accumulator_add(SparseAccumulator *acc, int col, double val,
     acc->value[col] += val;
     acc->flags[col] |= flag;
 }
-
-void sparse_accumulator_sort(SparseAccumulator *acc)
-{
-    int *touched = acc->touched;
-    for (int a = 1; a < acc->n_touched; ++a)
-    {
-        int key = touched[a];
-        int b = a - 1;
-        while (b >= 0 && touched[b] > key)
-        {
-            touched[b + 1] = touched[b];
-            --b;
-        }
-        touched[b + 1] = key;
-    }
-}
