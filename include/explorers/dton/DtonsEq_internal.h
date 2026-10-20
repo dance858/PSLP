@@ -134,7 +134,7 @@ void dton_workspace_init(DtonWorkspace *dton_work, struct Work *work);
 /* The sparser column of a doubleton equality row is eliminated unless its
    coefficient is below this fraction of the other one. Bounds
    |dir_mult| = |aij / aik| by 1 / DTON_PIVOT_RATIO per link. */
-#define DTON_PIVOT_RATIO 1e-3
+#define DTON_PIVOT_RATIO 1e-1
 
 /* Which entry (0 or 1) of a doubleton equality row to substitute. */
 int dton_choose_subst(const double *row_vals, int col_size0, int col_size1);
