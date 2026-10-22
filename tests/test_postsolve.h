@@ -1279,6 +1279,169 @@ static char *test_parallel_col_dual_identity()
     return 0;
 }
 
+/*  Checks that every postsolved multiplier has a sign its original bound or
+    side allows: no positive z on an infinite lb, no negative z on an infinite
+    ub, and the same for y with the row sides. */
+static char *check_dual_signs(const ProblemData *orig, const double *y,
+                              const double *z)
+{
+    for (size_t i = 0; i < orig->m; ++i)
+    {
+        mu_assert("positive row dual without a finite lhs",
+                  !(y[i] > POSTSOLVE_TOL_FEAS && IS_NEG_INF(orig->lhs[i])));
+        mu_assert("negative row dual without a finite rhs",
+                  !(y[i] < -POSTSOLVE_TOL_FEAS && IS_POS_INF(orig->rhs[i])));
+    }
+
+    for (size_t j = 0; j < orig->n; ++j)
+    {
+        mu_assert("positive bound dual without a finite lb",
+                  !(z[j] > POSTSOLVE_TOL_FEAS && IS_NEG_INF(orig->lbs[j])));
+        mu_assert("negative bound dual without a finite ub",
+                  !(z[j] < -POSTSOLVE_TOL_FEAS && IS_POS_INF(orig->ubs[j])));
+    }
+
+    return 0;
+}
+
+/*  Singleton inequality row with an approximate reduced solution.
+    min. [2  1] x
+    s.t. [2  0] x >= 1e5
+         [1  1] x >= 6e4
+         x0 free, 0 <= x1 <= 1e5
+    The singleton row becomes the bound x0 >= 5e4 and is deleted. The reduced
+    problem has the unique optimum x = (5e4, 1e4), y = 1, z = (1, 0): the new
+    bound is active with multiplier 1. The reduced point here is scaled by
+    (1 + 2e-10), as a first-order solver's may be, so x0 misses the bound by
+    1e-5: more than FEAS_TOL, though 2e-10 relative. Postsolve must still hand
+    z0 to the deleted row (y0 = 1 / 2), since x0 has no lower bound in the
+    original problem and a positive z0 there is dual infeasible. */
+static char *test_ston_row_bound_dual_approximate_solution()
+{
+    double Ax[] = {2, 1, 1};
+    int Ai[] = {0, 0, 1};
+    int Ap[] = {0, 1, 3};
+    int nnz = 3;
+    int n_rows = 2;
+    int n_cols = 2;
+
+    double lhs[] = {1e5, 6e4};
+    double rhs[] = {INF, INF};
+    double lbs[] = {-INF, 0};
+    double ubs[] = {INF, 1e5};
+    double c[] = {2, 1};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    ProblemData *red = presolver->reduced_prob;
+    mu_assert("expected the singleton row removed", red->m == 1 && red->n == 2);
+    mu_assert("expected the bound x0 >= 5e4", IS_EQUAL_FEAS_TOL(red->lbs[0], 5e4));
+
+    double scale = 1 + 2e-10;
+    double x[] = {5e4 * scale, 1e4 * scale};
+    double y[] = {1};
+    double z[] = {1, 0};
+    postsolve(presolver, x, y, z);
+
+    double *y_orig = presolver->sol->y;
+    double *z_orig = presolver->sol->z;
+    char *msg = check_dual_signs(&orig, y_orig, z_orig);
+    if (msg)
+    {
+        return msg;
+    }
+
+    mu_assert("bound dual not handed to the singleton row",
+              IS_EQUAL_FEAS_TOL(y_orig[0], 0.5));
+
+    KKTResiduals res;
+    kkt_residuals(&orig, presolver->sol->x, y_orig, z_orig, &res);
+    mu_assert("postsolved duals do not satisfy A^T y + z = c",
+              res.dual_res_rel <= 1e-12);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/*  Implied bound from primal propagation with an approximate reduced solution.
+    min. [3  -1] x
+    s.t. [1   1] x >= 1e5
+         x0 <= 1e5, 0 <= x1 <= 5e4
+    Propagation derives x0 >= 1e5 - 5e4 = 5e4 from the row (x0 needs a finite
+    ub for the row to have a finite max activity, which propagation requires;
+    its lb stays infinite in the original problem, which is what the test is
+    about). The reduced
+    problem keeps the row and has the optimum x = (5e4, 5e4) with the duals
+    y = 0, z = (3, -1): the implied bound is active with multiplier 3 and the
+    row is tight with a zero multiplier (an active implied bound makes the row
+    tight at the other columns' bounds, so the point is degenerate by nature).
+    The reduced point is scaled by (1 + 2e-10) as in the singleton-row test.
+    Postsolve must still hand z0 to the row, y0 = 3 and z1 = -1 - 3 = -4, since
+    x0 has no lower bound in the original problem. */
+static char *test_propagation_bound_dual_approximate_solution()
+{
+    double Ax[] = {1, 1};
+    int Ai[] = {0, 1};
+    int Ap[] = {0, 2};
+    int nnz = 2;
+    int n_rows = 1;
+    int n_cols = 2;
+
+    double lhs[] = {1e5};
+    double rhs[] = {INF};
+    double lbs[] = {-INF, 0};
+    double ubs[] = {1e5, 5e4};
+    double c[] = {3, -1};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->primal_propagation = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    ProblemData *red = presolver->reduced_prob;
+    mu_assert("expected the row kept", red->m == 1 && red->n == 2);
+    mu_assert("expected the implied bound x0 >= 5e4",
+              IS_EQUAL_FEAS_TOL(red->lbs[0], 5e4));
+
+    double scale = 1 + 2e-10;
+    double x[] = {5e4 * scale, 5e4 * scale};
+    double y[] = {0};
+    double z[] = {3, -1};
+    postsolve(presolver, x, y, z);
+
+    double *y_orig = presolver->sol->y;
+    double *z_orig = presolver->sol->z;
+    char *msg = check_dual_signs(&orig, y_orig, z_orig);
+    if (msg)
+    {
+        return msg;
+    }
+
+    mu_assert("bound dual not handed to the row that implied it",
+              IS_EQUAL_FEAS_TOL(y_orig[0], 3.0) &&
+                  IS_EQUAL_FEAS_TOL(z_orig[1], -4.0));
+
+    KKTResiduals res;
+    kkt_residuals(&orig, presolver->sol->x, y_orig, z_orig, &res);
+    mu_assert("postsolved duals do not satisfy A^T y + z = c",
+              res.dual_res_rel <= 1e-12);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_postsolve()
 {
     mu_run_test(test_0_postsolve, counter_postsolve);
@@ -1306,6 +1469,8 @@ static const char *all_tests_postsolve()
     mu_run_test(test_pathological_ston_two, counter_postsolve);
     mu_run_test(test_fix_col_inf, counter_postsolve);
     mu_run_test(test_parallel_col_dual_identity, counter_postsolve);
+    mu_run_test(test_ston_row_bound_dual_approximate_solution, counter_postsolve);
+    mu_run_test(test_propagation_bound_dual_approximate_solution, counter_postsolve);
     //        all tests above pass
 
     return 0;
