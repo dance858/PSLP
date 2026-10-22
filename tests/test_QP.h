@@ -1057,14 +1057,18 @@ static char *test_19_qp()
               dton_choose_subst_qp(v12, 3, 3, true, true, true, false) == 0);
     mu_assert("both in P, c1 fill-free",
               dton_choose_subst_qp(v12, 3, 3, true, true, false, true) == 1);
-    mu_assert("both fill-free: larger c1",
-              dton_choose_subst_qp(v12, 1, 5, true, true, true, true) == 1);
+    mu_assert("both fill-free: sparser c0",
+              dton_choose_subst_qp(v12, 1, 5, true, true, true, true) == 0);
+    mu_assert("both fill-free, equal sizes: larger c1",
+              dton_choose_subst_qp(v12, 3, 3, true, true, true, true) == 1);
 
     double vtiny[] = {1e-9, 1.0};
     mu_assert("forced tiny pivot",
               dton_choose_subst_qp(vtiny, 3, 3, false, true, false, false) == 0);
     mu_assert("unforced tiny pivot avoided",
               dton_choose_subst_qp(vtiny, 3, 3, false, false, false, false) == 1);
+    mu_assert("both fill-free: tiny sparse pivot vetoed",
+              dton_choose_subst_qp(vtiny, 1, 5, true, true, true, true) == 1);
     return 0;
 }
 

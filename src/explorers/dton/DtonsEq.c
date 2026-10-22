@@ -83,6 +83,7 @@ void dton_workspace_init(DtonWorkspace *dton_work, Work *work)
     }
     dton_work->substs.col_subst = col_subst;
     dton_work->targets.col_to_target = col_to_target;
+    dton_work->sort_aux = work->mappings->cols;
     sparse_accumulator_init(&dton_work->acc, work->radix_aux, dton_work->acc.value,
                             dton_work->acc.flags, work->iwork_n_cols,
                             (size_t) dton_work->n_cols);

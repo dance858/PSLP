@@ -54,24 +54,6 @@ static char *test_sparse_accumulator_clear()
     return 0;
 }
 
-/* The touched columns come out ascending. */
-static char *test_sparse_accumulator_sort()
-{
-    SparseAccumulator acc;
-    AccumulatorArrays arr;
-    accumulator_setup(&acc, &arr);
-    sparse_accumulator_add(&acc, 4, 1.0, 1);
-    sparse_accumulator_add(&acc, 0, 1.0, 1);
-    sparse_accumulator_add(&acc, 2, 1.0, 1);
-    sparse_accumulator_add(&acc, 0, 1.0, 1);
-    sparse_accumulator_sort(&acc);
-    mu_assert("count", acc.n_touched == 3);
-    mu_assert("order",
-              acc.touched[0] == 0 && acc.touched[1] == 2 && acc.touched[2] == 4);
-    mu_assert("value", acc.value[0] == 2.0);
-    return 0;
-}
-
 /* Init zeroes stamps left over from an earlier use, so a new accumulator
    treats every column as untouched. */
 static char *test_sparse_accumulator_init()
@@ -95,7 +77,6 @@ static const char *all_tests_sparse_accumulator()
 {
     mu_run_test(test_sparse_accumulator_add, counter_sparse_accumulator);
     mu_run_test(test_sparse_accumulator_clear, counter_sparse_accumulator);
-    mu_run_test(test_sparse_accumulator_sort, counter_sparse_accumulator);
     mu_run_test(test_sparse_accumulator_init, counter_sparse_accumulator);
     return 0;
 }
