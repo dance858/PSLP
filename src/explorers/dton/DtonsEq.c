@@ -39,11 +39,10 @@ DtonWorkspace *dton_workspace_new(size_t n_rows, size_t n_cols)
         (size_t) bitmap_words(dton_work->n_rows), sizeof(uint64_t));
     dton_work->acc.value = (double *) ps_malloc(n_cols, sizeof(double));
     dton_work->acc.flags = (uint8_t *) ps_malloc(n_cols, sizeof(uint8_t));
-    dton_work->sort_aux = (int *) ps_malloc(n_cols, sizeof(int));
     dton_work->AT_slots.cap = (int *) ps_malloc(n_cols, sizeof(int));
 
     if (!dton_work->swept_rows || !dton_work->acc.value || !dton_work->acc.flags ||
-        !dton_work->sort_aux || !dton_work->AT_slots.cap)
+        !dton_work->AT_slots.cap)
     {
         dton_workspace_free(dton_work);
         return NULL;
@@ -65,7 +64,6 @@ void dton_workspace_free(DtonWorkspace *dton_work)
     PS_FREE(dton_work->swept_rows);
     PS_FREE(dton_work->acc.value);
     PS_FREE(dton_work->acc.flags);
-    PS_FREE(dton_work->sort_aux);
     PS_FREE(dton_work->AT_slots.cap);
     PS_FREE(dton_work->log.row);
     PS_FREE(dton_work->log.val);
@@ -85,6 +83,7 @@ void dton_workspace_init(DtonWorkspace *dton_work, Work *work)
     }
     dton_work->substs.col_subst = col_subst;
     dton_work->targets.col_to_target = col_to_target;
+    dton_work->sort_aux = work->mappings->cols;
     sparse_accumulator_init(&dton_work->acc, work->radix_aux, dton_work->acc.value,
                             dton_work->acc.flags, work->iwork_n_cols,
                             (size_t) dton_work->n_cols);
