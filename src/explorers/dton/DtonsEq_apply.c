@@ -29,6 +29,7 @@
 #include "State.h"
 #include "Tags.h"
 #include "Workspace.h"
+#include "radix_sort.h"
 
 /* Phases 4 and 5 of a round. Phase 4 (dton_apply) substitutes the eliminated
    columns in A: every entry of an eliminated column moves onto the surviving
@@ -209,7 +210,7 @@ static void dton_sweep_row(Problem *prob, DtonWorkspace *dton_work, int row,
     }
 
     /* sort the row so the column indices within the row are increasing */
-    sparse_accumulator_sort(acc);
+    sort_ints(acc->touched, (size_t) acc->n_touched, dton_work->sort_aux);
 
     /* write the nonzeros of the modified row back to A and log modified entries */
     int write_pos = start;

@@ -17,6 +17,7 @@
  */
 
 #include "fold_postsolve.h"
+#include <string.h>
 
 void fold_postsolve(const FoldMaps *maps, int n_rows, int n_cols,
                     const double *x_folded, const double *y_folded,
@@ -32,5 +33,31 @@ void fold_postsolve(const FoldMaps *maps, int n_rows, int n_cols,
     {
         int folded_row = maps->folded_row[row];
         y[row] = y_folded[folded_row] / maps->row_class_size[folded_row];
+    }
+}
+
+void fold_map_to_folded(const FoldMaps *maps, int n_rows, int n_cols,
+                        const double *x, const double *y, double *x_folded,
+                        double *y_folded)
+{
+    if (x_folded)
+    {
+        memset(x_folded, 0, (size_t) maps->n_cols_folded * sizeof(double));
+        for (int col = 0; col < n_cols; ++col)
+        {
+            x_folded[maps->folded_col[col]] += x[col];
+        }
+        for (int folded_col = 0; folded_col < maps->n_cols_folded; ++folded_col)
+        {
+            x_folded[folded_col] /= maps->col_class_size[folded_col];
+        }
+    }
+    if (y_folded)
+    {
+        memset(y_folded, 0, (size_t) maps->n_rows_folded * sizeof(double));
+        for (int row = 0; row < n_rows; ++row)
+        {
+            y_folded[maps->folded_row[row]] += y[row];
+        }
     }
 }

@@ -627,6 +627,177 @@ static char *test_21_radix_sort()
     return 0;
 }
 
+// helper: v ascending in unsigned order
+static int ints_ascending(const int *v, int n)
+{
+    for (int i = 1; i < n; i++)
+    {
+        if ((unsigned int) v[i - 1] > (unsigned int) v[i])
+        {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int compare_ints_test(const void *a, const void *b)
+{
+    unsigned int x = (unsigned int) *(const int *) a;
+    unsigned int y = (unsigned int) *(const int *) b;
+    return (x > y) - (x < y);
+}
+
+/* Test 22: sort_ints on a shuffled duplicate-free array (radix path) equals
+   qsort */
+static char *test_22_radix_sort()
+{
+    int n = 5000;
+    int *v = (int *) malloc((size_t) n * sizeof(int));
+    int *expected = (int *) malloc((size_t) n * sizeof(int));
+    int *aux = (int *) malloc((size_t) n * sizeof(int));
+    unsigned int seed = 12345;
+    for (int i = 0; i < n; i++)
+    {
+        v[i] = 3 * i;
+    }
+    for (int i = n - 1; i > 0; i--)
+    {
+        seed = seed * 1103515245u + 12345u;
+        int j = (int) ((seed >> 8) % (unsigned int) (i + 1));
+        int tmp = v[i];
+        v[i] = v[j];
+        v[j] = tmp;
+    }
+    memcpy(expected, v, (size_t) n * sizeof(int));
+    qsort(expected, (size_t) n, sizeof(int), compare_ints_test);
+
+    sort_ints(v, (size_t) n, aux);
+    mu_assert("ascending", ints_ascending(v, n));
+    mu_assert("same values as qsort",
+              memcmp(v, expected, (size_t) n * sizeof(int)) == 0);
+    free(v);
+    free(expected);
+    free(aux);
+    return 0;
+}
+
+/* Test 23: sort_ints on sorted and reverse-sorted input */
+static char *test_23_radix_sort()
+{
+    int n = 1000;
+    int *v = (int *) malloc((size_t) n * sizeof(int));
+    int *aux = (int *) malloc((size_t) n * sizeof(int));
+
+    for (int i = 0; i < n; i++)
+    {
+        v[i] = 7 * i;
+    }
+    sort_ints(v, (size_t) n, aux);
+    for (int i = 0; i < n; i++)
+    {
+        mu_assert("sorted input unchanged", v[i] == 7 * i);
+    }
+
+    for (int i = 0; i < n; i++)
+    {
+        v[i] = 7 * (n - 1 - i);
+    }
+    sort_ints(v, (size_t) n, aux);
+    for (int i = 0; i < n; i++)
+    {
+        mu_assert("reverse input sorted", v[i] == 7 * i);
+    }
+    free(v);
+    free(aux);
+    return 0;
+}
+
+/* Test 24: sort_ints below the insertion cutoff: n = 0, 1 and 40 */
+static char *test_24_radix_sort()
+{
+    int v[40];
+    int aux[40];
+
+    sort_ints(v, 0, aux);
+    v[0] = 42;
+    sort_ints(v, 1, aux);
+    mu_assert("single value", v[0] == 42);
+
+    int n = 40;
+    unsigned int seed = 777;
+    for (int i = 0; i < n; i++)
+    {
+        seed = seed * 1103515245u + 12345u;
+        v[i] = (int) ((seed >> 8) % 1000u);
+    }
+    sort_ints(v, (size_t) n, aux);
+    mu_assert("insertion path ascending", ints_ascending(v, n));
+    return 0;
+}
+
+/* Test 25: radix path with values below 256 (three passes skipped) and with
+   values up to 2^30 (all four passes); duplicates allowed */
+static char *test_25_radix_sort()
+{
+    int n = 300;
+    int *v = (int *) malloc((size_t) n * sizeof(int));
+    int *expected = (int *) malloc((size_t) n * sizeof(int));
+    int *aux = (int *) malloc((size_t) n * sizeof(int));
+    unsigned int seed = 4242;
+
+    for (int i = 0; i < n; i++)
+    {
+        seed = seed * 1103515245u + 12345u;
+        v[i] = (int) ((seed >> 8) % 256u);
+    }
+    memcpy(expected, v, (size_t) n * sizeof(int));
+    qsort(expected, (size_t) n, sizeof(int), compare_ints_test);
+    sort_ints(v, (size_t) n, aux);
+    mu_assert("small values sorted",
+              memcmp(v, expected, (size_t) n * sizeof(int)) == 0);
+
+    for (int i = 0; i < n; i++)
+    {
+        seed = seed * 1103515245u + 12345u;
+        v[i] = (int) (((seed >> 1) ^ (seed << 7)) & 0x3FFFFFFFu);
+    }
+    memcpy(expected, v, (size_t) n * sizeof(int));
+    qsort(expected, (size_t) n, sizeof(int), compare_ints_test);
+    sort_ints(v, (size_t) n, aux);
+    mu_assert("large values sorted",
+              memcmp(v, expected, (size_t) n * sizeof(int)) == 0);
+
+    free(v);
+    free(expected);
+    free(aux);
+    return 0;
+}
+
+/* Test 26: the insertion cutoff itself: n = RADIX_SORT_INSERTION_MAX - 1
+   (insertion) and n = RADIX_SORT_INSERTION_MAX (radix) on the same data */
+static char *test_26_radix_sort()
+{
+    int n = RADIX_SORT_INSERTION_MAX;
+    int *v = (int *) malloc((size_t) n * sizeof(int));
+    int *w = (int *) malloc((size_t) n * sizeof(int));
+    int *aux = (int *) malloc((size_t) n * sizeof(int));
+    unsigned int seed = 99;
+    for (int i = 0; i < n; i++)
+    {
+        seed = seed * 1103515245u + 12345u;
+        v[i] = (int) ((seed >> 8) % 100000u);
+    }
+    memcpy(w, v, (size_t) n * sizeof(int));
+    sort_ints(v, (size_t) n - 1, aux);
+    sort_ints(w, (size_t) n, aux);
+    mu_assert("insertion prefix ascending", ints_ascending(v, n - 1));
+    mu_assert("radix result ascending", ints_ascending(w, n));
+    free(v);
+    free(w);
+    free(aux);
+    return 0;
+}
+
 static const char *all_tests_radix_sort()
 {
     mu_run_test(test_1_radix_sort, counter_radix_sort);
@@ -650,6 +821,11 @@ static const char *all_tests_radix_sort()
     mu_run_test(test_19_radix_sort, counter_radix_sort);
     mu_run_test(test_20_radix_sort, counter_radix_sort);
     mu_run_test(test_21_radix_sort, counter_radix_sort);
+    mu_run_test(test_22_radix_sort, counter_radix_sort);
+    mu_run_test(test_23_radix_sort, counter_radix_sort);
+    mu_run_test(test_24_radix_sort, counter_radix_sort);
+    mu_run_test(test_25_radix_sort, counter_radix_sort);
+    mu_run_test(test_26_radix_sort, counter_radix_sort);
 
     return 0;
 }

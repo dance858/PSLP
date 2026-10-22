@@ -59,6 +59,8 @@ typedef struct Work
     // the pool of the fold and of the parallel sort, freed with the scratch
     struct ThreadPool *pool;
 
+    // old-to-new indices, written by problem_clean at the end of presolve;
+    // scratch until then
     Mapping *mappings;
 
     // the fold, kept for postsolve; NULL when the problem was not folded
