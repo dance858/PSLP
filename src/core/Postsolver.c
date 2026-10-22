@@ -322,14 +322,6 @@ void retrieve_added_rows(Solution *sol, int i, const int *rows, const double *va
     }
 }
 
-/* Column j got a bound implied by row i. The reduced dual says which bound of
-   x_j is active, z_j > 0 the lower and z_j < 0 the upper; only an active
-   implied bound carries a multiplier, and it belongs on row i: y_i += z_j /
-   a_ij, z_k -= (a_ik / a_ij) z_j for the other columns of the row and z_j = 0.
-   The primal is not consulted: an absolute test of x_j against the bound fails
-   on an approximate solution with a large bound, and the sign of z_j already
-   decides. y_i need not be zero on entry (the bound may come from a doubleton
-   equality row). */
 void retrieve_bound_change(Solution *sol, int i, int j, const int *cols,
                            const double *vals, int len, bool implied_bound_is_upper)
 {
