@@ -322,10 +322,16 @@ void retrieve_added_rows(Solution *sol, int i, const int *rows, const double *va
     }
 }
 
+/* Column j got a bound implied by row i. The reduced dual says which bound of
+   x_j is active, z_j > 0 the lower and z_j < 0 the upper; only an active
+   implied bound carries a multiplier, and it belongs on row i: y_i += z_j /
+   a_ij, z_k -= (a_ik / a_ij) z_j for the other columns of the row and z_j = 0.
+   The primal is not consulted: an absolute test of x_j against the bound fails
+   on an approximate solution with a large bound, and the sign of z_j already
+   decides. y_i need not be zero on entry (the bound may come from a doubleton
+   equality row). */
 void retrieve_bound_change(Solution *sol, int i, int j, const int *cols,
-                           const double *vals, int len, double implied_bound,
-                           double original_other_bound,
-                           int is_original_other_bound_lower_bound)
+                           const double *vals, int len, bool implied_bound_is_upper)
 {
     int k, ii;
     double aij = 1.0;
@@ -333,22 +339,9 @@ void retrieve_bound_change(Solution *sol, int i, int j, const int *cols,
     assert(sol->y[i] != ROW_NOT_RETRIEVED);
     assert(sol->z[j] != COL_NOT_RETRIEVED);
 
-    // if the variable is equal to one of its original bounds and
-    // has the right sign on its multiplier we do nothing
-    if (IS_EQUAL_FEAS_TOL(sol->x[j], original_other_bound))
+    if ((implied_bound_is_upper && sol->z[j] >= 0.0) ||
+        (!implied_bound_is_upper && sol->z[j] <= 0.0))
     {
-        if ((is_original_other_bound_lower_bound && sol->z[j] >= 0) ||
-            (!is_original_other_bound_lower_bound && sol->z[j] <= 0))
-        {
-            return;
-        }
-    }
-
-    // if the implied bound is not active we do nothing
-    if (!IS_EQUAL_FEAS_TOL(sol->x[j], implied_bound))
-    {
-        // sol->y[i] does not always have to be zero since we possibly got the
-        // bound from a doubleton equality row assert(sol->y[i] == 0.0);
         return;
     }
 
@@ -586,9 +579,10 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
                     BoundChangeNoRowRecord r = decode_bound_change_no_row(
                         indices + start, vals + start, len);
                     bound_changes_processed += 1;
+                    // the implied bound is the upper one iff the other bound
+                    // is the lower one
                     retrieve_bound_change(sol, row.i, r.j, row.cols, row.vals,
-                                          row.len, r.implied_bound,
-                                          r.original_other_bound,
+                                          row.len,
                                           r.is_original_other_bound_lower_bound);
                 }
 
