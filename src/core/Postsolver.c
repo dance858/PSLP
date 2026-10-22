@@ -388,67 +388,41 @@ void retrieve_bound_change(Solution *sol, int i, int j, const int *cols,
     sol->z[j] = 0.0;
 }
 
-void retrieve_lhs_change(Solution *sol, int i, const double *vals, const int *cols,
-                         int len, double new_side, int j, double ratio)
+/* Row i took one of its sides from the parallel row j (a_i = ratio * a_j).
+   A positive y_i says the lhs is the active side, so its multiplier belongs
+   on row j: y_j = ratio * y_i. The primal is not consulted: an absolute
+   residual test fails on an approximate solution with a large activity, and
+   the sign of y_i already decides. Row j's DELETED_ROW record is replayed
+   before this one, so y_j is zero here unless the record of the other side
+   moved a y_i of the opposite sign, which left y_i zero. */
+void retrieve_lhs_change(Solution *sol, int i, int j, double ratio)
 {
     assert(sol->y[i] != ROW_NOT_RETRIEVED);
-    assert(sol->y[j] == ROW_NOT_RETRIEVED || sol->y[j] == 0.0);
+    assert(sol->y[j] != ROW_NOT_RETRIEVED);
 
-    // compute the residual of constraint i
-    double residual = -new_side;
-    for (int k = 0; k < len; ++k)
-    {
-        assert(sol->x[cols[k]] != COL_NOT_RETRIEVED);
-        residual += vals[k] * sol->x[cols[k]];
-    }
-
-    // A positive y_i already says the new lhs is the active side, so hand the
-    // dual over without the residual test, which fails on an approximate
-    // solution when the activity is large and would leave y_i on row i.
-    if (sol->y[i] <= 0 && !IS_ZERO_FEAS_TOL(residual))
+    if (sol->y[i] <= 0)
     {
         return;
     }
 
-    double cand_val = ratio * sol->y[i];
-    if (ratio * cand_val < 0)
-    {
-        sol->y[j] = 0.0;
-        return;
-    }
-
-    sol->y[j] = cand_val;
+    assert(sol->y[j] == 0.0);
+    sol->y[j] = ratio * sol->y[i];
     sol->y[i] = 0.0;
 }
 
-void retrieve_rhs_change(Solution *sol, int i, const double *vals, const int *cols,
-                         int len, double new_side, int j, double ratio)
+// as retrieve_lhs_change with the signs reversed
+void retrieve_rhs_change(Solution *sol, int i, int j, double ratio)
 {
     assert(sol->y[i] != ROW_NOT_RETRIEVED);
-    assert(sol->y[j] == ROW_NOT_RETRIEVED || sol->y[j] == 0.0);
+    assert(sol->y[j] != ROW_NOT_RETRIEVED);
 
-    // compute the residual of constraint i
-    double residual = -new_side;
-    for (int k = 0; k < len; ++k)
-    {
-        assert(sol->x[cols[k]] != COL_NOT_RETRIEVED);
-        residual += vals[k] * sol->x[cols[k]];
-    }
-
-    // As in retrieve_lhs_change, with the signs reversed.
-    if (sol->y[i] >= 0 && !IS_ZERO_FEAS_TOL(residual))
+    if (sol->y[i] >= 0)
     {
         return;
     }
 
-    double cand_val = ratio * sol->y[i];
-    if (ratio * cand_val > 0)
-    {
-        sol->y[j] = 0.0;
-        return;
-    }
-
-    sol->y[j] = cand_val;
+    assert(sol->y[j] == 0.0);
+    sol->y[j] = ratio * sol->y[i];
     sol->y[i] = 0.0;
 }
 
@@ -607,15 +581,13 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
         {
             SideChangeRecord r =
                 decode_side_change(indices + start, vals + start, len);
-            retrieve_lhs_change(sol, r.i, r.vals, r.cols, r.len, r.new_side, r.j,
-                                r.ratio);
+            retrieve_lhs_change(sol, r.i, r.j, r.ratio);
         }
         else if (type == RHS_CHANGE)
         {
             SideChangeRecord r =
                 decode_side_change(indices + start, vals + start, len);
-            retrieve_rhs_change(sol, r.i, r.vals, r.cols, r.len, r.new_side, r.j,
-                                r.ratio);
+            retrieve_rhs_change(sol, r.i, r.j, r.ratio);
         }
         else if (type == EQ_TO_INEQ)
         {
