@@ -388,13 +388,6 @@ void retrieve_bound_change(Solution *sol, int i, int j, const int *cols,
     sol->z[j] = 0.0;
 }
 
-/* Row i took one of its sides from the parallel row j (a_i = ratio * a_j).
-   A positive y_i says the lhs is the active side, so its multiplier belongs
-   on row j: y_j = ratio * y_i. The primal is not consulted: an absolute
-   residual test fails on an approximate solution with a large activity, and
-   the sign of y_i already decides. Row j's DELETED_ROW record is replayed
-   before this one, so y_j is zero here unless the record of the other side
-   moved a y_i of the opposite sign, which left y_i zero. */
 void retrieve_lhs_change(Solution *sol, int i, int j, double ratio)
 {
     assert(sol->y[i] != ROW_NOT_RETRIEVED);
