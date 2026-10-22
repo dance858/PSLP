@@ -165,8 +165,10 @@ static FoldReason run_fold(const FoldTestLP *P, const FoldOptions *options,
         bounds[j].lb = P->lb[j];
         bounds[j].ub = P->ub[j];
     }
+    ThreadPool *pool = thread_pool_new(3);
     FoldReason reason =
-        fold_detect(A, AT, P->lhs, P->rhs, bounds, P->c, options, maps, stats);
+        fold_detect(A, AT, P->lhs, P->rhs, bounds, P->c, options, pool, maps, stats);
+    thread_pool_free(pool);
     free(bounds);
     free(work);
     free_matrix(AT);
@@ -680,6 +682,7 @@ typedef struct FoldVerifyFixture
     Matrix *AT;
     int *work;
     Bound *bounds;
+    ThreadPool *pool;
     FoldWorkspace *workspace;
 } FoldVerifyFixture;
 
@@ -696,7 +699,8 @@ static bool fixture_new(FoldVerifyFixture *fx, const FoldTestLP *P)
         fx->bounds[j].lb = P->lb[j];
         fx->bounds[j].ub = P->ub[j];
     }
-    fx->workspace = fold_workspace_new(fx->A, fx->AT);
+    fx->pool = thread_pool_new(3);
+    fx->workspace = fold_workspace_new(fx->A, fx->AT, fx->pool);
     if (!fx->workspace)
     {
         return false;
@@ -713,6 +717,7 @@ static bool fixture_new(FoldVerifyFixture *fx, const FoldTestLP *P)
 static void fixture_free(FoldVerifyFixture *fx)
 {
     fold_workspace_free(fx->workspace);
+    thread_pool_free(fx->pool);
     free(fx->bounds);
     free(fx->work);
     free_matrix(fx->AT);
@@ -733,9 +738,9 @@ static int *fixture_col_ids(const FoldVerifyFixture *fx)
 /* Whether the fixture's current partition is equitable. */
 static bool fixture_verify(FoldVerifyFixture *fx)
 {
-    return colour_refinement_verify(fx->workspace->refine,
-                                    fx->workspace->row_classes,
-                                    fx->workspace->col_classes);
+    return colour_refinement_verify(
+               fx->workspace->refine, fx->workspace->row_classes,
+               fx->workspace->col_classes) == COLOUR_REFINEMENT_EQUITABLE;
 }
 
 /* Two identical blocks: the refined partition verifies; moving one row of
@@ -890,8 +895,10 @@ static FoldApplyResult run_apply(const FoldTestLP *P)
         r.col_tags[j] = (ColTag) (j % 5);
     }
     FoldOptions options = fold_test_options(0.0);
-    r.reason = fold_detect(r.A, AT, r.lhs, r.rhs, r.bounds, r.c, &options, &r.maps,
-                           &r.stats);
+    ThreadPool *pool = thread_pool_new(3);
+    r.reason = fold_detect(r.A, AT, r.lhs, r.rhs, r.bounds, r.c, &options, pool,
+                           &r.maps, &r.stats);
+    thread_pool_free(pool);
     r.detect_reason = r.reason;
     if (r.reason == FOLD_FOLDABLE)
     {
@@ -1133,7 +1140,7 @@ static FoldTestLP folded_lp(const FoldApplyResult *r)
     return p;
 }
 
-static PresolvedProblem lp_problem(FoldTestLP *p)
+static ProblemData lp_problem(FoldTestLP *p)
 {
     return problem_from_csr(p->Ax, p->Ai, p->Ap, p->m, p->n, p->nnz, p->lhs, p->rhs,
                             p->lb, p->ub, p->c);
@@ -1158,7 +1165,7 @@ static const char *test_fold_postsolve_lift(void)
     mu_assert("folded costs", f.c[0] == -3.0 && f.c[1] == -6.0);
 
     double x_f[2] = {0, 1}, y_f[1] = {-3}, z_f[2] = {0, -3};
-    PresolvedProblem folded = lp_problem(&f);
+    ProblemData folded = lp_problem(&f);
     mu_assert("folded point is KKT", is_kkt_point(&folded, x_f, y_f, z_f, 1e-9));
     double x[6], y[3], z[6];
     fold_postsolve(r.maps, p.m, p.n, x_f, y_f, z_f, x, y, z);
@@ -1172,7 +1179,7 @@ static const char *test_fold_postsolve_lift(void)
     {
         mu_assert("y divided by the row class size", y[i] == -1.0);
     }
-    PresolvedProblem original = lp_problem(&p);
+    ProblemData original = lp_problem(&p);
     mu_assert("lifted point is KKT", is_kkt_point(&original, x, y, z, 1e-9));
     flp_free(&f);
     apply_result_free(&r);
@@ -1198,7 +1205,7 @@ static const char *test_fold_postsolve_class_sizes(void)
     mu_assert("folded data", f.Ax[0] == 3.0 && f.c[0] == -3.0);
 
     double x_f[1] = {0.5}, y_f[1] = {-0.5}, z_f[1] = {-1.5};
-    PresolvedProblem folded = lp_problem(&f);
+    ProblemData folded = lp_problem(&f);
     mu_assert("folded point is KKT", is_kkt_point(&folded, x_f, y_f, z_f, 1e-9));
     double x[3], y[2], z[3];
     fold_postsolve(r.maps, p.m, p.n, x_f, y_f, z_f, x, y, z);
@@ -1211,7 +1218,7 @@ static const char *test_fold_postsolve_class_sizes(void)
     {
         mu_assert("y divided by the row class size", y[i] == -0.25);
     }
-    PresolvedProblem original = lp_problem(&p);
+    ProblemData original = lp_problem(&p);
     mu_assert("lifted point is KKT", is_kkt_point(&original, x, y, z, 1e-9));
     flp_free(&f);
     apply_result_free(&r);
@@ -1276,7 +1283,7 @@ static const char *test_fold_presolver_lift(void)
                                        constraints->AT->nnz == 2);
     mu_assert("maps kept", constraints->state->work->fold_maps != NULL);
     mu_assert("presolve", run_presolver(presolver) != INFEASIBLE);
-    const PresolvedProblem *reduced = presolver->reduced_prob;
+    const ProblemData *reduced = presolver->reduced_prob;
     mu_assert("reduced 1 x 2",
               reduced->m == 1 && reduced->n == 2 && reduced->nnz == 2);
     mu_assert("folded data", reduced->c[0] == -3.0 && reduced->c[1] == -6.0 &&
@@ -1303,7 +1310,7 @@ static const char *test_fold_presolver_lift(void)
     {
         mu_assert("y divided by the row class size", sol->y[i] == -1.0);
     }
-    PresolvedProblem original = lp_problem(&p);
+    ProblemData original = lp_problem(&p);
     mu_assert("lifted point is KKT",
               is_kkt_point(&original, sol->x, sol->y, sol->z, 1e-9));
     free_presolver(presolver);
@@ -1395,10 +1402,71 @@ static const char *test_fold_presolver_full_settings(void)
     mu_assert("x lifted", all_equal(sol->x, 6, 1.0));
     mu_assert("y lifted", all_equal(sol->y, 3, 0.0));
     mu_assert("z lifted", all_equal(sol->z, 6, -1.0));
-    PresolvedProblem original = lp_problem(&p);
+    ProblemData original = lp_problem(&p);
     mu_assert("lifted point is KKT",
               is_kkt_point(&original, sol->x, sol->y, sol->z, 1e-9));
     free_presolver(presolver);
+    free_settings(stgs);
+    flp_free(&p);
+    flp_free(&b);
+    return 0;
+}
+
+/* True when two presolved problems are identical. */
+static bool fold_same_presolved(const ProblemData *a, const ProblemData *b)
+{
+    return a->m == b->m && a->n == b->n && a->nnz == b->nnz &&
+           a->obj_offset == b->obj_offset &&
+           memcmp(a->Ap, b->Ap, (a->m + 1) * sizeof(int)) == 0 &&
+           memcmp(a->Ai, b->Ai, a->nnz * sizeof(int)) == 0 &&
+           memcmp(a->Ax, b->Ax, a->nnz * sizeof(double)) == 0 &&
+           memcmp(a->lhs, b->lhs, a->m * sizeof(double)) == 0 &&
+           memcmp(a->rhs, b->rhs, a->m * sizeof(double)) == 0 &&
+           memcmp(a->c, b->c, a->n * sizeof(double)) == 0 &&
+           memcmp(a->lbs, b->lbs, a->n * sizeof(double)) == 0 &&
+           memcmp(a->ubs, b->ubs, a->n * sizeof(double)) == 0;
+}
+
+/* The pool has the threads of the setting (clamped to [1, 64], automatic for
+   0 or less), and the fold gives the same problem on any of them. */
+static const char *test_fold_presolver_threads(void)
+{
+    FoldTestLP b = simplex_copies();
+    FoldTestLP p = flp_replicate(&b, 50);
+    Settings *stgs = default_settings();
+    stgs->lp_fold = true;
+    stgs->verbose = false;
+    Presolver *reference = fold_presolver(&p, stgs);
+    mu_assert("reference presolver", reference != NULL);
+    int automatic =
+        thread_pool_n_threads(reference->prob->constraints->state->work->pool);
+    mu_assert("automatic count in range",
+              automatic >= 1 && automatic <= THREAD_POOL_AUTO_THREADS);
+    mu_assert("reference presolve", run_presolver(reference) != INFEASIBLE);
+    mu_assert("reference folded", reference->stats->n_rows_folded == 1);
+
+    int counts[] = {1, 2, 3, 7, -5, 1000};
+    int expected[] = {1, 2, 3, 7, automatic, THREAD_POOL_MAX_THREADS};
+    for (size_t t = 0; t < sizeof(counts) / sizeof(int); t++)
+    {
+        stgs->n_threads = counts[t];
+        Presolver *presolver = fold_presolver(&p, stgs);
+        mu_assert("presolver", presolver != NULL);
+        /* without workers (Windows) the pool is the calling thread only */
+        int pool_threads =
+            thread_pool_n_threads(presolver->prob->constraints->state->work->pool);
+        mu_assert("pool has the threads of the setting",
+                  pool_threads == (THREAD_POOL_HAS_WORKERS ? expected[t] : 1));
+        mu_assert("presolve", run_presolver(presolver) != INFEASIBLE);
+        mu_assert("pool released",
+                  presolver->prob->constraints->state->work->pool == NULL);
+        mu_assert(
+            "same reduced problem for every thread count",
+            fold_same_presolved(presolver->reduced_prob, reference->reduced_prob));
+        free_presolver(presolver);
+    }
+
+    free_presolver(reference);
     free_settings(stgs);
     flp_free(&p);
     flp_free(&b);
@@ -1431,6 +1499,7 @@ static const char *all_tests_fold(void)
     mu_run_test(test_fold_refuses_primal_ray, counter_fold);
     mu_run_test(test_fold_refuses_dual_ray, counter_fold);
     mu_run_test(test_fold_presolver_full_settings, counter_fold);
+    mu_run_test(test_fold_presolver_threads, counter_fold);
     return 0;
 }
 

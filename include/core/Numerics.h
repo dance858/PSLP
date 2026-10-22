@@ -25,6 +25,9 @@
 #define BOUND_MARGINAL 0.5 * FEAS_TOL
 #define ZERO_TOL 1e-10
 #define CANCEL_TOL_REL 1e-12
+/* relative tolerance under which an updated diagonal entry of P counts as zero
+   (the 2x2 principal minors of an input P are only PSD up to rounding) */
+#define P_DIAG_CANCEL_TOL_REL 1e-9
 #define ZERO_TOL_DUAL_POSTSOLVE 1e-6
 #define HUGE_VAL_PS 1e7
 
@@ -51,6 +54,12 @@
 #define IS_GT_FEAS_TOL(x, y) ((x) - (y) >= FEAS_TOL)
 #define IS_LT_FEAS_TOL(x, y) ((y) - (x) >= FEAS_TOL)
 #define IS_HUGE(x) (ABS(x) >= HUGE_VAL_PS)
+
+/* Tolerance of an infeasibility verdict: FEAS_TOL near zero, relative to the
+   larger magnitude beyond one. */
+#define INFEAS_TOL(x, y) (FEAS_TOL * MAX(1.0, MAX(ABS(x), ABS(y))))
+#define IS_INFEAS_GT(x, y) ((x) - (y) > INFEAS_TOL(x, y))
+#define IS_INFEAS_LT(x, y) ((y) - (x) > INFEAS_TOL(x, y))
 
 #define SET_ZERO_IF_SMALL_DUAL_POSTSOLVE(x)                                         \
     do                                                                              \

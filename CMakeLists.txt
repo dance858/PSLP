@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.20)
 project(PSLP LANGUAGES C CXX) # The library is written in C, but we also have some C++ test files
 
 set(PSLP_VERSION_MAJOR 0)
-set(PSLP_VERSION_MINOR 1)
-set(PSLP_VERSION_PATCH 1)
+set(PSLP_VERSION_MINOR 2)
+set(PSLP_VERSION_PATCH 0)
 set(PSLP_VERSION "${PSLP_VERSION_MAJOR}.${PSLP_VERSION_MINOR}.${PSLP_VERSION_PATCH}")
 add_compile_definitions(PSLP_VERSION="${PSLP_VERSION}")
 
@@ -54,6 +54,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 #Collect source files
 file(GLOB CORE_SOURCES CONFIGURE_DEPENDS
     src/core/*.c
+    src/core/colour_refinement/*.c
     src/explorers/*.c
     src/explorers/dton/*.c
     src/explorers/fold/*.c
@@ -67,6 +68,7 @@ set(PUBLIC_HEADERS
 
 file(GLOB PRIVATE_HEADERS CONFIGURE_DEPENDS
     include/core/*.h
+    include/core/colour_refinement/*.h
     include/data_structures/*.h
     include/explorers/*.h
     include/explorers/dton/*.h
@@ -94,6 +96,7 @@ target_include_directories(PSLP
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/PSLP>
   PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/core>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/core/colour_refinement>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/explorers>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/explorers/dton>
@@ -156,6 +159,7 @@ if(PSLP_BUILD_TESTING)
     # Add include directories explicitly for the test target
   target_include_directories(all_tests PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/include/core
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/core/colour_refinement
       ${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures
       ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers
       ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers/dton

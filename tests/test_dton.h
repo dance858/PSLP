@@ -709,7 +709,7 @@ static double dton_removed_eq_residual(const double *Ax, const int *Ai,
     return mx;
 }
 
-static void dton_stationary_reduced_point(const PresolvedProblem *red, double *x,
+static void dton_stationary_reduced_point(const ProblemData *red, double *x,
                                           double *y, double *z)
 {
     for (size_t j = 0; j < red->n; ++j)
@@ -764,7 +764,7 @@ static char *dton_check_postsolve(double *Ax, int *Ai, int *Ap, int m, int n,
     }
 
     // the test must have exercised the elimination
-    const PresolvedProblem *red = ps->reduced_prob;
+    const ProblemData *red = ps->reduced_prob;
     const u16Vec *types = ps->prob->constraints->state->postsolve_info->type;
     int n_dton = 0;
     for (size_t t = 0; t < types->len; ++t)
@@ -927,7 +927,7 @@ static char *test_dton_free_subst()
         new_presolver(Ax, Ai, Ap, 3, 4, 7, lhs, rhs, lbs, ubs, c, stgs);
     mu_assert("presolver allocation failed", presolver != NULL);
     mu_assert("must reduce", run_presolver(presolver) == REDUCED);
-    const PresolvedProblem *red = presolver->reduced_prob;
+    const ProblemData *red = presolver->reduced_prob;
     mu_assert("x1 eliminated", red->n == 3);
     mu_assert("stay lb unchanged", red->lbs[0] == 0.0);
     mu_assert("stay ub unchanged", red->ubs[0] == 10.0);
@@ -954,7 +954,7 @@ static char *test_dton_primal_ray()
     double lbs[] = {0, 0, 0, 0};
     double ubs[] = {10, 10, 10, 10};
     double c[] = {1, 1, 1, 1};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, m, n, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -995,7 +995,7 @@ static char *test_dton_dual_ray()
     double lbs[] = {0, 0, 0};
     double ubs[] = {INF, INF, INF};
     double c[] = {-1, 0, 0};
-    PresolvedProblem orig =
+    ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, m, n, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
@@ -1546,6 +1546,44 @@ static char *test_dton_e2e_full_settings()
                                 1e9);
 }
 
+/*  A singleton column listed twice on ston_cols. ston eliminates w and leaves
+    the singleton row x_j >= 1 behind, which the singleton-row explorer removes
+    after the ston pass, so j is a listed singleton when dton runs. Round 1
+    substitutes k through i1 and j grows; r1 is deferred because it wants k too.
+    Round 2 substitutes t through r1, whose other row r2 already holds j, so j
+    shrinks back to a singleton and is appended again. The Debug build used to
+    assert on the duplicate; now the second entry is skipped. */
+static char *test_dton_ston_worklist_duplicate()
+{
+    /* columns: 0 = w, 1 = j, 2 = k, 3 = t, 4 = u, 5 = v
+       rows: w + j = 1, j + 10 k = 10, 5 k + 2 t = 1, k + t + u >= 1.3,
+             u + v >= 0, u - v >= -10 */
+    double Ax[] = {1, 1, 1, 10, 5, 2, 1, 1, 1, 1, 1, 1, -1};
+    int Ai[] = {0, 1, 1, 2, 2, 3, 2, 3, 4, 4, 5, 4, 5};
+    int Ap[] = {0, 2, 4, 6, 9, 11, 13};
+    double lhs[] = {1, 10, 1, 1.3, 0, -10};
+    double rhs[] = {1, 10, 1, INF, INF, INF};
+    double lbs[] = {-INF, -INF, -INF, -INF, 0, 0};
+    double ubs[] = {0, INF, INF, INF, 2, 2};
+    double c[] = {0, 0, 0, 0, 0, 0};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->ston_cols = true;
+    stgs->dton_eq = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 6, 6, 13, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+    mu_assert("presolve must reduce", run_presolver(presolver) == REDUCED);
+    mu_assert("only r3 and r4 on u and v remain",
+              presolver->reduced_prob->m == 2 && presolver->reduced_prob->n == 2 &&
+                  presolver->reduced_prob->nnz == 4);
+
+    free_presolver(presolver);
+    PS_FREE(stgs);
+    return 0;
+}
+
 static const char *all_tests_dton()
 {
     mu_run_test(test_dton_workspace, counter_dton);
@@ -1579,6 +1617,7 @@ static const char *all_tests_dton()
     mu_run_test(test_dton_infeasible_two_rows, counter_dton);
     mu_run_test(test_dton_infeasible_chain, counter_dton);
     mu_run_test(test_dton_e2e_full_settings, counter_dton);
+    mu_run_test(test_dton_ston_worklist_duplicate, counter_dton);
     return 0;
 }
 

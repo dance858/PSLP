@@ -27,13 +27,14 @@
    class, the same multiset of labels on their edges into it, and likewise for
    columns.
 
-   The multisets are compared exactly, so the partition is equitable whenever
-   the run converges. Every round recomputes and sorts the signature of every
-   line, which costs about nnz log nnz.
+   The multisets are summed into 64-bit hashes, so two lines with different
+   multisets can stay in one class with a probability of about 2^-64.
+   colour_refinement_verify checks a partition exactly.
 
    The numbering of the classes is unspecified; only the lowest member ids
    identify a class across implementations. */
 
+#include "thread_pool.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -44,8 +45,11 @@ typedef struct ColourRefinement ColourRefinement;
 
 typedef enum ColourRefinementResult
 {
-    COLOUR_REFINEMENT_CONVERGED,    /* Stable partition. */
-    COLOUR_REFINEMENT_NOT_CONVERGED /* Work budget or round limit reached. */
+    COLOUR_REFINEMENT_CONVERGED,     /* Stable partition. */
+    COLOUR_REFINEMENT_NOT_CONVERGED, /* Work budget or round limit reached. */
+    COLOUR_REFINEMENT_EQUITABLE,     /* From verify: the partition is equitable. */
+    COLOUR_REFINEMENT_NOT_EQUITABLE, /* From verify: two lines of a class differ. */
+    COLOUR_REFINEMENT_ALLOCATION_FAILED
 } ColourRefinementResult;
 
 typedef struct ColourRefinementOptions
@@ -66,17 +70,19 @@ typedef struct ColourRefinementStats
     int duplicate_entries;
 } ColourRefinementStats;
 
-/* State and scratch for A and its transpose. Keeps pointers to both. NULL on
-   failure; nothing after this allocates. */
+/* State and scratch for A and its transpose. A has at least one entry. Keeps
+   pointers to both and to 'pool', on whose threads the run works. NULL on
+   failure. */
 ColourRefinement *colour_refinement_new(const struct Matrix *A,
-                                        const struct Matrix *AT);
+                                        const struct Matrix *AT, ThreadPool *pool);
 void colour_refinement_free(ColourRefinement *refine);
 
 /* Refines from the start colours, one per row and one per column, to a
-   fixpoint or a limit. Lines with equal colours and equally many entries start
+   fixpoint or a limit; at least one round runs. Lines with equal colours start
    in one class. Writes the class id of every row and column, in
    [0, n_row_classes) and [0, n_col_classes), and the counts into 'stats'. The
-   classes are valid whether or not the refinement converged. */
+   classes are valid whether or not the refinement converged. On
+   ALLOCATION_FAILED no classes are written. */
 ColourRefinementResult colour_refinement_run(ColourRefinement *refine,
                                              const uint64_t *row_colours,
                                              const uint64_t *col_colours,
@@ -84,9 +90,13 @@ ColourRefinementResult colour_refinement_run(ColourRefinement *refine,
                                              int *row_classes, int *col_classes,
                                              ColourRefinementStats *stats);
 
-/* True when the partition (row_classes, col_classes) is equitable: refining it
-   once more splits no class. The ids may be any ints. */
-bool colour_refinement_verify(ColourRefinement *refine, const int *row_classes,
-                              const int *col_classes);
+/* Exact check of the partition (row_classes, col_classes): within a class,
+   every line has the same multiset of (class of the other end, label) as the
+   lowest member, so refining it once more splits no class. The ids of a side
+   are in [0, number of lines of the side). Serial. Returns EQUITABLE,
+   NOT_EQUITABLE or ALLOCATION_FAILED. */
+ColourRefinementResult colour_refinement_verify(const ColourRefinement *refine,
+                                                const int *row_classes,
+                                                const int *col_classes);
 
 #endif // COLOUR_REFINEMENT_H

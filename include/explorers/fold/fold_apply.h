@@ -35,4 +35,14 @@ FoldReason fold_apply(const Matrix *A, double *lhs, double *rhs, RowTag *row_tag
                       Bound *bounds, ColTag *col_tags, double *c,
                       const FoldMaps *maps, Matrix **folded);
 
+/* Finds and applies the fold. Returns true when the problem was folded: *A is
+   then the folded matrix (the given one freed), the line data is compacted in
+   place and *maps holds the maps; the caller rebuilds AT. Otherwise nothing is
+   touched and *maps is NULL. 'stats' may be NULL; 'pool' runs the
+   refinement. */
+bool fold_problem(Matrix **A, const Matrix *AT, double *lhs, double *rhs,
+                  RowTag *row_tags, Bound *bounds, ColTag *col_tags, double *c,
+                  const FoldOptions *options, struct ThreadPool *pool,
+                  FoldMaps **maps, FoldStats *stats);
+
 #endif // FOLD_APPLY_H

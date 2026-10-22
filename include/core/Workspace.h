@@ -32,6 +32,7 @@ typedef struct Mapping
 struct DtonWorkspace;
 struct FoldMaps;
 struct Solution;
+struct ThreadPool;
 
 /* The int_vec in the following struct is used within
     1. parallel_rows to store bin_starts
@@ -54,6 +55,9 @@ typedef struct Work
     // radix_aux is used as auxiliary buffer for radix sort in parallel_rows/cols
     // TODO: do we really need this? or can we reuse space?
     int *radix_aux;
+
+    // the pool of the fold and of the parallel sort, freed with the scratch
+    struct ThreadPool *pool;
 
     Mapping *mappings;
 

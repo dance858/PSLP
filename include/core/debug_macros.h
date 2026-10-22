@@ -63,7 +63,7 @@
     } while (0)
 #endif
 
-static inline bool ARRAYS_EQUAL_INT(int *arr1, int *arr2, int size)
+static inline bool ARRAYS_EQUAL_INT(const int *arr1, const int *arr2, int size)
 {
     for (int i = 0; i < size; i++)
     {
@@ -72,7 +72,8 @@ static inline bool ARRAYS_EQUAL_INT(int *arr1, int *arr2, int size)
     return true;
 }
 
-static inline bool ARRAYS_EQUAL_DOUBLE(double *arr1, double *arr2, int size)
+static inline bool ARRAYS_EQUAL_DOUBLE(const double *arr1, const double *arr2,
+                                       int size)
 {
     for (int i = 0; i < size; i++)
     {

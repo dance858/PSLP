@@ -46,6 +46,29 @@ int dton_choose_subst(const double *row_vals, int col_size0, int col_size1)
     return (col_size0 < col_size1) ? 0 : 1;
 }
 
+/* Which entry (0 or 1) of a doubleton equality row to substitute, or -1 when
+   the row cannot be eliminated. A column absent from P is always preferred. A
+   column in P is substituted only when the other column is in P too and its
+   row of P is a positive diagonal alone that folds into the other column's
+   diagonal without fill-in (sub0/sub1). */
+int dton_choose_subst_qp(const double *row_vals, int col_size0, int col_size1,
+                         bool in_P0, bool in_P1, bool sub0, bool sub1)
+{
+    if (in_P0 != in_P1)
+    {
+        return in_P0 ? 1 : 0;
+    }
+    if (!in_P0 || (sub0 && sub1))
+    {
+        return dton_choose_subst(row_vals, col_size0, col_size1);
+    }
+    if (!sub0 && !sub1)
+    {
+        return -1;
+    }
+    return sub0 ? 0 : 1;
+}
+
 /* Reserves the round's per-record arrays for 'need' records. False if an
    allocation fails. */
 static inline bool dton_reserve_records(DtonWorkspace *dton_work, size_t need)
@@ -78,9 +101,12 @@ bool dton_claim(Problem *prob, DtonWorkspace *dton_work, int *deferred,
     Constraints *constraints = prob->constraints;
     const Matrix *A = constraints->A;
     const double *rhs = constraints->rhs;
-    const int *row_sizes = constraints->state->row_sizes;
-    const int *col_sizes = constraints->state->col_sizes;
-    const iVec *dton_rows = constraints->state->dton_rows;
+    const State *state = constraints->state;
+    const int *row_sizes = state->row_sizes;
+    const int *col_sizes = state->col_sizes;
+    const int *P_row_sizes = state->P_row_sizes;
+    const Matrix *P = prob->obj->P;
+    const iVec *dton_rows = state->dton_rows;
 
     dton_work->substs.n_recs = 0;
 
@@ -116,17 +142,30 @@ bool dton_claim(Problem *prob, DtonWorkspace *dton_work, int *deferred,
         assert(!HAS_TAG(constraints->col_tags[col0] | constraints->col_tags[col1],
                         C_TAG_INACTIVE));
 
-        subst = dton_choose_subst(vals, col_sizes[col0], col_sizes[col1]);
-        stay = 1 - subst;
+        bool in_P0 = col_in_P(state, col0);
+        bool in_P1 = col_in_P(state, col1);
+        bool sub0 = false, sub1 = false;
+        double Pkk[2] = {0.0, 0.0};
+        if (in_P0 && in_P1)
+        {
+            /* only symmetry is checked on input, so a diagonal is not given */
+            sub0 = diagonal_only_P_entry(P, P_row_sizes, col0, Pkk) &&
+                   P_row_has_diagonal(P, P_row_sizes, col1);
+            sub1 = diagonal_only_P_entry(P, P_row_sizes, col1, Pkk + 1) &&
+                   P_row_has_diagonal(P, P_row_sizes, col0);
+        }
+        subst = dton_choose_subst_qp(vals, col_sizes[col0], col_sizes[col1], in_P0,
+                                     in_P1, sub0, sub1);
 
-        k = cols[subst];
-
-        /* the col this row wants to substitute is already claimed by another row */
-        if (dton_work->substs.col_subst[k] >= 0)
+        /* the row cannot be eliminated, or the col this row wants to
+           substitute is already claimed by another row */
+        if (subst < 0 || dton_work->substs.col_subst[cols[subst]] >= 0)
         {
             deferred[(*n_deferred)++] = i;
             continue;
         }
+        stay = 1 - subst;
+        k = cols[subst];
 
         /* store information about the substitution */
         assert(dton_work->substs.n_recs < dton_work->substs.cap);
@@ -138,6 +177,7 @@ bool dton_claim(Problem *prob, DtonWorkspace *dton_work, int *deferred,
         rec->aij = vals[stay];
         rec->dir_mult = -rec->aij / rec->aik;
         rec->dir_shift = rhs[i] / rec->aik;
+        rec->Pkk = Pkk[subst]; /* 0 unless the column is in P */
         dton_work->substs.col_subst[k] = dton_work->substs.n_recs++;
     }
     return true;
@@ -292,7 +332,9 @@ PresolveStatus dton_transfer_bounds(Problem *prob, DtonWorkspace *dton_work)
        y_i = (c_k - sum_{r != i} a_rk y_r) / a_ik,
    where the sum includes the owner rows whose stay column is k. Those records
    are deeper, so the columns are emitted by ascending depth and replayed
-   deepest first. */
+   deepest first. A column in P (row k of P is the diagonal P_kk alone) adds
+   P_kk x_k / a_ik to y_i through a DELETED_ROW_ZK record, saved first and
+   hence replayed last. */
 void dton_record(Problem *prob, DtonWorkspace *dton_work)
 {
     Constraints *constraints = prob->constraints;
@@ -320,6 +362,10 @@ void dton_record(Problem *prob, DtonWorkspace *dton_work)
         }
 #endif
 
+        if (rec->Pkk != 0.0)
+        {
+            save_retrieval_deleted_row_zk(info, i, k, aik, rec->Pkk);
+        }
         save_retrieval_added_rows(info, i, rows, col_vals, (size_t) len, aik);
         save_retrieval_sub_col_dton(info, k, rec->target, rec->mult, rec->shift);
         save_retrieval_deleted_row(info, i, c[k] / aik);

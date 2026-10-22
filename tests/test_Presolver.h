@@ -9,6 +9,7 @@
 #include "minunit.h"
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 static int counter_presolver = 0;
 
@@ -164,12 +165,115 @@ static char *test_03_presolver()
     return 0;
 }
 
+/* Columns with close bounds are fixed at an integral bound when there is one,
+   else at the midpoint. */
+static char *test_04_presolver()
+{
+    // min x0 + x1 + x2 + x3  s.t.  x0 + x1 + x2 + x3 <= 5
+    double Ax[] = {1, 1, 1, 1};
+    int Ai[] = {0, 1, 2, 3};
+    int Ap[] = {0, 4};
+    int nnz = 4;
+    int n_rows = 1;
+    int n_cols = 4;
+    double lhs[] = {-INF};
+    double rhs[] = {5};
+    double lbs[] = {0, 1 - 1e-7, 0.3, 0};
+    double ubs[] = {1e-7, 1, 0.3 + 5e-7, 10};
+    double c[] = {1, 1, 1, 1};
+    double mid = 0.5 * (0.3 + (0.3 + 5e-7));
+
+    Settings *stgs = default_settings();
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("Presolver initialization failed", presolver != NULL);
+
+    mu_assert("reduced", run_presolver(presolver) == REDUCED);
+    mu_assert("offset of the three fixed columns",
+              fabs(presolver->reduced_prob->obj_offset - (1 + mid)) < 1e-12);
+
+    // x3 = 0 is optimal whether or not it survived the presolve
+    double x[] = {0};
+    double y[] = {0};
+    double z[] = {1};
+    postsolve(presolver, x, y, z);
+    mu_assert("integral lower bound kept", presolver->sol->x[0] == 0.0);
+    mu_assert("integral upper bound kept", presolver->sol->x[1] == 1.0);
+    mu_assert("midpoint otherwise", presolver->sol->x[2] == mid);
+    mu_assert("free column", presolver->sol->x[3] == 0.0);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/* True when two presolved problems are identical. */
+static bool same_presolved_problem(const ProblemData *a, const ProblemData *b)
+{
+    return a->m == b->m && a->n == b->n && a->nnz == b->nnz &&
+           a->obj_offset == b->obj_offset &&
+           memcmp(a->Ap, b->Ap, (a->m + 1) * sizeof(int)) == 0 &&
+           memcmp(a->Ai, b->Ai, a->nnz * sizeof(int)) == 0 &&
+           memcmp(a->Ax, b->Ax, a->nnz * sizeof(double)) == 0 &&
+           memcmp(a->lhs, b->lhs, a->m * sizeof(double)) == 0 &&
+           memcmp(a->rhs, b->rhs, a->m * sizeof(double)) == 0 &&
+           memcmp(a->c, b->c, a->n * sizeof(double)) == 0 &&
+           memcmp(a->lbs, b->lbs, a->n * sizeof(double)) == 0 &&
+           memcmp(a->ubs, b->ubs, a->n * sizeof(double)) == 0;
+}
+
+/* Any thread setting, automatic, out of range or not, gives the same reduced
+   problem. */
+static char *test_05_presolver()
+{
+    /* x0 + x1 <= 4 three times over (two of them parallel copies), an
+       equality and an inequality that keep the columns. */
+    double Ax[] = {1, 1, 2, 2, 1, 1, 1, 1, -1, -1};
+    int Ai[] = {0, 1, 0, 1, 2, 3, 1, 2, 0, 1};
+    int Ap[] = {0, 2, 4, 6, 8, 10};
+    int nnz = 10;
+    int n_rows = 5;
+    int n_cols = 4;
+    double lhs[] = {-INF, -INF, 2, 1, -4};
+    double rhs[] = {4, 10, 2, INF, INF};
+    double lbs[] = {0, 0, 0, 0};
+    double ubs[] = {5, 5, 5, 5};
+    double c[] = {1, 2, 3, 4};
+
+    Settings *stgs = default_settings();
+    mu_assert("automatic by default", stgs->n_threads == 0);
+    Presolver *reference =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("reference presolver", reference != NULL);
+    mu_assert("reference reduced", run_presolver(reference) == REDUCED);
+
+    int counts[] = {1, 2, 3, -5, 1000};
+    for (size_t t = 0; t < sizeof(counts) / sizeof(int); t++)
+    {
+        stgs->n_threads = counts[t];
+        Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs,
+                                             rhs, lbs, ubs, c, stgs);
+        mu_assert("presolver", presolver != NULL);
+        mu_assert("reduced", run_presolver(presolver) == REDUCED);
+        mu_assert("same reduced problem for every thread count",
+                  same_presolved_problem(presolver->reduced_prob,
+                                         reference->reduced_prob));
+        free_presolver(presolver);
+    }
+
+    PS_FREE(stgs);
+    free_presolver(reference);
+    return 0;
+}
+
 static const char *all_tests_presolver()
 {
     mu_run_test(test_00_presolver, counter_presolver);
     mu_run_test(test_01_presolver, counter_presolver);
     mu_run_test(test_02_presolver, counter_presolver);
     mu_run_test(test_03_presolver, counter_presolver);
+    mu_run_test(test_04_presolver, counter_presolver);
+    mu_run_test(test_05_presolver, counter_presolver);
     return 0;
 }
 

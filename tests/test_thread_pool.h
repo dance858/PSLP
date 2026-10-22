@@ -106,8 +106,32 @@ static const char *test_pool_atomics(void)
     return 0;
 }
 
+static const char *test_pool_online_cpus(void)
+{
+    mu_assert("at least one CPU online", thread_pool_online_cpus() >= 1);
+    return 0;
+}
+
+/* 0 or less is the automatic count, the rest is clamped to [1, max]. */
+static const char *test_pool_resolve_n_threads(void)
+{
+    int online = thread_pool_online_cpus();
+    int automatic =
+        online < THREAD_POOL_AUTO_THREADS ? online : THREAD_POOL_AUTO_THREADS;
+    mu_assert("0 is automatic", thread_pool_resolve_n_threads(0) == automatic);
+    mu_assert("negative is automatic",
+              thread_pool_resolve_n_threads(-5) == automatic);
+    mu_assert("1 stays", thread_pool_resolve_n_threads(1) == 1);
+    mu_assert("7 stays", thread_pool_resolve_n_threads(7) == 7);
+    mu_assert("clamped to the maximum",
+              thread_pool_resolve_n_threads(1000) == THREAD_POOL_MAX_THREADS);
+    return 0;
+}
+
 static const char *all_tests_thread_pool(void)
 {
+    mu_run_test(test_pool_online_cpus, counter_thread_pool);
+    mu_run_test(test_pool_resolve_n_threads, counter_thread_pool);
     mu_run_test(test_pool_runs_every_chunk, counter_thread_pool);
     mu_run_test(test_pool_chunk_helpers, counter_thread_pool);
     mu_run_test(test_pool_atomics, counter_thread_pool);

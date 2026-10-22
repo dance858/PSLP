@@ -26,6 +26,7 @@
 
 #if THREAD_POOL_HAS_WORKERS
 #include <pthread.h>
+#include <unistd.h>
 #endif
 
 struct ThreadPool
@@ -199,6 +200,32 @@ void thread_pool_free(ThreadPool *pool)
 int thread_pool_n_threads(const ThreadPool *pool)
 {
     return pool->n_workers + 1;
+}
+
+int thread_pool_online_cpus(void)
+{
+#if THREAD_POOL_HAS_WORKERS
+    long online = sysconf(_SC_NPROCESSORS_ONLN);
+    return online < 1 ? 1 : (int) online;
+#else
+    return 1;
+#endif
+}
+
+int thread_pool_resolve_n_threads(int requested)
+{
+    int n_threads = requested;
+    if (n_threads <= 0)
+    {
+        int online = thread_pool_online_cpus();
+        n_threads =
+            online < THREAD_POOL_AUTO_THREADS ? online : THREAD_POOL_AUTO_THREADS;
+    }
+    if (n_threads > THREAD_POOL_MAX_THREADS)
+    {
+        n_threads = THREAD_POOL_MAX_THREADS;
+    }
+    return n_threads < 1 ? 1 : n_threads;
 }
 
 void thread_pool_run(ThreadPool *pool, ThreadPoolChunkFunction function,

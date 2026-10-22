@@ -26,6 +26,7 @@
 #include "Timer.h"
 #include "fold_internal.h"
 #include "hash.h"
+#include <assert.h>
 #include <string.h>
 
 const char *fold_reason_string(FoldReason reason)
@@ -46,7 +47,8 @@ const char *fold_reason_string(FoldReason reason)
     return "unknown";
 }
 
-FoldWorkspace *fold_workspace_new(const Matrix *A, const Matrix *AT)
+FoldWorkspace *fold_workspace_new(const Matrix *A, const Matrix *AT,
+                                  ThreadPool *pool)
 {
     FoldWorkspace *work = (FoldWorkspace *) ps_calloc(1, sizeof(FoldWorkspace));
     if (!work)
@@ -54,7 +56,8 @@ FoldWorkspace *fold_workspace_new(const Matrix *A, const Matrix *AT)
         return NULL;
     }
     size_t n_lines = A->m > A->n ? A->m : A->n;
-    work->refine = colour_refinement_new(A, AT);
+    work->pool = pool;
+    work->refine = colour_refinement_new(A, AT, pool);
     work->row_colours = (uint64_t *) ps_malloc(A->m + 1, sizeof(uint64_t));
     work->col_colours = (uint64_t *) ps_malloc(A->n + 1, sizeof(uint64_t));
     work->row_classes = (int *) ps_malloc(A->m + 1, sizeof(int));
@@ -238,10 +241,18 @@ static FoldReason find_fold(FoldWorkspace *work, const Matrix *A, const double *
     // --------------------------------------------------------------------
     stats->rounds = refine_stats.rounds;
     stats->work = refine_stats.work;
+    if (result == COLOUR_REFINEMENT_ALLOCATION_FAILED)
+    {
+        return FOLD_FAILED;
+    }
     if (result == COLOUR_REFINEMENT_NOT_CONVERGED)
     {
         return FOLD_LIMIT;
     }
+    /* Debug builds check the partition exactly. */
+    assert(colour_refinement_verify(work->refine, work->row_classes,
+                                    work->col_classes) !=
+           COLOUR_REFINEMENT_NOT_EQUITABLE);
     bool removes_nothing = refine_stats.duplicate_entries == 0;
     bool too_small =
         refine_stats.duplicate_entries < options->min_reduction * (double) A->nnz;
@@ -263,14 +274,22 @@ static FoldReason find_fold(FoldWorkspace *work, const Matrix *A, const double *
 
 FoldReason fold_detect(const Matrix *A, const Matrix *AT, const double *lhs,
                        const double *rhs, const Bound *bounds, const double *c,
-                       const FoldOptions *options, FoldMaps **maps, FoldStats *stats)
+                       const FoldOptions *options, ThreadPool *pool, FoldMaps **maps,
+                       FoldStats *stats)
 {
+    memset(stats, 0, sizeof(*stats));
+    *maps = NULL;
+    if (A->nnz == 0)
+    {
+        stats->reason = FOLD_NOTHING;
+        return FOLD_NOTHING;
+    }
+
     Timer timer;
     clock_gettime(CLOCK_MONOTONIC, &timer.start);
-    memset(stats, 0, sizeof(*stats));
 
     FoldReason reason;
-    FoldWorkspace *work = fold_workspace_new(A, AT);
+    FoldWorkspace *work = fold_workspace_new(A, AT, pool);
     FoldMaps *found = maps_new((int) A->m, (int) A->n);
     if (!work || !found)
     {

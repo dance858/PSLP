@@ -22,6 +22,7 @@
 #include "Numerics.h"
 #include "PSLP_sol.h"
 #include "fold.h"
+#include "thread_pool.h"
 #include <stdio.h>
 
 #define INT_VEC_INITIALIZATION 25
@@ -45,6 +46,7 @@ Work *new_work(size_t n_rows, size_t n_cols, bool dton_eq)
     work->mappings->rows = (int *) ps_malloc(n_rows, sizeof(int));
     work->fold_maps = NULL;
     work->folded_sol = NULL;
+    work->pool = NULL;
 
     if (!work->iwork_n_cols || !work->iwork_n_rows ||
         !work->iwork1_max_nrows_ncols || !work->iwork2_max_nrows_ncols ||
@@ -72,6 +74,8 @@ void free_work_scratch(Work *work)
     }
     dton_workspace_free(work->dton);
     work->dton = NULL;
+    thread_pool_free(work->pool);
+    work->pool = NULL;
 }
 
 void free_work(Work *work)

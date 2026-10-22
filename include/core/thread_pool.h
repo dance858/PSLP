@@ -44,6 +44,16 @@ void thread_pool_free(ThreadPool *pool);
 /* Workers plus the calling thread. */
 int thread_pool_n_threads(const ThreadPool *pool);
 
+/* CPUs online, at least 1 (1 without workers). */
+int thread_pool_online_cpus(void);
+
+/* The threads for a requested count: the request clamped to
+   [1, THREAD_POOL_MAX_THREADS], or for a request of 0 or less the smaller of
+   THREAD_POOL_AUTO_THREADS and the CPUs online. */
+#define THREAD_POOL_AUTO_THREADS 8
+#define THREAD_POOL_MAX_THREADS 64
+int thread_pool_resolve_n_threads(int requested);
+
 /* Runs the chunks of one pass and returns when all of them are done. */
 void thread_pool_run(ThreadPool *pool, ThreadPoolChunkFunction function,
                      void *context, int n_chunks);

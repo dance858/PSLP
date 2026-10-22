@@ -29,7 +29,7 @@ static int counter_kkt = 0;
     double lbs[] = {0, 0, -5};                                                      \
     double ubs[] = {3, INF, 2};                                                     \
     double c[] = {-3, -1, 4};                                                       \
-    PresolvedProblem prob =                                                         \
+    ProblemData prob =                                                              \
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);   \
     double x[] = {3, 1, -5};                                                        \
     double y[] = {-2, 1};                                                           \
@@ -128,7 +128,7 @@ static char *test_kkt_no_rows()
     double lbs[] = {0, 0};
     double ubs[] = {1, 1};
     double c[] = {1, -1};
-    PresolvedProblem prob =
+    ProblemData prob =
         problem_from_csr(NULL, NULL, Ap, 0, 2, 0, NULL, NULL, lbs, ubs, c);
     double x[] = {0, 1};
     double z[] = {1, -1};
@@ -154,7 +154,7 @@ static char *test_kkt_primal_ray_certificate()
     double lbs[] = {0, 0};
     double ubs[] = {INF, INF};
     double c[] = {0, 0};
-    PresolvedProblem prob =
+    ProblemData prob =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     // A'y = 0 and support = 4 * 1.5 - 3.5 - 3.5 = -1
@@ -193,7 +193,7 @@ static char *test_kkt_dual_ray_certificate()
     double lbs[] = {0, 0, -INF};
     double ubs[] = {INF, INF, INF};
     double c[] = {-1, -1, 0};
-    PresolvedProblem prob =
+    ProblemData prob =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     double d[] = {1, 1, 2};
