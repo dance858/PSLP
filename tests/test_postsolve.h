@@ -1442,6 +1442,137 @@ static char *test_propagation_bound_dual_approximate_solution()
     return 0;
 }
 
+/*  Parallel rows with an approximate reduced solution.
+    min. [1     2     3]
+    s.t.      [ 1000   1000   1000]  <= 1e5
+              [-2000  -2000  -2000]  <= -1.6e5
+              [    1     -1      0]  <= 30
+              [    0      1     -1]  <= 20
+              [    1      0      1]  <= 70
+                         0 <= x <= 100
+    Rows 0 and 1 are parallel and one of them is removed. In the reduced
+    problem the kept row has both sides, x = (160/3, 70/3, 10/3) and its dual
+    is 2 / a (a = its coefficient), on the side that came from the removed row
+    if row 0 is kept. The reduced point here is scaled by (1 + 2e-10), as a
+    first-order solver's may be, so the kept row misses that side by 1.6e-5:
+    more than FEAS_TOL, though about 2e-10 relative. Postsolve must still
+    leave every row dual with a sign its sides allow: neither row has a
+    finite lhs, so neither may end up with a positive dual.
+*/
+static char *test_parallel_rows_dual_approximate_solution()
+{
+    double Ax[] = {1000, 1000, 1000, -2000, -2000, -2000, 1, -1, 1, -1, 1, 1};
+    int Ai[] = {0, 1, 2, 0, 1, 2, 0, 1, 1, 2, 0, 2};
+    int Ap[] = {0, 3, 6, 8, 10, 12};
+    int nnz = 12;
+    int n_rows = 5;
+    int n_cols = 3;
+
+    double lhs[] = {-INF, -INF, -INF, -INF, -INF};
+    double rhs[] = {1e5, -1.6e5, 30, 20, 70};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {100, 100, 100};
+    double c[] = {1, 2, 3};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->parallel_rows = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    ProblemData *red = presolver->reduced_prob;
+    mu_assert("expected one parallel row removed", red->m == 4 && red->n == 3);
+
+    // optimal reduced point, scaled by (1 + 2e-10); the kept parallel row is
+    // reduced row 0 with coefficient a, the other rows keep their order
+    double a = red->Ax[red->Ap[0]];
+    double scale = 1 + 2e-10;
+    double x[] = {160.0 / 3 * scale, 70.0 / 3 * scale, 10.0 / 3 * scale};
+    double y[] = {2 / a, -1, -1, 0};
+    double z[] = {0, 0, 0};
+    postsolve(presolver, x, y, z);
+
+    double *y_orig = presolver->sol->y;
+    for (int i = 0; i < n_rows; ++i)
+    {
+        mu_assert("positive row dual without a finite lhs",
+                  !(y_orig[i] > POSTSOLVE_TOL_FEAS && IS_NEG_INF(lhs[i])));
+        mu_assert("negative row dual without a finite rhs",
+                  !(y_orig[i] < -POSTSOLVE_TOL_FEAS && IS_POS_INF(rhs[i])));
+    }
+
+    KKTResiduals res;
+    kkt_residuals(&orig, presolver->sol->x, y_orig, presolver->sol->z, &res);
+    mu_assert("postsolved duals do not satisfy A^T y + z = c",
+              res.dual_res_rel <= 1e-12);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/*  Parallel rows where both sides of the kept row come from the removed row.
+    min. [1  1] x
+    s.t.   0 <= [1  1] x <= 100
+          10 <= [1  1] x <= 50
+          0 <= x <= 100
+    The kept row takes both sides of the other one, so the pair has an
+    LHS_CHANGE and an RHS_CHANGE record. At the optimum the lhs 10 is active
+    with y = 1, which must end up on the row the side came from. */
+static char *test_parallel_rows_both_sides_moved()
+{
+    double Ax[] = {1, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 1};
+    int Ap[] = {0, 2, 4};
+    int nnz = 4;
+    int n_rows = 2;
+    int n_cols = 2;
+
+    double lhs[] = {0, 10};
+    double rhs[] = {100, 50};
+    double lbs[] = {0, 0};
+    double ubs[] = {100, 100};
+    double c[] = {1, 1};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->parallel_rows = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    ProblemData *red = presolver->reduced_prob;
+    mu_assert("expected one parallel row removed", red->m == 1 && red->n == 2);
+    mu_assert("expected both sides on the kept row",
+              IS_EQUAL_FEAS_TOL(red->lhs[0], 10) &&
+                  IS_EQUAL_FEAS_TOL(red->rhs[0], 50));
+
+    double x[] = {10, 0};
+    double y[] = {1};
+    double z[] = {0, 0};
+    postsolve(presolver, x, y, z);
+
+    double correct_x[] = {10, 0};
+    double correct_y[] = {0, 1};
+    double correct_z[] = {0, 0};
+    mu_assert("both-sides parallel rows postsolve error",
+              is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
+                                  correct_y, presolver->sol->z, correct_z, n_rows,
+                                  n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_postsolve()
 {
     mu_run_test(test_0_postsolve, counter_postsolve);
@@ -1471,6 +1602,8 @@ static const char *all_tests_postsolve()
     mu_run_test(test_parallel_col_dual_identity, counter_postsolve);
     mu_run_test(test_ston_row_bound_dual_approximate_solution, counter_postsolve);
     mu_run_test(test_propagation_bound_dual_approximate_solution, counter_postsolve);
+    mu_run_test(test_parallel_rows_dual_approximate_solution, counter_postsolve);
+    mu_run_test(test_parallel_rows_both_sides_moved, counter_postsolve);
     //        all tests above pass
 
     return 0;

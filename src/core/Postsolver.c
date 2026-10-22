@@ -373,63 +373,34 @@ void retrieve_bound_change(Solution *sol, int i, int j, const int *cols,
     sol->z[j] = 0.0;
 }
 
-void retrieve_lhs_change(Solution *sol, int i, const double *vals, const int *cols,
-                         int len, double new_side, int j, double ratio)
+void retrieve_lhs_change(Solution *sol, int i, int j, double ratio)
 {
     assert(sol->y[i] != ROW_NOT_RETRIEVED);
-    assert(sol->y[j] == ROW_NOT_RETRIEVED || sol->y[j] == 0.0);
+    assert(sol->y[j] != ROW_NOT_RETRIEVED);
 
-    // compute the residual of constraint i
-    double residual = -new_side;
-    for (int k = 0; k < len; ++k)
-    {
-        assert(sol->x[cols[k]] != COL_NOT_RETRIEVED);
-        residual += vals[k] * sol->x[cols[k]];
-    }
-
-    if (!IS_ZERO_FEAS_TOL(residual))
+    if (sol->y[i] <= 0)
     {
         return;
     }
 
-    double cand_val = ratio * sol->y[i];
-    if (ratio * cand_val < 0)
-    {
-        sol->y[j] = 0.0;
-        return;
-    }
-
-    sol->y[j] = cand_val;
+    assert(sol->y[j] == 0.0);
+    sol->y[j] = ratio * sol->y[i];
     sol->y[i] = 0.0;
 }
 
-void retrieve_rhs_change(Solution *sol, int i, const double *vals, const int *cols,
-                         int len, double new_side, int j, double ratio)
+// as retrieve_lhs_change with the signs reversed
+void retrieve_rhs_change(Solution *sol, int i, int j, double ratio)
 {
     assert(sol->y[i] != ROW_NOT_RETRIEVED);
-    assert(sol->y[j] == ROW_NOT_RETRIEVED || sol->y[j] == 0.0);
+    assert(sol->y[j] != ROW_NOT_RETRIEVED);
 
-    // compute the residual of constraint i
-    double residual = -new_side;
-    for (int k = 0; k < len; ++k)
-    {
-        assert(sol->x[cols[k]] != COL_NOT_RETRIEVED);
-        residual += vals[k] * sol->x[cols[k]];
-    }
-
-    if (!IS_ZERO_FEAS_TOL(residual))
+    if (sol->y[i] >= 0)
     {
         return;
     }
 
-    double cand_val = ratio * sol->y[i];
-    if (ratio * cand_val > 0)
-    {
-        sol->y[j] = 0.0;
-        return;
-    }
-
-    sol->y[j] = cand_val;
+    assert(sol->y[j] == 0.0);
+    sol->y[j] = ratio * sol->y[i];
     sol->y[i] = 0.0;
 }
 
@@ -589,15 +560,13 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
         {
             SideChangeRecord r =
                 decode_side_change(indices + start, vals + start, len);
-            retrieve_lhs_change(sol, r.i, r.vals, r.cols, r.len, r.new_side, r.j,
-                                r.ratio);
+            retrieve_lhs_change(sol, r.i, r.j, r.ratio);
         }
         else if (type == RHS_CHANGE)
         {
             SideChangeRecord r =
                 decode_side_change(indices + start, vals + start, len);
-            retrieve_rhs_change(sol, r.i, r.vals, r.cols, r.len, r.new_side, r.j,
-                                r.ratio);
+            retrieve_rhs_change(sol, r.i, r.j, r.ratio);
         }
         else if (type == EQ_TO_INEQ)
         {
