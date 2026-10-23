@@ -75,6 +75,15 @@ void constraints_clean(Constraints *constraints, struct Mapping *mappings);
    3. It updates locks. */
 void delete_inactive_rows(Constraints *constraints);
 
+/* The two halves of delete_inactive_rows. The first empties the rows in A,
+   updates column sizes, locks and the lists of empty and singleton columns,
+   and clears the list of deleted rows. It returns false when the list was
+   empty. Until the second half runs, AT still holds the coefficients of the
+   deleted rows, so a column of AT may be longer than its column size. The
+   second half removes them. */
+bool delete_inactive_rows_from_A(Constraints *constraints);
+void delete_inactive_rows_from_AT(Constraints *constraints);
+
 /* This function processes the lists of fixed/substituted columns.
     1. It updates A and AT.
     1. It updates row sizes and the lists of empty/ston rows.

@@ -9,6 +9,7 @@
 #include "debug_macros.h"
 #include "minunit.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 /*
 # The following tests are/should be implemented for the StonCols class
@@ -1239,6 +1240,84 @@ static char *test_17_ston()
     return 0;
 }
 
+/* Dense staircase: row i holds columns 0..i+1 with coefficients 1 and
+   -(i + 1), rhs 0, all bounds [0, 10]. Every column is implied free, so the
+   last column is a singleton whose row removal exposes the next one, through
+   the whole matrix. */
+static char *test_18_ston_staircase(int T)
+{
+    int m = T - 1;
+    int nnz = 0;
+    for (int i = 0; i < m; ++i)
+    {
+        nnz += i + 2;
+    }
+    double *Ax = (double *) malloc((size_t) nnz * sizeof(double));
+    int *Ai = (int *) malloc((size_t) nnz * sizeof(int));
+    int *Ap = (int *) malloc((size_t) (m + 1) * sizeof(int));
+    double *lhs = (double *) calloc((size_t) m, sizeof(double));
+    double *rhs = (double *) calloc((size_t) m, sizeof(double));
+    double *lbs = (double *) malloc((size_t) T * sizeof(double));
+    double *ubs = (double *) malloc((size_t) T * sizeof(double));
+    double *c = (double *) malloc((size_t) T * sizeof(double));
+    for (int j = 0; j < T; ++j)
+    {
+        lbs[j] = 0;
+        ubs[j] = 10;
+        c[j] = 1;
+    }
+    int pos = 0;
+    for (int i = 0; i < m; ++i)
+    {
+        Ap[i] = pos;
+        for (int j = 0; j <= i; ++j)
+        {
+            Ai[pos] = j;
+            Ax[pos] = 1.0;
+            ++pos;
+        }
+        Ai[pos] = i + 1;
+        Ax[pos] = -(double) (i + 1);
+        ++pos;
+    }
+    Ap[m] = pos;
+
+    Settings *stgs = default_settings();
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, m, T, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+
+    mu_assert("reduced", run_presolver(presolver) == REDUCED);
+    mu_assert("everything removed",
+              presolver->reduced_prob->m == 0 && presolver->reduced_prob->n == 0);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    free(Ax);
+    free(Ai);
+    free(Ap);
+    free(lhs);
+    free(rhs);
+    free(lbs);
+    free(ubs);
+    free(c);
+    return 0;
+}
+
+static char *test_18_ston()
+{
+    char *msg = test_18_ston_staircase(300);
+    if (msg)
+    {
+        return msg;
+    }
+#ifdef NDEBUG
+    return test_18_ston_staircase(3000);
+#else
+    return 0;
+#endif
+}
+
 static const char *all_tests_ston()
 {
     mu_run_test(test_01_ston, counter_ston); // (✓)
@@ -1257,6 +1336,7 @@ static const char *all_tests_ston()
     mu_run_test(test_15_ston, counter_ston); // (✓)
     mu_run_test(test_16_ston, counter_ston); // (✓)
     mu_run_test(test_17_ston, counter_ston); // (✓)
+    mu_run_test(test_18_ston, counter_ston);
     return 0;
 }
 

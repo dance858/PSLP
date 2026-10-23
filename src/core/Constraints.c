@@ -24,6 +24,7 @@
 #include "State.h"
 #include "Workspace.h"
 #include "glbopts.h"
+#include "radix_sort.h"
 #include "utils.h"
 
 Constraints *constraints_new(Matrix *A, Matrix *AT, double *lhs, double *rhs,
@@ -64,30 +65,28 @@ void free_constraints(Constraints *constraints)
     PS_FREE(constraints);
 }
 
-void delete_inactive_rows(Constraints *constraints)
+bool delete_inactive_rows_from_A(Constraints *constraints)
 {
     iVec *rows_to_delete = constraints->state->rows_to_delete;
 
     if (rows_to_delete->len == 0)
     {
-        return;
+        return false;
     }
 
-    int i, j, row, col, shift;
+    int i, j, row, col;
     bool is_rhs_inf, is_lhs_inf;
     int *row_sizes = constraints->state->row_sizes;
     int *col_sizes = constraints->state->col_sizes;
     Lock *locks = constraints->state->col_locks;
     Matrix *A = constraints->A;
-    Matrix *AT = constraints->AT;
     RowTag *row_tags = constraints->row_tags;
     RowRange *row_r = A->p;
-    RowRange *col_r = AT->p;
+    iVec *empty_cols = constraints->state->empty_cols;
+    iVec *ston_cols = constraints->state->ston_cols;
+    size_t n_empty_cols = empty_cols->len;
+    size_t n_ston_cols = ston_cols->len;
 
-    // ------------------------------------------------------------------------
-    //                      Delete rows of A.
-    //            (We also update column sizes and locks).
-    // ------------------------------------------------------------------------
     for (i = 0; i < rows_to_delete->len; ++i)
     {
         row = rows_to_delete->data[i];
@@ -115,18 +114,45 @@ void delete_inactive_rows(Constraints *constraints)
 
             col_sizes[col]--;
             update_lock_coeff_deletion(locks + col, A->x[j], is_rhs_inf, is_lhs_inf);
+
+            // a column that passes through size 1 on its way to 0 is listed
+            // as a singleton too
+            switch (col_sizes[col])
+            {
+                case 0:
+                    iVec_append(empty_cols, col);
+                    break;
+                case 1:
+                    iVec_append(ston_cols, col);
+                    break;
+            }
         }
         row_r[row].end = row_r[row].start;
     }
+
+    // list the new empty and singleton columns in index order
+    int *aux = constraints->state->work->radix_aux;
+    sort_ints(empty_cols->data + n_empty_cols, empty_cols->len - n_empty_cols, aux);
+    sort_ints(ston_cols->data + n_ston_cols, ston_cols->len - n_ston_cols, aux);
+
+    iVec_clear_no_resize(rows_to_delete);
+    return true;
+}
+
+void delete_inactive_rows_from_AT(Constraints *constraints)
+{
+    int j, col, shift;
+    const int *row_sizes = constraints->state->row_sizes;
+    const int *col_sizes = constraints->state->col_sizes;
+    const ColTag *col_tags = constraints->col_tags;
+    Matrix *AT = constraints->AT;
+    RowRange *col_r = AT->p;
 
     // ------------------------------------------------------------------------
     // Process each row of AT and place coefficients contiguously in memory.
     // (Looping over rows of AT is much more cache friendly than looping over
     //  the columns of AT that change)
     // ------------------------------------------------------------------------
-    iVec *empty_cols = constraints->state->empty_cols;
-    iVec *ston_cols = constraints->state->ston_cols;
-    const ColTag *col_tags = constraints->col_tags;
     for (col = 0; col < AT->m; ++col)
     {
         // skip rows of AT that haven't changed
@@ -137,18 +163,6 @@ void delete_inactive_rows(Constraints *constraints)
         }
 
         assert(col_sizes[col] != SIZE_INACTIVE_COL);
-
-        // check for new empty and singleton columns,
-        switch (col_sizes[col])
-        {
-            case 0:
-                iVec_append(empty_cols, col);
-                col_r[col].end = col_r[col].start;
-                break;
-            case 1:
-                iVec_append(ston_cols, col);
-                break;
-        }
 
         // place coefficients contiguously in memory
         shift = 0;
@@ -170,8 +184,15 @@ void delete_inactive_rows(Constraints *constraints)
         assert(col_r[col].start + col_sizes[col] == col_r[col].end);
     }
 
-    AT->nnz = A->nnz;
-    iVec_clear_no_resize(rows_to_delete);
+    AT->nnz = constraints->A->nnz;
+}
+
+void delete_inactive_rows(Constraints *constraints)
+{
+    if (delete_inactive_rows_from_A(constraints))
+    {
+        delete_inactive_rows_from_AT(constraints);
+    }
 }
 
 void delete_inactive_cols_from_A_and_AT(Constraints *constraints)
