@@ -533,13 +533,35 @@ static inline void refresh_ston_cols(const int *col_sizes, iVec *ston_cols)
     ston_cols->len = n_ston_cols;
 }
 
-PresolveStatus remove_ston_cols__(Problem *prob)
+/* Removes the coefficients of deleted rows from column k of AT. Rows deleted
+   by earlier rounds of the explorer are still stored in AT. */
+static inline void drop_deleted_rows_from_col(Matrix *AT, const int *row_sizes,
+                                              int col_size, int k)
+{
+    int start = AT->p[k].start;
+    int write_pos = start;
+
+    for (int jj = start; jj < AT->p[k].end; ++jj)
+    {
+        if (row_sizes[AT->i[jj]] != SIZE_INACTIVE_ROW)
+        {
+            AT->x[write_pos] = AT->x[jj];
+            AT->i[write_pos] = AT->i[jj];
+            write_pos++;
+        }
+    }
+
+    assert(write_pos == start + col_size);
+    AT->p[k].end = start + col_size;
+}
+
+static PresolveStatus remove_ston_cols__(Problem *prob, bool *rows_deleted)
 {
     Constraints *constraints = prob->constraints;
     PostsolveInfo *postsolve_info = constraints->state->postsolve_info;
     const Matrix *A = constraints->A;
     size_t *A_nnz = &(constraints->A->nnz);
-    const Matrix *AT = constraints->AT;
+    Matrix *AT = constraints->AT;
     RowTag *row_tags = constraints->row_tags;
     ColTag *col_tags = constraints->col_tags;
     double *lhs = constraints->lhs;
@@ -578,6 +600,7 @@ PresolveStatus remove_ston_cols__(Problem *prob)
         {
             continue;
         }
+        drop_deleted_rows_from_col(AT, row_sizes, col_sizes[k], k);
         i = AT->i[AT->p[k].start];
         Aik = AT->x[AT->p[k].start];
 
@@ -649,9 +672,10 @@ PresolveStatus remove_ston_cols__(Problem *prob)
         }
     }
 
-    // process the rows that should be deleted
+    // process the rows that should be deleted. AT is compacted once all
+    // rounds are done.
     constraints->AT->nnz = A->nnz;
-    delete_inactive_rows(constraints);
+    *rows_deleted |= delete_inactive_rows_from_A(constraints);
 
     if (HAS_STATUS(status, UNBNDORINFEAS))
     {
@@ -676,12 +700,19 @@ PresolveStatus remove_ston_cols(Problem *prob)
     DEBUG(verify_problem_up_to_date(prob->constraints));
 
     PresolveStatus status = UNCHANGED;
+    bool rows_deleted = false;
 
     do
     {
-        status = remove_ston_cols__(prob);
+        status = remove_ston_cols__(prob, &rows_deleted);
     } while (status == REDUCED);
 
+    if (rows_deleted)
+    {
+        delete_inactive_rows_from_AT(prob->constraints);
+    }
+
+    assert(prob->constraints->AT->nnz == prob->constraints->A->nnz);
     DEBUG(verify_problem_up_to_date(prob->constraints));
 
     // status will always be UNBNDORINFEAS or UNCHANGED (never REDUCED).

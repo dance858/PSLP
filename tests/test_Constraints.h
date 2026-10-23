@@ -6,6 +6,7 @@
 #include "Locks.h"
 #include "PSLP_API.h"
 #include "State.h"
+#include "Workspace.h"
 #include "glbopts.h"
 #include "minunit.h"
 #include "test_macros.h"
@@ -13,6 +14,7 @@
 
 // Test 1 - 2: delete_inactive_rows
 // Test 3 - 4: delete_inactive_cols_from_A_and_AT
+// Test 5: delete_inactive_rows in two halves
 
 static int counter_constraints = 0;
 
@@ -45,8 +47,9 @@ static char *test_1_constraints()
     RowTag *row_tags = new_rowtags(lhs, rhs, n_rows);
     ColTag col_tags[4] = {0};
     Settings *stgs = default_settings();
+    Work *work = new_work(n_rows, n_cols, false);
     State *data = new_state(row_sizes, col_sizes, NULL, locks, n_rows, n_cols,
-                            activities, NULL, row_tags);
+                            activities, work, row_tags);
     Constraints *constraints =
         constraints_new(A, AT, lhs, rhs, bounds, data, row_tags, col_tags);
 
@@ -91,6 +94,7 @@ static char *test_1_constraints()
     PS_FREE(constraints);
     PS_FREE(stgs);
     free_state(data);
+    free_work(work);
     PS_FREE(row_tags);
 
     return 0;
@@ -126,8 +130,9 @@ static char *test_2_constraints()
     ColTag col_tags[10] = {0};
     Settings *stgs = default_settings();
     Activity activities[10] = {0};
+    Work *work = new_work(n_rows, n_cols, false);
     State *data = new_state(row_sizes, col_sizes, NULL, locks, n_rows, n_cols,
-                            activities, NULL, row_tags);
+                            activities, work, row_tags);
     Constraints *constraints =
         constraints_new(A, AT, lhs, rhs, bounds, data, row_tags, col_tags);
 
@@ -178,6 +183,7 @@ static char *test_2_constraints()
     PS_FREE(stgs);
     PS_FREE(constraints);
     free_state(data);
+    free_work(work);
     PS_FREE(row_tags);
 
     return 0;
@@ -343,12 +349,96 @@ static char *test_4_constraints()
     return 0;
 }
 
+/* The matrix of test 1. Rows 2 and 0 are deleted in that order, so the new
+   singleton and empty columns are found out of index order and columns 1 and
+   2 pass through size 1 on their way to 0. */
+static char *test_5_constraints()
+{
+    double vals[] = {1, -1, 1, 2, -1, 1, 1, 1, 1};
+    int cols[] = {0, 1, 2, 0, 3, 0, 1, 2, 3};
+    int row_starts[] = {0, 3, 5, 9};
+    int n_rows = 3;
+    int n_cols = 4;
+    int nnz = 9;
+    int work_n_cols[4];
+    Matrix *A = matrix_new(vals, cols, row_starts, n_rows, n_cols, nnz);
+    Matrix *AT = transpose(A, work_n_cols, 0);
+    double lhs[3] = {4, 2, -INF};
+    double rhs[3] = {4, 2, 1};
+    Bound bounds[4];
+    init_bounds(bounds, -10, 10, n_cols);
+    Lock locks[] = {{.up = 3, .down = 2},
+                    {.up = 2, .down = 1},
+                    {.up = 2, .down = 1},
+                    {.up = 2, .down = 1}};
+    int row_sizes[] = {3, 2, 4};
+    int col_sizes[] = {3, 2, 2, 2};
+    Activity activities[3] = {0};
+    RowTag *row_tags = new_rowtags(lhs, rhs, n_rows);
+    ColTag col_tags[4] = {0};
+    Work *work = new_work(n_rows, n_cols, false);
+    State *data = new_state(row_sizes, col_sizes, NULL, locks, n_rows, n_cols,
+                            activities, work, row_tags);
+    Constraints *constraints =
+        constraints_new(A, AT, lhs, rhs, bounds, data, row_tags, col_tags);
+
+    mu_assert("nothing to delete", !delete_inactive_rows_from_A(constraints));
+
+    iVec_append_array(data->rows_to_delete, (int[]) {2, 0}, 2);
+    mu_assert("rows deleted", delete_inactive_rows_from_A(constraints));
+    mu_assert("list cleared", data->rows_to_delete->len == 0);
+
+    int correct_col_sizes[] = {1, 0, 0, 1};
+    int correct_row_sizes[] = {SIZE_INACTIVE_ROW, 2, SIZE_INACTIVE_ROW};
+    mu_assert("error col_sizes", ARRAYS_EQUAL_INT(col_sizes, correct_col_sizes, 4));
+    mu_assert("error row_sizes", ARRAYS_EQUAL_INT(row_sizes, correct_row_sizes, 3));
+    mu_assert("rows of A emptied", A->p[0].end == A->p[0].start &&
+                                       A->p[2].end == A->p[2].start && A->nnz == 2);
+
+    // the lists hold the new columns in index order
+    int correct_ston_cols[] = {0, 1, 2, 3};
+    int correct_empty_cols[] = {1, 2};
+    mu_assert("ston cols",
+              data->ston_cols->len == 4 &&
+                  ARRAYS_EQUAL_INT(data->ston_cols->data, correct_ston_cols, 4));
+    mu_assert("empty cols",
+              data->empty_cols->len == 2 &&
+                  ARRAYS_EQUAL_INT(data->empty_cols->data, correct_empty_cols, 2));
+
+    // AT still holds the deleted rows
+    int AT_lengths_before[] = {3, 2, 2, 2};
+    for (int k = 0; k < n_cols; ++k)
+    {
+        mu_assert("AT untouched",
+                  AT->p[k].end - AT->p[k].start == AT_lengths_before[k]);
+    }
+
+    delete_inactive_rows_from_AT(constraints);
+    mu_assert("AT nnz", AT->nnz == 2);
+    for (int k = 0; k < n_cols; ++k)
+    {
+        mu_assert("AT compacted", AT->p[k].end - AT->p[k].start == col_sizes[k]);
+    }
+    mu_assert("AT col 0", AT->i[AT->p[0].start] == 1 && AT->x[AT->p[0].start] == 2);
+    mu_assert("AT col 3", AT->i[AT->p[3].start] == 1 && AT->x[AT->p[3].start] == -1);
+
+    free_matrix(A);
+    free_matrix(AT);
+    PS_FREE(constraints);
+    free_state(data);
+    free_work(work);
+    PS_FREE(row_tags);
+
+    return 0;
+}
+
 static const char *all_tests_constraints()
 {
     mu_run_test(test_1_constraints, counter_constraints);
     mu_run_test(test_2_constraints, counter_constraints);
     mu_run_test(test_3_constraints, counter_constraints);
     mu_run_test(test_4_constraints, counter_constraints);
+    mu_run_test(test_5_constraints, counter_constraints);
 
     return 0;
 }
