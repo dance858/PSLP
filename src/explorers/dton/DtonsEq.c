@@ -159,7 +159,7 @@ PresolveStatus remove_dton_eq_rows(Problem *prob)
         }
 
         /* the round may have freed rows for phase 0 */
-        dton_tighten_changed_columns(prob, dton_work);
+        dton_tighten_changed_columns(prob, &dton_work->targets);
     }
 
     DEBUG(verify_problem_up_to_date(constraints));

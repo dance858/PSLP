@@ -40,7 +40,7 @@ static bool dton_pushable(const Problem *prob, int j, bool push_col_down)
                          : (cost <= 0 && lock->up == 1);
 }
 
-/* An inequality can, under certain conditions, be made an equality by pushing
+/* An inequality can, under certain conditions, be made an equality by
     increasing or decreasing the value of a column in the row. These condtions
     are (1) The column must be (implied) free in the direction of the push. (2)
     The push must not raise the objective function. (3) The row must be the only
@@ -214,7 +214,7 @@ void dton_tighten_columns(Problem *prob)
     }
 }
 
-void dton_tighten_changed_columns(Problem *prob, const DtonWorkspace *dton_work)
+void dton_tighten_changed_columns(Problem *prob, const DtonTargets *targets)
 {
     Constraints *constraints = prob->constraints;
     const Matrix *AT = constraints->AT;
@@ -223,9 +223,9 @@ void dton_tighten_changed_columns(Problem *prob, const DtonWorkspace *dton_work)
 
     /* The round changed the entries and bounds of these columns, so only the
        two-entry rows holding one of them can test differently now. */
-    for (int ii = 0; ii < dton_work->targets.n_targets; ++ii)
+    for (int ii = 0; ii < targets->n_targets; ++ii)
     {
-        int j = dton_work->targets.list[ii].col;
+        int j = targets->list[ii].col;
         for (int p = AT->p[j].start; p < AT->p[j].end; ++p)
         {
             int i = AT->i[p];

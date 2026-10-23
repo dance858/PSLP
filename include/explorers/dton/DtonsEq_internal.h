@@ -151,8 +151,7 @@ int dton_choose_subst_qp(const double *row_vals, int col_size0, int col_size1,
 void dton_tighten_columns(struct Problem *prob);
 
 /* Same as dton_tighten_columns, but no full rescan */
-void dton_tighten_changed_columns(struct Problem *prob,
-                                  const DtonWorkspace *dton_work);
+void dton_tighten_changed_columns(struct Problem *prob, const DtonTargets *targets);
 
 /* Applied to one one-sided two-entry row. The pushed column loses its bound on
    the side the row implies. False when the row stays an inequality. */
