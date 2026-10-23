@@ -934,7 +934,9 @@ static char *test_dton_postsolve_cancellation()
 static char *test_dton_free_subst()
 {
     // r0: x0 + x1 = 2 (x1 free and sparser -> substituted), r1: x0 + x2 <= 5,
-    // r2: x0 + 2 x1 + x3 <= 7 (no cancellation: -x0 + x3 <= 3 after)
+    // r2: x0 + 2 x1 + x3 <= 7 (no cancellation: -x0 + x3 <= 3 after). Round 2
+    // makes r1 tight: x0 then costs -1, r2 loosens as x0 grows and r1 implies
+    // x0 <= 5, so x2 goes too and x0 <= 5 is transferred.
     double Ax[] = {1, 1, 1, 1, 1, 2, 1};
     int Ai[] = {0, 1, 0, 2, 0, 1, 3};
     int Ap[] = {0, 2, 4, 7};
@@ -953,9 +955,9 @@ static char *test_dton_free_subst()
     mu_assert("presolver allocation failed", presolver != NULL);
     mu_assert("must reduce", run_presolver(presolver) == REDUCED);
     const ProblemData *red = presolver->reduced_prob;
-    mu_assert("x1 eliminated", red->n == 3);
+    mu_assert("x1 and x2 eliminated", red->n == 2 && red->m == 1);
     mu_assert("stay lb unchanged", red->lbs[0] == 0.0);
-    mu_assert("stay ub unchanged", red->ubs[0] == 10.0);
+    mu_assert("stay ub from r1", red->ubs[0] == 5.0);
     free_presolver(presolver);
     PS_FREE(stgs);
 
@@ -1007,19 +1009,21 @@ static char *test_dton_primal_ray()
 }
 
 /* Dual infeasibility ray through a substitution: x0 = x1, minimise
-   -x0 with x1 - x2 <= 10 and x >= 0 is unbounded along (1, 1, 1). */
+   -x0 with x1 - x2 <= 10, x3 - x1 >= -100 and x >= 0 is unbounded along
+   (1, 1, 1, 1). The third row keeps x1 from being dominated upwards, which
+   would make r1 tight and leave an empty column instead of a ray. */
 static char *test_dton_dual_ray()
 {
-    // r0: x0 - x1 = 0, r1: x1 - x2 <= 10
-    double Ax[] = {1, -1, 1, -1};
-    int Ai[] = {0, 1, 1, 2};
-    int Ap[] = {0, 2, 4};
-    int m = 2, n = 3, nnz = 4;
-    double lhs[] = {0, -INF};
-    double rhs[] = {0, 10};
-    double lbs[] = {0, 0, 0};
-    double ubs[] = {INF, INF, INF};
-    double c[] = {-1, 0, 0};
+    // r0: x0 - x1 = 0, r1: x1 - x2 <= 10, r2: -x1 + x3 >= -100
+    double Ax[] = {1, -1, 1, -1, -1, 1};
+    int Ai[] = {0, 1, 1, 2, 1, 3};
+    int Ap[] = {0, 2, 4, 6};
+    int m = 3, n = 4, nnz = 6;
+    double lhs[] = {0, -INF, -100};
+    double rhs[] = {0, 10, INF};
+    double lbs[] = {0, 0, 0, 0};
+    double ubs[] = {INF, INF, INF, INF};
+    double c[] = {-1, 0, 0, 0};
     ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, m, n, nnz, lhs, rhs, lbs, ubs, c);
 
@@ -1031,10 +1035,10 @@ static char *test_dton_dual_ray()
     mu_assert("presolver allocation failed", presolver != NULL);
     mu_assert("presolve reduces", run_presolver(presolver) == REDUCED);
     mu_assert("reduced dims",
-              presolver->reduced_prob->m == 1 && presolver->reduced_prob->n == 2);
+              presolver->reduced_prob->m == 2 && presolver->reduced_prob->n == 3);
 
-    double d[] = {1.0, 1.0};
-    double d_orig[] = {0, 0, 0};
+    double d[] = {1.0, 1.0, 1.0};
+    double d_orig[] = {0, 0, 0, 0};
     postsolve_dual_infeas_ray(presolver, d, d_orig);
     mu_assert("original dual ray certificate",
               is_dual_ray_certificate(&orig, d_orig, 1e-9));
@@ -1720,15 +1724,16 @@ static char *test_dton_e2e_full_settings()
 static char *test_dton_ston_worklist_duplicate()
 {
     /* columns: 0 = w, 1 = j, 2 = k, 3 = t, 4 = u, 5 = v
-       rows: w + j = 1, 1e-6 j + 10 k = 10, 5 k + 2 t = 1, k + t + u >= 1.3,
-             u + v >= 0, u - v >= -10
+       rows: w + j = 1, 1e-6 j + 10 k = 10, 5 k + 2 t = 1,
+             1.3 <= k + t + u <= 100, u + v >= 0, u - v >= -10
        (the tiny coefficient of the sparser j vetoes its elimination, so k
-       is substituted as the scenario needs) */
+       is substituted as the scenario needs; the fourth row is ranged so it is
+       not made tight through j once it holds j with a tiny coefficient) */
     double Ax[] = {1, 1, 1e-6, 10, 5, 2, 1, 1, 1, 1, 1, 1, -1};
     int Ai[] = {0, 1, 1, 2, 2, 3, 2, 3, 4, 4, 5, 4, 5};
     int Ap[] = {0, 2, 4, 6, 9, 11, 13};
     double lhs[] = {1, 10, 1, 1.3, 0, -10};
-    double rhs[] = {1, 10, 1, INF, INF, INF};
+    double rhs[] = {1, 10, 1, 100, INF, INF};
     double lbs[] = {-INF, -INF, -INF, -INF, 0, 0};
     double ubs[] = {0, INF, INF, INF, 2, 2};
     double c[] = {0, 0, 0, 0, 0, 0};
@@ -1748,6 +1753,138 @@ static char *test_dton_ston_worklist_duplicate()
     free_presolver(presolver);
     PS_FREE(stgs);
     return 0;
+}
+
+/* Runs the presolver with only the eliminator on, checks the reduced
+   dimensions and that the hard-coded reduced optimum postsolves to a KKT
+   point of the original problem. */
+static char *dton_ineq_check(double *Ax, int *Ai, int *Ap, int m, int n, int nnz,
+                             double *lhs, double *rhs, double *lbs, double *ubs,
+                             double *c, int m_red, int n_red, int nnz_red, double *x,
+                             double *y, double *z)
+{
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, m, n, nnz, lhs, rhs, lbs, ubs, c);
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dton_eq = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, m, n, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+    mu_assert("presolve must reduce", run_presolver(presolver) == REDUCED);
+    const ProblemData *red = presolver->reduced_prob;
+    mu_assert("reduced dims",
+              red->m == m_red && red->n == n_red && red->nnz == nnz_red);
+    if (n_red > 0)
+    {
+        mu_assert("reduced point is not optimal",
+                  is_kkt_point(red, x, y, z, DTON_POSTSOLVE_TOL));
+    }
+    postsolve(presolver, x, y, z);
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, DTON_POSTSOLVE_TOL));
+    free_presolver(presolver);
+    PS_FREE(stgs);
+    return 0;
+}
+
+/* The portfolio shape: u - w >= 0 with u costing 1, bounded above only by
+   u + w + v <= 1.5 and implied nonnegative by the row. The row is made tight,
+   w = u is substituted and the reduced LP is -u + 0.5 v with 2 u + v <= 1.5.
+   The multiplier of the tightened row comes back nonnegative (1.5). */
+static char *test_dton_ineq_portfolio()
+{
+    // r0: u - w >= 0, r1: u + w + v <= 1.5
+    double Ax[] = {1, -1, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 1, 2};
+    int Ap[] = {0, 2, 5};
+    double lhs[] = {0, -INF};
+    double rhs[] = {INF, 1.5};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {INF, 1, 1};
+    double c[] = {1, -2, 0.5};
+
+    double x[] = {0};
+    double y[] = {0};
+    double z[] = {0};
+    return dton_ineq_check(Ax, Ai, Ap, 2, 3, 5, lhs, rhs, lbs, ubs, c, 0, 0, 0, x, y,
+                           z);
+}
+
+/* Two antiparallel rows x0 - x1 >= 0 and x1 - x0 >= 0 with positive costs.
+   The first is made tight, which locks x1 downwards so the second stays an
+   inequality (making both tight and relaxing both lower bounds would leave
+   min 3 x0 unbounded). The eliminator then empties the problem. */
+static char *test_dton_ineq_sequential()
+{
+    // r0: x0 - x1 >= 0, r1: -x0 + x1 >= 0
+    double Ax[] = {1, -1, -1, 1};
+    int Ai[] = {0, 1, 0, 1};
+    int Ap[] = {0, 2, 4};
+    double lhs[] = {0, 0};
+    double rhs[] = {INF, INF};
+    double lbs[] = {0, 0};
+    double ubs[] = {10, 10};
+    double c[] = {1, 2};
+
+    double x[] = {0};
+    double y[] = {0};
+    double z[] = {0};
+    return dton_ineq_check(Ax, Ai, Ap, 2, 2, 4, lhs, rhs, lbs, ubs, c, 0, 0, 0, x, y,
+                           z);
+}
+
+/* One-sided doubleton rows that must stay: the costs object (r0), another
+   row locks both columns the same way (r1 and r2), the row is ranged (r3), and
+   the bound on the row's side is not implied (r4, x7 unbounded above). */
+static char *test_dton_ineq_not_dominated()
+{
+    // r0: x0 + x1 >= 1, r1: x2 + x3 >= 1, r2: 2 x2 + x3 >= 1,
+    // r3: -2 <= x4 + x5 <= 2, r4: x6 + x7 >= 1
+    double Ax[] = {1, 1, 1, 1, 2, 1, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 2, 3, 2, 3, 4, 5, 6, 7};
+    int Ap[] = {0, 2, 4, 6, 8, 10};
+    double lhs[] = {1, 1, 1, -2, 1};
+    double rhs[] = {INF, INF, INF, 2, INF};
+    double lbs[] = {0, 0, 0, 0, 0, 0, 0, 0};
+    double ubs[] = {10, 10, 10, 10, 10, 10, 10, INF};
+    double c[] = {-1, -1, 1, 1, 1, 1, 1, 1};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dton_eq = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 5, 8, 10, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+    run_presolver(presolver);
+    const ProblemData *red = presolver->reduced_prob;
+    mu_assert("nothing reduced", red->m == 5 && red->n == 8 && red->nnz == 10);
+    free_presolver(presolver);
+    PS_FREE(stgs);
+    return 0;
+}
+
+/* A <= row made tight upwards: x0 + x1 <= 2 with x0 costing -1, its other row
+   x0 - x2 >= 0 loosening as x0 grows, and x0 <= 5 implied by the row and so
+   relaxed. x1 is substituted and its bounds land on x0 as [1, 2]. */
+static char *test_dton_ineq_upwards()
+{
+    // r0: x0 + x1 <= 2, r1: x0 - x2 >= 0
+    double Ax[] = {1, 1, 1, -1};
+    int Ai[] = {0, 1, 0, 2};
+    int Ap[] = {0, 2, 4};
+    double lhs[] = {-INF, 0};
+    double rhs[] = {2, INF};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {5, 1, 1};
+    double c[] = {-1, 0, -1};
+
+    double x[] = {2, 1};
+    double y[] = {0};
+    double z[] = {-1, -1};
+    return dton_ineq_check(Ax, Ai, Ap, 2, 3, 4, lhs, rhs, lbs, ubs, c, 1, 2, 2, x, y,
+                           z);
 }
 
 static const char *all_tests_dton()
@@ -1785,6 +1922,10 @@ static const char *all_tests_dton()
     mu_run_test(test_dton_infeasible_chain, counter_dton);
     mu_run_test(test_dton_e2e_full_settings, counter_dton);
     mu_run_test(test_dton_ston_worklist_duplicate, counter_dton);
+    mu_run_test(test_dton_ineq_portfolio, counter_dton);
+    mu_run_test(test_dton_ineq_sequential, counter_dton);
+    mu_run_test(test_dton_ineq_not_dominated, counter_dton);
+    mu_run_test(test_dton_ineq_upwards, counter_dton);
     return 0;
 }
 
