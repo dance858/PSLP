@@ -533,10 +533,11 @@ static inline void refresh_ston_cols(const int *col_sizes, iVec *ston_cols)
     ston_cols->len = n_ston_cols;
 }
 
-/* Removes the coefficients of deleted rows from column k of AT. Rows deleted
+/* Removes the coefficients of deleted rows from singleton column k of AT, so
+   that its one live coefficient is at the start of the column. Rows deleted
    by earlier rounds of the explorer are still stored in AT. */
-static inline void drop_deleted_rows_from_col(Matrix *AT, const int *row_sizes,
-                                              int col_size, int k)
+static inline void compact_singleton_col(Matrix *AT, const int *row_sizes,
+                                         int col_size, int k)
 {
     int start = AT->p[k].start;
     int write_pos = start;
@@ -600,7 +601,7 @@ static PresolveStatus remove_ston_cols__(Problem *prob, bool *rows_deleted)
         {
             continue;
         }
-        drop_deleted_rows_from_col(AT, row_sizes, col_sizes[k], k);
+        compact_singleton_col(AT, row_sizes, col_sizes[k], k);
         i = AT->i[AT->p[k].start];
         Aik = AT->x[AT->p[k].start];
 
