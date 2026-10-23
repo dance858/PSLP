@@ -104,9 +104,6 @@ PresolveStatus remove_dton_eq_rows(Problem *prob)
     assert(empty_cols_drained(prob));
     DEBUG(verify_problem_up_to_date(constraints));
 
-    /* dominated inequality rows join the worklist as equalities */
-    dton_tighten_columns(prob);
-
     while (dton_rows->len > 0)
     {
         int n_deferred = 0;
@@ -157,9 +154,6 @@ PresolveStatus remove_dton_eq_rows(Problem *prob)
         {
             break;
         }
-
-        /* the round may have freed rows for phase 0 */
-        dton_tighten_changed_columns(prob, dton_work);
     }
 
     DEBUG(verify_problem_up_to_date(constraints));

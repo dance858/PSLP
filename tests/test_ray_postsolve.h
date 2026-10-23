@@ -638,8 +638,7 @@ static char *test_infeasible_rhs_change_primal_ray_postsolve()
     double rhs[] = {5, 4, INF, INF};
     double lbs[] = {0, 0};
     double ubs[] = {INF, INF};
-    // positive costs keep the merged row x0 + x1 <= 2 from being made tight
-    double c[] = {1, 1};
+    double c[] = {0, 0};
     ProblemData orig =
         problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
@@ -758,8 +757,7 @@ static char *test_infeasible_bound_change_primal_ray_postsolve()
     int n_rows = 3;
     int n_cols = 2;
 
-    // the first row is ranged so that neither row is made tight through x1
-    double lhs[] = {-100, -INF, 2};
+    double lhs[] = {-INF, -INF, 2};
     double rhs[] = {0, 2, INF};
     double lbs[] = {0, 0};
     double ubs[] = {10, 10};
@@ -798,8 +796,7 @@ static char *test_infeasible_parallel_col_primal_ray_postsolve()
     int n_rows = 3;
     int n_cols = 3;
 
-    // the first row is ranged so that neither row is made tight through x2
-    double lhs[] = {-100, -INF, 2};
+    double lhs[] = {-INF, -INF, 2};
     double rhs[] = {1, 1, INF};
     double lbs[] = {0, 0, 0};
     double ubs[] = {10, 10, 10};
@@ -876,8 +873,7 @@ static char *test_unbounded_fix_col_inf_dual_ray_postsolve()
     int n_rows = 3;
     int n_cols = 3;
 
-    // the first row is ranged so that neither row is made tight through x0 or x1
-    double lhs[] = {-100, -INF, -INF};
+    double lhs[] = {-INF, -INF, -INF};
     double rhs[] = {1, 1, 0};
     double lbs[] = {0, 0, -INF};
     double ubs[] = {INF, INF, INF};
@@ -917,8 +913,7 @@ static char *test_unbounded_negated_fix_col_inf_dual_ray_postsolve()
     int n_rows = 3;
     int n_cols = 3;
 
-    // the first row is ranged so that neither row is made tight through x0 or x1
-    double lhs[] = {-100, -INF, -INF};
+    double lhs[] = {-INF, -INF, -INF};
     double rhs[] = {1, 1, 0};
     double lbs[] = {0, 0, -INF};
     double ubs[] = {INF, INF, INF};

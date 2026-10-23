@@ -692,8 +692,7 @@ static char *test_10_qp()
     int Ai[] = {0, 1, 1, 2, 1, 2};
     int Ap[] = {0, 2, 4, 6};
     int n_rows = 3, n_cols = 3;
-    // the second row is ranged so that it is not made tight through x2
-    double lhs[] = {1, -100, -INF};
+    double lhs[] = {1, -INF, -INF};
     double rhs[] = {1, 4, 2};
     double lbs[] = {0, 0, 0};
     double ubs[] = {10, 10, 10};
@@ -986,8 +985,7 @@ static char *test_18_qp()
     int Ai[] = {0, 1, 1, 2};
     int Ap[] = {0, 2, 4};
     int n_rows = 2, n_cols = 3;
-    // the second row is ranged so that it is not made tight through x2
-    double lhs[] = {1, -100};
+    double lhs[] = {1, -INF};
     double rhs[] = {1, 4};
     double lbs[] = {0, 0, 0};
     double ubs[] = {10, 10, 10};

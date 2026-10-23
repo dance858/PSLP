@@ -682,8 +682,8 @@ PresolveStatus propagate_primal(Problem *prob, bool finite_bound_tightening)
     PresolveStatus status = UNCHANGED;
 
     // check that updated_activities has no duplicates, and that all
-    // activities in updated_activities have status ADDED. A relaxed implied
-    // bound can leave a queued row with both sides invalid.
+    // activities in updated_activities have status ADDED, and that these
+    // have n_inf_min = 0 or n_inf_max = 0.
     DEBUG(verify_no_duplicates_sort(updated_activities));
     DEBUG(verify_row_states(acts, updated_activities));
 
@@ -716,6 +716,9 @@ PresolveStatus propagate_primal(Problem *prob, bool finite_bound_tightening)
         {
             i = updated_activities->data[ii];
 
+            // can it ever happen that n_inf_min and n_inf_max are both not
+            // zero?
+            assert(acts[i].n_inf_min == 0 || acts[i].n_inf_max == 0);
             assert(acts[i].status != NOT_ADDED);
 
             if (row_sizes[i] <= 1 || acts[i].status != ADDED ||
