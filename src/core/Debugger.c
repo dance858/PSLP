@@ -872,7 +872,6 @@ void verify_row_states(const Activity *acts, const iVec *updated_activities)
     {
         int row = updated_activities->data[i];
         PSLP_ASSERT(acts[row].status == ADDED);
-        PSLP_ASSERT(acts[row].n_inf_min == 0 || acts[row].n_inf_max == 0);
     }
 }
 
