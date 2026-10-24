@@ -94,4 +94,4 @@ If you find this repository useful, please consider giving it a star. If you wis
 ## Acknowledgements
 **PSLP** is an open-source project developed and maintained by Daniel Cederberg, with
 substantial contributions from Zedong Peng. It has also benefited from bug reports,
-suggestions and patches from many users, which are gratefully acknowledged.
+suggestions and contributions from many users, which are gratefully acknowledged.
