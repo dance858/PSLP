@@ -167,6 +167,18 @@ void fix_col_to_positive_inf(Problem *prob, int col)
 PresolveStatus update_lb(Constraints *constraints, int col, double new_lb,
                          int row HUGE_BOUND_PARAM)
 {
+    const Matrix *A = constraints->A;
+    return update_lb_with_row(constraints, col, new_lb, row, A->i + A->p[row].start,
+                              A->x + A->p[row].start,
+                              (size_t) (A->p[row].end - A->p[row].start)
+                                  HUGE_BOUND_ARG);
+}
+
+PresolveStatus update_lb_with_row(Constraints *constraints, int col, double new_lb,
+                                  int row, const int *row_cols,
+                                  const double *row_vals,
+                                  size_t row_len HUGE_BOUND_PARAM)
+{
     assert(!IS_HUGE(new_lb) || huge_bound_ok);
     ColTag *col_tag = constraints->col_tags + col;
     Bound *bounds = constraints->bounds;
@@ -197,11 +209,6 @@ PresolveStatus update_lb(Constraints *constraints, int col, double new_lb,
                                        data->updated_activities HUGE_BOUND_ARG);
         REMOVE_TAG(*col_tag, C_TAG_LB_INF);
 
-        const Matrix *A = constraints->A;
-        const double *row_vals = A->x + A->p[row].start;
-        const int *row_cols = A->i + A->p[row].start;
-        size_t row_len = (size_t) (A->p[row].end - A->p[row].start);
-
         save_retrieval_bound_change_no_row(data->postsolve_info, col, new_lb, ub,
                                            false);
         save_retrieval_bound_change_the_row(data->postsolve_info, row, row_cols,
@@ -218,6 +225,18 @@ PresolveStatus update_lb(Constraints *constraints, int col, double new_lb,
 
 PresolveStatus update_ub(Constraints *constraints, int col, double new_ub,
                          int row HUGE_BOUND_PARAM)
+{
+    const Matrix *A = constraints->A;
+    return update_ub_with_row(constraints, col, new_ub, row, A->i + A->p[row].start,
+                              A->x + A->p[row].start,
+                              (size_t) (A->p[row].end - A->p[row].start)
+                                  HUGE_BOUND_ARG);
+}
+
+PresolveStatus update_ub_with_row(Constraints *constraints, int col, double new_ub,
+                                  int row, const int *row_cols,
+                                  const double *row_vals,
+                                  size_t row_len HUGE_BOUND_PARAM)
 {
     assert(!IS_HUGE(new_ub) || huge_bound_ok);
     ColTag *col_tag = constraints->col_tags + col;
@@ -249,11 +268,6 @@ PresolveStatus update_ub(Constraints *constraints, int col, double new_ub,
                                        rows, len, ub, new_ub, !is_ub_inf, false,
                                        data->updated_activities HUGE_BOUND_ARG);
         REMOVE_TAG(*col_tag, C_TAG_UB_INF);
-
-        const Matrix *A = constraints->A;
-        const double *row_vals = A->x + A->p[row].start;
-        const int *row_cols = A->i + A->p[row].start;
-        size_t row_len = (size_t) (A->p[row].end - A->p[row].start);
 
         save_retrieval_bound_change_no_row(data->postsolve_info, col, new_ub, lb,
                                            true);

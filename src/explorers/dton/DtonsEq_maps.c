@@ -80,28 +80,74 @@ int dton_choose_subst_qp(const double *row_vals, int col_size0, int col_size1,
     return sub0 ? 0 : 1;
 }
 
-/* Reserves the round's per-record arrays for 'need' records. False if an
+/* Reserves the round's per-record arrays for n_records records. False if an
    allocation fails. */
-static inline bool dton_reserve_records(DtonWorkspace *dton_work, size_t need)
+static inline bool dton_reserve_records(DtonWorkspace *dton_work, size_t n_records)
 {
-    if (need <= (size_t) dton_work->substs.cap)
+    if (n_records <= (size_t) dton_work->substs.cap)
     {
         return true;
     }
     bool ok = true;
-    ok &= ps_grow(&dton_work->substs.recs, need, sizeof(DtonSubst));
-    ok &= ps_grow(&dton_work->substs.order, need, sizeof(int));
-    ok &= ps_grow(&dton_work->substs.succ, need, sizeof(int));
-    ok &= ps_grow(&dton_work->substs.drop_priority, need, sizeof(int));
-    ok &= ps_grow(&dton_work->substs.depth, need, sizeof(int));
-    ok &= ps_grow(&dton_work->substs.stamp, need, sizeof(int));
-    ok &= ps_grow(&dton_work->targets.list, need, sizeof(DtonTarget));
+    ok &= ps_grow(&dton_work->substs.recs, n_records, sizeof(DtonSubst));
+    ok &= ps_grow(&dton_work->substs.order, n_records, sizeof(int));
+    ok &= ps_grow(&dton_work->substs.succ, n_records, sizeof(int));
+    ok &= ps_grow(&dton_work->substs.drop_priority, n_records, sizeof(int));
+    ok &= ps_grow(&dton_work->substs.depth, n_records, sizeof(int));
+    ok &= ps_grow(&dton_work->substs.stamp, n_records, sizeof(int));
+    ok &= ps_grow(&dton_work->targets.list, n_records, sizeof(DtonTarget));
     if (!ok)
     {
         return false;
     }
-    dton_work->substs.cap = (int) need;
+    dton_work->substs.cap = (int) n_records;
     return true;
+}
+
+/* The flags of a column pair for dton_choose_subst_qp: in_P[t] when column t is
+   in P, sub[t] when it can be substituted into the other one without fill-in,
+   with Pkk[t] its diagonal (0 unless the column is in P). */
+static void dton_P_flags(const Problem *prob, int col0, int col1, bool *in_P,
+                         bool *sub, double *Pkk)
+{
+    const State *state = prob->constraints->state;
+    const int *P_row_sizes = state->P_row_sizes;
+    const Matrix *P = prob->obj->P;
+
+    in_P[0] = col_in_P(state, col0);
+    in_P[1] = col_in_P(state, col1);
+    sub[0] = false;
+    sub[1] = false;
+    Pkk[0] = 0.0;
+    Pkk[1] = 0.0;
+    if (in_P[0] && in_P[1])
+    {
+        /* only symmetry is checked on input, so a diagonal is not given */
+        sub[0] = diagonal_only_P_entry(P, P_row_sizes, col0, Pkk) &&
+                 P_row_has_diagonal(P, P_row_sizes, col1);
+        sub[1] = diagonal_only_P_entry(P, P_row_sizes, col1, Pkk + 1) &&
+                 P_row_has_diagonal(P, P_row_sizes, col0);
+    }
+}
+
+/* Appends the record of row i eliminating column k into column j, where
+   aij x_j + aik x_k = rhs is the row. Returns the index of the record. */
+static int dton_push_record(DtonWorkspace *dton_work, int i, int k, int j,
+                            double aik, double aij, double rhs, double Pkk)
+{
+    assert(dton_work->substs.n_recs < dton_work->substs.cap);
+    int idx = dton_work->substs.n_recs++;
+    DtonSubst *rec = dton_work->substs.recs + idx;
+    rec->k = k;
+    rec->owner = i;
+    rec->j = j;
+    rec->aik = aik;
+    rec->aij = aij;
+    rec->dir_mult = -aij / aik;
+    rec->dir_shift = rhs / aik;
+    rec->Pkk = Pkk;
+    dton_work->substs.col_subst[k] = idx;
+    return idx;
 }
 
 /* For every doubleton equality row, choose one column to substitute. If the chosen
@@ -115,8 +161,6 @@ bool dton_claim(Problem *prob, DtonWorkspace *dton_work, int *deferred,
     const State *state = constraints->state;
     const int *row_sizes = state->row_sizes;
     const int *col_sizes = state->col_sizes;
-    const int *P_row_sizes = state->P_row_sizes;
-    const Matrix *P = prob->obj->P;
     const iVec *dton_rows = state->dton_rows;
 
     dton_work->substs.n_recs = 0;
@@ -153,20 +197,11 @@ bool dton_claim(Problem *prob, DtonWorkspace *dton_work, int *deferred,
         assert(!HAS_TAG(constraints->col_tags[col0] | constraints->col_tags[col1],
                         C_TAG_INACTIVE));
 
-        bool in_P0 = col_in_P(state, col0);
-        bool in_P1 = col_in_P(state, col1);
-        bool sub0 = false, sub1 = false;
-        double Pkk[2] = {0.0, 0.0};
-        if (in_P0 && in_P1)
-        {
-            /* only symmetry is checked on input, so a diagonal is not given */
-            sub0 = diagonal_only_P_entry(P, P_row_sizes, col0, Pkk) &&
-                   P_row_has_diagonal(P, P_row_sizes, col1);
-            sub1 = diagonal_only_P_entry(P, P_row_sizes, col1, Pkk + 1) &&
-                   P_row_has_diagonal(P, P_row_sizes, col0);
-        }
-        subst = dton_choose_subst_qp(vals, col_sizes[col0], col_sizes[col1], in_P0,
-                                     in_P1, sub0, sub1);
+        bool in_P[2], sub[2];
+        double Pkk[2];
+        dton_P_flags(prob, col0, col1, in_P, sub, Pkk);
+        subst = dton_choose_subst_qp(vals, col_sizes[col0], col_sizes[col1], in_P[0],
+                                     in_P[1], sub[0], sub[1]);
 
         /* the row cannot be eliminated, or the col this row wants to
            substitute is already claimed by another row */
@@ -179,17 +214,8 @@ bool dton_claim(Problem *prob, DtonWorkspace *dton_work, int *deferred,
         k = cols[subst];
 
         /* store information about the substitution */
-        assert(dton_work->substs.n_recs < dton_work->substs.cap);
-        DtonSubst *rec = dton_work->substs.recs + dton_work->substs.n_recs;
-        rec->k = k;
-        rec->owner = i;
-        rec->j = cols[stay];
-        rec->aik = vals[subst];
-        rec->aij = vals[stay];
-        rec->dir_mult = -rec->aij / rec->aik;
-        rec->dir_shift = rhs[i] / rec->aik;
-        rec->Pkk = Pkk[subst]; /* 0 unless the column is in P */
-        dton_work->substs.col_subst[k] = dton_work->substs.n_recs++;
+        dton_push_record(dton_work, i, k, cols[stay], vals[subst], vals[stay],
+                         rhs[i], Pkk[subst]);
     }
     return true;
 }
@@ -275,33 +301,45 @@ void dton_compose(DtonWorkspace *dton_work, int *deferred, int *n_deferred)
     }
 }
 
-/* Transfers the bounds of x_k onto x_j through the doubleton equality row i:
-   aij * x_j + aik * x_k = rhs. Returns INFEASIBLE when a transferred bound
+/* Transfers the bounds of a record's eliminated column x_k onto its stay
+   column x_j through its row aij * x_j + aik * x_k = rhs, given in column
+   order for the postsolve record. Returns INFEASIBLE when a transferred bound
    contradicts the bounds of x_j, UNCHANGED otherwise. */
-static PresolveStatus dton_transfer_bounds_link(Constraints *constraints, int i,
-                                                int j, double aij, double aik,
-                                                double rhs, double lb_k, double ub_k,
-                                                ColTag col_tag_k)
+static PresolveStatus dton_transfer_bounds_rec(Constraints *constraints,
+                                               const DtonSubst *rec)
 {
+    int i = rec->owner;
+    int j = rec->j;
+    int k = rec->k;
+    double aij = rec->aij;
+    double aik = rec->aik;
+    double rhs = constraints->rhs[i];
+    const Bound *bound_k = constraints->bounds + k;
+    ColTag col_tag_k = constraints->col_tags[k];
+    int cols[2] = {k < j ? k : j, k < j ? j : k};
+    double vals[2] = {k < j ? aik : aij, k < j ? aij : aik};
+
     assert(aij != 0 && aik != 0);
     bool same_sign = (aik * aij > 0.0);
     PresolveStatus status = UNCHANGED;
 
     if (!HAS_TAG(col_tag_k, C_TAG_LB_INF))
     {
-        double bound = (rhs - aik * lb_k) / aij;
-        status = same_sign
-                     ? update_ub(constraints, j, bound, i HUGE_BOUND_IS_NOT_OK)
-                     : update_lb(constraints, j, bound, i HUGE_BOUND_IS_NOT_OK);
+        double bound = (rhs - aik * bound_k->lb) / aij;
+        status = same_sign ? update_ub_with_row(constraints, j, bound, i, cols, vals,
+                                                2 HUGE_BOUND_IS_NOT_OK)
+                           : update_lb_with_row(constraints, j, bound, i, cols, vals,
+                                                2 HUGE_BOUND_IS_NOT_OK);
         RETURN_IF_INFEASIBLE(status);
     }
 
     if (!HAS_TAG(col_tag_k, C_TAG_UB_INF))
     {
-        double bound = (rhs - aik * ub_k) / aij;
-        status = same_sign
-                     ? update_lb(constraints, j, bound, i HUGE_BOUND_IS_NOT_OK)
-                     : update_ub(constraints, j, bound, i HUGE_BOUND_IS_NOT_OK);
+        double bound = (rhs - aik * bound_k->ub) / aij;
+        status = same_sign ? update_lb_with_row(constraints, j, bound, i, cols, vals,
+                                                2 HUGE_BOUND_IS_NOT_OK)
+                           : update_ub_with_row(constraints, j, bound, i, cols, vals,
+                                                2 HUGE_BOUND_IS_NOT_OK);
     }
     return status;
 }
@@ -314,24 +352,15 @@ static PresolveStatus dton_transfer_bounds_link(Constraints *constraints, int i,
 PresolveStatus dton_transfer_bounds(Problem *prob, DtonWorkspace *dton_work)
 {
     Constraints *constraints = prob->constraints;
-    const double *rhs = constraints->rhs;
-    const Bound *bounds = constraints->bounds;
-    const ColTag *col_tags = constraints->col_tags;
     const DtonSubst *recs = dton_work->substs.recs;
     const int *order = dton_work->substs.order;
 
     for (int ii = 0; ii < dton_work->substs.n_recs; ++ii)
     {
-        const DtonSubst *rec = recs + order[ii];
-        int i = rec->owner;
-        int k = rec->k;
-        int j = rec->j;
         assert(ii == 0 || dton_work->substs.depth[order[ii - 1]] >=
                               dton_work->substs.depth[order[ii]]);
-
         PresolveStatus status =
-            dton_transfer_bounds_link(constraints, i, j, rec->aij, rec->aik, rhs[i],
-                                      bounds[k].lb, bounds[k].ub, col_tags[k]);
+            dton_transfer_bounds_rec(constraints, recs + order[ii]);
         RETURN_IF_INFEASIBLE(status);
     }
     return UNCHANGED;

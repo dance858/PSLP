@@ -55,6 +55,18 @@ PresolveStatus update_lb(struct Constraints *constraints, int col, double new_lb
 PresolveStatus update_ub(struct Constraints *constraints, int col, double new_ub,
                          int row HUGE_BOUND_PARAM);
 
+/* Same as update_lb and update_ub, with the causing row given as (row_cols,
+   row_vals, row_len) instead of read from A, for a caller whose view of the
+   row differs from A. */
+PresolveStatus update_lb_with_row(struct Constraints *constraints, int col,
+                                  double new_lb, int row, const int *row_cols,
+                                  const double *row_vals,
+                                  size_t row_len HUGE_BOUND_PARAM);
+PresolveStatus update_ub_with_row(struct Constraints *constraints, int col,
+                                  double new_ub, int row, const int *row_cols,
+                                  const double *row_vals,
+                                  size_t row_len HUGE_BOUND_PARAM);
+
 /* Updates the rhs/lhs of a row. These functions check for infeasibility
    and also if the row becomes an equality constraint after the bound change.
    The locks are updated. It also appends to doubleton equality rows
