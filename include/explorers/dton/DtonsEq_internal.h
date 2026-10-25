@@ -28,6 +28,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+struct Matrix;
 struct Problem;
 struct Work;
 
@@ -115,6 +116,9 @@ typedef struct DtonWorkspace
     double rebuild_frac; /* rebuild when the affected nnz > frac * nnz (0.25) */
 } DtonWorkspace;
 
+/* Accumulator flag: a substitution contributed to the column. */
+#define DTON_ACC_MODIFIED ((uint8_t) 1)
+
 /* Number of 64-bit words in a bitmap of n_bits bits. */
 static inline int bitmap_words(int n_bits)
 {
@@ -164,6 +168,11 @@ bool dton_claim(struct Problem *prob, DtonWorkspace *dton_work, int *deferred,
 
 /* Phase 2: composes the substitution chains and breaks cycles. */
 void dton_compose(DtonWorkspace *dton_work, int *deferred, int *n_deferred);
+
+/* Accumulates row 'row' of A with the round's substitutions applied (phase 4's
+   view of the row) into dton_work->acc. Returns the shift of the row's sides. */
+double dton_accumulate_row(DtonWorkspace *dton_work, const struct Matrix *A,
+                           int row);
 
 /* Phase 3: transfers the bounds of the eliminated columns onto their stay
    columns. INFEASIBLE if a transfer contradicts a bound. */

@@ -37,9 +37,6 @@
    merging the changes logged in phase 4 into those surviving columns or by
    rebuilding AT from A. */
 
-/* Accumulator flag: a substitution contributed to the column. */
-#define DTON_ACC_MODIFIED ((uint8_t) 1)
-
 /* We maintain a log (dton_work->log) that lists the entries of surviving
    columns that the sweep changed, so that AT can be updated without a rebuild.
    This function records that a surviving column's entry in 'row' is now 'val',
@@ -175,23 +172,14 @@ static void dton_sweep_row_finish(Problem *prob, int row, int old_len, int new_l
     }
 }
 
-/* Rewrites a row of A in place. Every entry of an eliminated column moves
-   onto the surviving column it is expressed in. A modified entry below
-   ZERO_TOL is dropped. The other entries are kept unchanged. */
-static void dton_sweep_row(Problem *prob, DtonWorkspace *dton_work, int row,
-                           int *deferred, int *n_deferred)
+double dton_accumulate_row(DtonWorkspace *dton_work, const Matrix *A, int row)
 {
-    Constraints *constraints = prob->constraints;
-    Matrix *A = constraints->A;
-    int start = A->p[row].start;
-    int end = A->p[row].end;
-    int old_len = end - start;
     SparseAccumulator *acc = &dton_work->acc;
     double side_shift = 0.0;
 
     /* substitute any eliminated column with its survivor */
     sparse_accumulator_clear(acc);
-    for (int ii = start; ii < end; ++ii)
+    for (int ii = A->p[row].start; ii < A->p[row].end; ++ii)
     {
         int col = A->i[ii];
         double coeff = A->x[ii];
@@ -208,6 +196,22 @@ static void dton_sweep_row(Problem *prob, DtonWorkspace *dton_work, int row,
             sparse_accumulator_add(acc, col, coeff, 0);
         }
     }
+    return side_shift;
+}
+
+/* Rewrites a row of A in place. Every entry of an eliminated column moves
+   onto the surviving column it is expressed in. A modified entry below
+   ZERO_TOL is dropped. The other entries are kept unchanged. */
+static void dton_sweep_row(Problem *prob, DtonWorkspace *dton_work, int row,
+                           int *deferred, int *n_deferred)
+{
+    Constraints *constraints = prob->constraints;
+    Matrix *A = constraints->A;
+    int start = A->p[row].start;
+    int old_len = A->p[row].end - start;
+    SparseAccumulator *acc = &dton_work->acc;
+
+    double side_shift = dton_accumulate_row(dton_work, A, row);
 
     /* sort the row so the column indices within the row are increasing */
     sort_ints(acc->touched, (size_t) acc->n_touched, dton_work->sort_aux);
