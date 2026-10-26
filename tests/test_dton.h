@@ -1887,6 +1887,558 @@ static char *test_dton_ineq_upwards()
                            z);
 }
 
+/* ------------------------------------------------------------------------- */
+/* Cascades: rows that the round's substitutions turn into doubletons are     */
+/* claimed in the same round (dton_cascade).                                  */
+/* ------------------------------------------------------------------------- */
+
+/* A problem built on the heap, with the defaults lb 0, ub 10, c 1. */
+typedef struct DtonLP
+{
+    int m, n, nnz;
+    double *Ax;
+    int *Ai, *Ap;
+    double *lhs, *rhs, *lbs, *ubs, *c;
+} DtonLP;
+
+static void dton_lp_alloc(DtonLP *lp, int m, int n, int nnz)
+{
+    lp->m = m;
+    lp->n = n;
+    lp->nnz = nnz;
+    lp->Ax = (double *) malloc((size_t) nnz * sizeof(double));
+    lp->Ai = (int *) malloc((size_t) nnz * sizeof(int));
+    lp->Ap = (int *) malloc((size_t) (m + 1) * sizeof(int));
+    lp->lhs = (double *) malloc((size_t) m * sizeof(double));
+    lp->rhs = (double *) malloc((size_t) m * sizeof(double));
+    lp->lbs = (double *) malloc((size_t) n * sizeof(double));
+    lp->ubs = (double *) malloc((size_t) n * sizeof(double));
+    lp->c = (double *) malloc((size_t) n * sizeof(double));
+    for (int j = 0; j < n; ++j)
+    {
+        lp->lbs[j] = 0;
+        lp->ubs[j] = 10;
+        lp->c[j] = 1;
+    }
+}
+
+static void dton_lp_free(DtonLP *lp)
+{
+    free(lp->Ax);
+    free(lp->Ai);
+    free(lp->Ap);
+    free(lp->lhs);
+    free(lp->rhs);
+    free(lp->lbs);
+    free(lp->ubs);
+    free(lp->c);
+}
+
+/* Staircase with T columns: row i (i < T - 1) is x_0 + ... + x_i - (i + 1)
+   x_{i+1} = 0. Only row 0 is a doubleton; every substitution x_{i+1} = x_0
+   turns row i + 1 into one. x_1..x_{T-1} in [2, 8] so that the bounds move. */
+static void dton_staircase_build(DtonLP *lp, int T)
+{
+    int m = T - 1;
+    int nnz = 0;
+    for (int i = 0; i < m; ++i)
+    {
+        nnz += i + 2;
+    }
+    dton_lp_alloc(lp, m, T, nnz);
+    for (int j = 1; j < T; ++j)
+    {
+        lp->lbs[j] = 2;
+        lp->ubs[j] = 8;
+    }
+    int pos = 0;
+    for (int i = 0; i < m; ++i)
+    {
+        lp->Ap[i] = pos;
+        for (int j = 0; j <= i; ++j)
+        {
+            lp->Ai[pos] = j;
+            lp->Ax[pos] = 1.0;
+            ++pos;
+        }
+        lp->Ai[pos] = i + 1;
+        lp->Ax[pos] = -(double) (i + 1);
+        ++pos;
+        lp->lhs[i] = 0.0;
+        lp->rhs[i] = 0.0;
+    }
+    lp->Ap[m] = pos;
+}
+
+/* Hub with K rows and the hub column h = K: row 0 is x_0 + 2 h = 3, row i is
+   x_{i-1} + x_i + h = 3. Every substitution lands on h and turns the next row
+   into a doubleton; the chain of depths grows by one per row. */
+static void dton_hub_build(DtonLP *lp, int K)
+{
+    int h = K;
+    dton_lp_alloc(lp, K, K + 1, 2 + 3 * (K - 1));
+    int pos = 0;
+    lp->Ap[0] = 0;
+    lp->Ai[pos] = 0;
+    lp->Ax[pos++] = 1.0;
+    lp->Ai[pos] = h;
+    lp->Ax[pos++] = 2.0;
+    lp->lhs[0] = 3.0;
+    lp->rhs[0] = 3.0;
+    for (int i = 1; i < K; ++i)
+    {
+        lp->Ap[i] = pos;
+        lp->Ai[pos] = i - 1;
+        lp->Ax[pos++] = 1.0;
+        lp->Ai[pos] = i;
+        lp->Ax[pos++] = 1.0;
+        lp->Ai[pos] = h;
+        lp->Ax[pos++] = 1.0;
+        lp->lhs[i] = 3.0;
+        lp->rhs[i] = 3.0;
+    }
+    lp->Ap[K] = pos;
+}
+
+/* Runs the eliminator on a problem whose every row is eliminated and whose
+   only survivor is column 'survivor'. Returns 0 or the failing check. */
+static char *dton_cascade_run(const DtonLP *lp, int survivor)
+{
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dton_eq = true;
+    Presolver *presolver =
+        new_presolver(lp->Ax, lp->Ai, lp->Ap, lp->m, lp->n, lp->nnz, lp->lhs,
+                      lp->rhs, lp->lbs, lp->ubs, lp->c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+    Problem *prob = presolver->prob;
+    Constraints *constraints = prob->constraints;
+
+    mu_assert("status", remove_dton_eq_rows(prob) == UNCHANGED);
+
+    for (int i = 0; i < lp->m; ++i)
+    {
+        mu_assert("every row eliminated",
+                  HAS_TAG(constraints->row_tags[i], R_TAG_INACTIVE));
+    }
+    for (int j = 0; j < lp->n; ++j)
+    {
+        mu_assert("only the survivor active",
+                  HAS_TAG(constraints->col_tags[j], C_TAG_INACTIVE) ==
+                      (j != survivor));
+    }
+    mu_assert("survivor empty", constraints->state->col_sizes[survivor] == 0);
+    mu_assert("survivor on empty_cols",
+              iVec_contains(constraints->state->empty_cols, survivor));
+    mu_assert("A empty", constraints->A->nnz == 0 && constraints->AT->nnz == 0);
+    mu_assert("worklist empty", constraints->state->dton_rows->len == 0);
+    DEBUG(run_debugger(constraints, false));
+
+    free_presolver(presolver);
+    PS_FREE(stgs);
+    return 0;
+}
+
+/* The staircase through the eliminator: x_1..x_{T-1} = x_0, so x_0 collects
+   the objective and the bounds [2, 8]. */
+static char *test_dton_cascade_staircase()
+{
+    DtonLP lp;
+    dton_staircase_build(&lp, 6);
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dton_eq = true;
+    Presolver *presolver = new_presolver(lp.Ax, lp.Ai, lp.Ap, lp.m, lp.n, lp.nnz,
+                                         lp.lhs, lp.rhs, lp.lbs, lp.ubs, lp.c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+    Problem *prob = presolver->prob;
+    mu_assert("status", remove_dton_eq_rows(prob) == UNCHANGED);
+    mu_assert("objective on x0", prob->obj->c[0] == 6.0 && prob->obj->offset == 0.0);
+    mu_assert("bounds on x0", prob->constraints->bounds[0].lb == 2.0 &&
+                                  prob->constraints->bounds[0].ub == 8.0);
+    free_presolver(presolver);
+    PS_FREE(stgs);
+
+    char *msg = dton_cascade_run(&lp, 0);
+    dton_lp_free(&lp);
+    return msg;
+}
+
+/* The hub through the eliminator: x_0 = 3 - 2 h, x_1 = h, x_2 = 3 - 2 h, ...
+   so h ends in [0, 1.5]. */
+static char *test_dton_cascade_hub()
+{
+    DtonLP lp;
+    dton_hub_build(&lp, 6);
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dton_eq = true;
+    Presolver *presolver = new_presolver(lp.Ax, lp.Ai, lp.Ap, lp.m, lp.n, lp.nnz,
+                                         lp.lhs, lp.rhs, lp.lbs, lp.ubs, lp.c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+    Problem *prob = presolver->prob;
+    mu_assert("status", remove_dton_eq_rows(prob) == UNCHANGED);
+    // c_h = 1 + (-2 + 1 - 2 + 1 - 2 + 1) = -2, offset = 3 + 0 + 3 + 0 + 3 + 0 = 9
+    mu_assert("objective on h", prob->obj->c[6] == -2.0 && prob->obj->offset == 9.0);
+    mu_assert("bounds on h", prob->constraints->bounds[6].lb == 0.0 &&
+                                 prob->constraints->bounds[6].ub == 1.5);
+    free_presolver(presolver);
+    PS_FREE(stgs);
+
+    char *msg = dton_cascade_run(&lp, 6);
+    dton_lp_free(&lp);
+    return msg;
+}
+
+/* The round trip of a built problem through both transpose paths. */
+static char *dton_cascade_check_postsolve(DtonLP *lp, const char *name)
+{
+    static char buf[128];
+    const double fracs[2] = {1e9, 0.0};
+    for (int t = 0; t < 2; ++t)
+    {
+        char *msg = dton_check_postsolve(lp->Ax, lp->Ai, lp->Ap, lp->m, lp->n,
+                                         lp->nnz, lp->lhs, lp->rhs, lp->lbs, lp->ubs,
+                                         lp->c, false, fracs[t]);
+        if (msg != 0)
+        {
+            snprintf(buf, sizeof(buf), "%s (%s): %s", name,
+                     t == 0 ? "merge" : "rebuild", msg);
+            return buf;
+        }
+    }
+    return 0;
+}
+
+/* Postsolve round trips: the cascade owner rows hold more than the two
+   columns of their records, which orders the bound-transfer undo. */
+static char *test_dton_cascade_postsolve()
+{
+    DtonLP lp;
+    char *msg;
+
+    dton_staircase_build(&lp, 30);
+    msg = dton_cascade_check_postsolve(&lp, "staircase");
+    dton_lp_free(&lp);
+    if (msg != 0)
+    {
+        return msg;
+    }
+
+    dton_hub_build(&lp, 30);
+    msg = dton_cascade_check_postsolve(&lp, "hub");
+    dton_lp_free(&lp);
+    return msg;
+}
+
+/* The kernels on a 3-row staircase: the first pass claims x1 (row 0), the
+   cascade claims x2 (row 1, virtual row 2 x0 - 2 x2 = 0) and x3 (row 2,
+   virtual row 3 x0 - 3 x3 = 0), each one deeper than the records its row held,
+   and the order lists them deepest first. */
+static char *test_dton_cascade_kernel()
+{
+    DtonLP lp;
+    dton_staircase_build(&lp, 4);
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    Presolver *presolver = new_presolver(lp.Ax, lp.Ai, lp.Ap, lp.m, lp.n, lp.nnz,
+                                         lp.lhs, lp.rhs, lp.lbs, lp.ubs, lp.c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+
+    DtonWorkspace *dton_work = dton_workspace_new(3, 4);
+    dton_workspace_init(dton_work, presolver->prob->constraints->state->work);
+    int deferred[8];
+    int n_deferred = 0;
+    mu_assert("claim",
+              dton_claim(presolver->prob, dton_work, deferred, &n_deferred));
+    dton_compose(dton_work, deferred, &n_deferred);
+    mu_assert("first pass claims x1 alone",
+              dton_work->substs.n_recs == 1 && dton_rec(dton_work, 1)->owner == 0);
+
+    dton_cascade(presolver->prob, dton_work);
+    const DtonSubsts *substs = &dton_work->substs;
+    mu_assert("cascade claims x2 and x3", substs->n_recs == 3);
+    mu_assert("nothing deferred", n_deferred == 0);
+
+    const DtonSubst *r2 = dton_rec(dton_work, 2);
+    mu_assert("x2 owned by row 1 into x0", r2->owner == 1 && r2->j == 0);
+    mu_assert("x2 virtual row", r2->aik == -2.0 && r2->aij == 2.0 && r2->rhs == 0.0);
+    mu_assert("x2 map", r2->target == 0 && r2->mult == 1.0 && r2->shift == 0.0);
+    mu_assert("x2 depth", dton_depth(dton_work, 2) == 1);
+
+    const DtonSubst *r3 = dton_rec(dton_work, 3);
+    mu_assert("x3 owned by row 2 into x0", r3->owner == 2 && r3->j == 0);
+    mu_assert("x3 virtual row", r3->aik == -3.0 && r3->aij == 3.0 && r3->rhs == 0.0);
+    mu_assert("x3 depth", dton_depth(dton_work, 3) == 2);
+    mu_assert("x1 depth", dton_depth(dton_work, 1) == 0);
+
+    mu_assert("order deepest first", substs->order[0] == substs->col_subst[3] &&
+                                         substs->order[1] == substs->col_subst[2] &&
+                                         substs->order[2] == substs->col_subst[1]);
+
+    for (int j = 0; j < 4; ++j)
+    {
+        mu_assert("target marks reset", dton_work->targets.col_to_target[j] == -1);
+    }
+    mu_assert("claimed columns counted per row (zeroed by dton_apply)",
+              dton_work->claimed_in_row[0] == 1 &&
+                  dton_work->claimed_in_row[1] == 2 &&
+                  dton_work->claimed_in_row[2] == 3);
+
+    dton_workspace_free(dton_work);
+    free_presolver(presolver);
+    PS_FREE(stgs);
+    dton_lp_free(&lp);
+    return 0;
+}
+
+/* A row left with two unclaimed columns is no doubleton when a substitution
+   lands outside it: x0 = 1 - x1 brings x1 into r1, which stays a tripleton. */
+static char *test_dton_cascade_lands_outside()
+{
+    // r0: x0 + x1 = 1 (x0 sparser), r1: x0 + x2 + x3 = 2, and the ranged pad
+    // rows r2: x1 + x2, r3: x1 + x3 in [-100, 10] (phase 0 leaves them alone)
+    double Ax[] = {1, 1, 1, 1, 1, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 2, 3, 1, 2, 1, 3};
+    int Ap[] = {0, 2, 5, 7, 9};
+    double lhs[] = {1, 2, -100, -100};
+    double rhs[] = {1, 2, 10, 10};
+    double lbs[] = {0, 0, 0, 0};
+    double ubs[] = {10, 10, 10, 10};
+    double c[] = {1, 1, 1, 1};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dton_eq = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 4, 4, 9, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+    Problem *prob = presolver->prob;
+    Constraints *constraints = prob->constraints;
+    const Matrix *A = constraints->A;
+
+    mu_assert("status", remove_dton_eq_rows(prob) == UNCHANGED);
+    mu_assert("r0 eliminated",
+              HAS_TAG(constraints->row_tags[0], R_TAG_INACTIVE) &&
+                  HAS_TAG(constraints->col_tags[0], C_TAG_INACTIVE));
+    mu_assert("r1 active tripleton",
+              !HAS_TAG(constraints->row_tags[1], R_TAG_INACTIVE) &&
+                  constraints->state->row_sizes[1] == 3);
+    int start = A->p[1].start;
+    mu_assert("r1 is -x1 + x2 + x3 = 1",
+              A->i[start] == 1 && A->x[start] == -1.0 && A->i[start + 1] == 2 &&
+                  A->i[start + 2] == 3 && constraints->rhs[1] == 1.0 &&
+                  constraints->lhs[1] == 1.0);
+    mu_assert("worklist empty", constraints->state->dton_rows->len == 0);
+    DEBUG(run_debugger(constraints, false));
+
+    free_presolver(presolver);
+    PS_FREE(stgs);
+    return 0;
+}
+
+/* The chosen column of a virtual doubleton may not be a target: x0 = 3 - 2 h
+   turns r1 into 0.05 x1 + h = 1, the pivot veto picks h, and the row waits
+   for the next round, where the first pass eliminates h. */
+static char *test_dton_cascade_protected_target()
+{
+    // r0: x0 + 2 h = 3, r1: x0 + 0.05 x1 + 3 h = 4, and the ranged pad rows
+    // r2: x1 + x2, r3: h + x4 in [-100, 10] (h = col 3 is the densest column)
+    double Ax[] = {1, 2, 1, 0.05, 3, 1, 1, 1, 1};
+    int Ai[] = {0, 3, 0, 1, 3, 1, 2, 3, 4};
+    int Ap[] = {0, 2, 5, 7, 9};
+    double lhs[] = {3, 4, -100, -100};
+    double rhs[] = {3, 4, 10, 10};
+    double lbs[] = {0, 0, 0, 0, 0};
+    double ubs[] = {10, 10, 10, 10, 10};
+    double c[] = {1, 1, 1, 1, 1};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dton_eq = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 4, 5, 9, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+    Problem *prob = presolver->prob;
+    Constraints *constraints = prob->constraints;
+
+    DtonWorkspace *dton_work = dton_workspace_new(4, 5);
+    dton_workspace_init(dton_work, constraints->state->work);
+    int deferred[8];
+    int n_deferred = 0;
+    mu_assert("claim", dton_claim(prob, dton_work, deferred, &n_deferred));
+    dton_compose(dton_work, deferred, &n_deferred);
+    mu_assert("x0 claimed into h",
+              dton_work->substs.n_recs == 1 && dton_rec(dton_work, 0)->j == 3);
+    dton_cascade(prob, dton_work);
+    mu_assert("r1 waits", dton_work->substs.n_recs == 1 && n_deferred == 0);
+    mu_assert("target mark reset", dton_work->targets.col_to_target[3] == -1);
+    dton_workspace_free(dton_work);
+
+    // the full call takes two rounds and eliminates both rows
+    mu_assert("status", remove_dton_eq_rows(prob) == UNCHANGED);
+    mu_assert("both rows eliminated",
+              HAS_TAG(constraints->row_tags[0], R_TAG_INACTIVE) &&
+                  HAS_TAG(constraints->row_tags[1], R_TAG_INACTIVE));
+    mu_assert("x0 and h eliminated",
+              HAS_TAG(constraints->col_tags[0], C_TAG_INACTIVE) &&
+                  HAS_TAG(constraints->col_tags[3], C_TAG_INACTIVE));
+    mu_assert("x1 survives", !HAS_TAG(constraints->col_tags[1], C_TAG_INACTIVE));
+    DEBUG(run_debugger(constraints, false));
+
+    free_presolver(presolver);
+    PS_FREE(stgs);
+    return 0;
+}
+
+/* A candidate whose unclaimed column cancels is left to the sweep: x0 = 1 - x1
+   cancels x1 in r1, which becomes the singleton row x2 = 4. */
+static char *test_dton_cascade_cancellation()
+{
+    // r0: x0 + x1 = 1 (x0 sparser), r1: x0 + x1 + x2 = 5, and the ranged pad
+    // row r2: x1 + x3 in [-100, 10]
+    double Ax[] = {1, 1, 1, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 1, 2, 1, 3};
+    int Ap[] = {0, 2, 5, 7};
+    double lhs[] = {1, 5, -100};
+    double rhs[] = {1, 5, 10};
+    double lbs[] = {0, 0, 0, 0};
+    double ubs[] = {10, 10, 10, 10};
+    double c[] = {1, 1, 1, 1};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dton_eq = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 3, 4, 7, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+    Problem *prob = presolver->prob;
+    Constraints *constraints = prob->constraints;
+    const Matrix *A = constraints->A;
+
+    mu_assert("status", remove_dton_eq_rows(prob) == UNCHANGED);
+    mu_assert("r0 eliminated", HAS_TAG(constraints->row_tags[0], R_TAG_INACTIVE));
+    mu_assert("r1 active singleton",
+              !HAS_TAG(constraints->row_tags[1], R_TAG_INACTIVE) &&
+                  constraints->state->row_sizes[1] == 1 && A->i[A->p[1].start] == 2);
+    mu_assert("r1 sides", constraints->lhs[1] == 4.0 && constraints->rhs[1] == 4.0);
+    mu_assert("r1 on ston_rows", iVec_contains(constraints->state->ston_rows, 1));
+    mu_assert("x2 survives", !HAS_TAG(constraints->col_tags[2], C_TAG_INACTIVE));
+    DEBUG(run_debugger(constraints, false));
+
+    free_presolver(presolver);
+    PS_FREE(stgs);
+    return 0;
+}
+
+/* A cascade owner's bound transfer can contradict a bound: x0 = 3 - 2 h gives
+   h <= 1.5, then r1 becomes x1 - h = 0 in the same round and x1 in [5, 10] asks
+   for h >= 5. The verdict comes from the cascade record's transfer. */
+static char *test_dton_cascade_infeasible_transfer()
+{
+    // r0: x0 + 2 h = 3, r1: x0 + x1 + h = 3, pad rows r2: x1 + x2,
+    // r3: h + x3 in [-100, 10] (h = col 4)
+    double Ax[] = {1, 2, 1, 1, 1, 1, 1, 1, 1};
+    int Ai[] = {0, 4, 0, 1, 4, 1, 2, 3, 4};
+    int Ap[] = {0, 2, 5, 7, 9};
+    double lhs[] = {3, 3, -100, -100};
+    double rhs[] = {3, 3, 10, 10};
+    double lbs[] = {0, 5, 0, 0, 0};
+    double ubs[] = {10, 10, 10, 10, 10};
+    double c[] = {1, 1, 1, 1, 1};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dton_eq = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 4, 5, 9, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+    Problem *prob = presolver->prob;
+
+    // the cascade claims r1 in the first round
+    DtonWorkspace *dton_work = dton_workspace_new(4, 5);
+    dton_workspace_init(dton_work, prob->constraints->state->work);
+    int deferred[8];
+    int n_deferred = 0;
+    mu_assert("claim", dton_claim(prob, dton_work, deferred, &n_deferred));
+    dton_compose(dton_work, deferred, &n_deferred);
+    dton_cascade(prob, dton_work);
+    mu_assert("x0 and x1 claimed",
+              dton_work->substs.n_recs == 2 && dton_rec(dton_work, 1)->owner == 1);
+    dton_workspace_free(dton_work);
+
+    mu_assert("infeasible", remove_dton_eq_rows(prob) == INFEASIBLE);
+
+    free_presolver(presolver);
+    PS_FREE(stgs);
+    return 0;
+}
+
+/* Primal infeasibility ray through a cascade: x0 = 3 - 2 h and then x1 = h
+   leave 2 h + x2 >= 5 and 2 h + x2 <= 2, whose certificate y = (-1, 1) must
+   extend to the two owner rows so that A'y vanishes on x0 and x1. */
+static char *test_dton_cascade_primal_ray()
+{
+    // r0: x0 + 2 h = 3, r1: x0 + x1 + h = 3, r2: x1 + h + x2 in [5, 100],
+    // r3: 2 h + x2 in [-100, 2] (h = col 3; ranged so phase 0 leaves them alone)
+    double Ax[] = {1, 2, 1, 1, 1, 1, 1, 1, 1, 2};
+    int Ai[] = {0, 3, 0, 1, 3, 1, 2, 3, 2, 3};
+    int Ap[] = {0, 2, 5, 8, 10};
+    int m = 4, n = 4, nnz = 10;
+    double lhs[] = {3, 3, 5, -100};
+    double rhs[] = {3, 3, 100, 2};
+    double lbs[] = {0, 0, 0, 0};
+    double ubs[] = {10, 10, 10, 10};
+    double c[] = {1, 1, 1, 1};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, m, n, nnz, lhs, rhs, lbs, ubs, c);
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dton_eq = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, m, n, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+    mu_assert("presolve reduces", run_presolver(presolver) == REDUCED);
+    mu_assert("reduced dims",
+              presolver->reduced_prob->m == 2 && presolver->reduced_prob->n == 2);
+
+    double y[] = {-1.0, 1.0};
+    double y_orig[] = {0, 0, 0, 0};
+    postsolve_primal_infeas_ray(presolver, y, y_orig);
+    mu_assert("original primal ray certificate",
+              is_primal_ray_certificate(&orig, y_orig, 1e-9));
+    mu_assert("owner row multipliers",
+              fabs(y_orig[0] + 1.0) < 1e-12 && fabs(y_orig[1] - 1.0) < 1e-12);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+#ifdef NDEBUG
+/* Release only: the two cascades at a size where a round per row would take
+   minutes. */
+static char *test_dton_cascade_large()
+{
+    DtonLP lp;
+    char *msg;
+    dton_staircase_build(&lp, 3000);
+    msg = dton_cascade_run(&lp, 0);
+    dton_lp_free(&lp);
+    if (msg != 0)
+    {
+        return msg;
+    }
+    dton_hub_build(&lp, 40000);
+    msg = dton_cascade_run(&lp, 40000);
+    dton_lp_free(&lp);
+    return msg;
+}
+#endif
+
 static const char *all_tests_dton()
 {
     mu_run_test(test_dton_workspace, counter_dton);
@@ -1926,6 +2478,18 @@ static const char *all_tests_dton()
     mu_run_test(test_dton_ineq_sequential, counter_dton);
     mu_run_test(test_dton_ineq_not_dominated, counter_dton);
     mu_run_test(test_dton_ineq_upwards, counter_dton);
+    mu_run_test(test_dton_cascade_staircase, counter_dton);
+    mu_run_test(test_dton_cascade_hub, counter_dton);
+    mu_run_test(test_dton_cascade_postsolve, counter_dton);
+    mu_run_test(test_dton_cascade_kernel, counter_dton);
+    mu_run_test(test_dton_cascade_lands_outside, counter_dton);
+    mu_run_test(test_dton_cascade_protected_target, counter_dton);
+    mu_run_test(test_dton_cascade_cancellation, counter_dton);
+    mu_run_test(test_dton_cascade_infeasible_transfer, counter_dton);
+    mu_run_test(test_dton_cascade_primal_ray, counter_dton);
+#ifdef NDEBUG
+    mu_run_test(test_dton_cascade_large, counter_dton);
+#endif
     return 0;
 }
 

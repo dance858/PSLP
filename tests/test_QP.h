@@ -1673,6 +1673,71 @@ static char *test_32_qp()
     return 0;
 }
 
+/*  A doubleton cascade with the substituted column in P.
+    min. x1^2 + x2^2 s.t. x0 + 2 x1 = 3, x0 + x1 + x2 = 4, x1 + x3 <= 10,
+    x2 + x3 <= 10, 0 <= x <= 10. Only dton_eq is enabled. Row 0 eliminates x0 =
+    3 - 2 x1 (sparser), which turns row 1 into -x1 + x2 = 1 in the same round:
+    x2 = 1 + x1 is substituted (sparser, diagonal in P) and its diagonal folds
+    into x1's. Reduced (x1, x3): min 2 x1^2 + 2 x1 + 1 s.t. x1 + x3 <= 10,
+    x1 + x3 <= 9, x1 in [0, 1.5], solution (0, 0) with z = (2, 0). */
+static char *test_33_qp()
+{
+    double Ax[] = {1, 2, 1, 1, 1, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 1, 2, 1, 3, 2, 3};
+    int Ap[] = {0, 2, 5, 7, 9};
+    int n_rows = 4, n_cols = 4;
+    double lhs[] = {3, 4, -INF, -INF};
+    double rhs[] = {3, 4, 10, 10};
+    double lbs[] = {0, 0, 0, 0};
+    double ubs[] = {10, 10, 10, 10};
+    double c[] = {0, 0, 0, 0};
+    double Px[] = {2, 2};
+    int Pi[] = {1, 2};
+    int Pp[] = {0, 0, 1, 2, 2};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dton_eq = true;
+    Presolver *presolver = qp_presolver(Ax, Ai, Ap, n_rows, n_cols, 9, lhs, rhs, lbs,
+                                        ubs, c, Px, Pi, Pp, 2, stgs);
+    mu_assert("init", presolver != NULL);
+    mu_assert("status", run_presolver(presolver) == REDUCED);
+
+    ProblemData *red = presolver->reduced_prob;
+    const int *col_map = presolver->prob->constraints->state->work->mappings->cols;
+    mu_assert("x0 and x2 substituted", col_map[0] == -1 && col_map[1] == 0 &&
+                                           col_map[2] == -1 && col_map[3] == 1);
+    mu_assert("reduced dims", red->m == 2 && red->n == 2 && red->nnz == 4);
+    mu_assert("reduced P", red->Pnnz == 1 && red->Px[0] == 4.0 && red->Pi[0] == 0);
+    mu_assert("reduced c", red->c[0] == 2.0 && red->c[1] == 0.0);
+    mu_assert("reduced offset", red->obj_offset == 1.0);
+    mu_assert("reduced bounds", red->lbs[0] == 0.0 && red->ubs[0] == 1.5);
+    double rhs_correct[] = {10, 9};
+    mu_assert("reduced rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, red->rhs, 2));
+
+    double x[] = {0, 0};
+    double y[] = {0, 0};
+    double z[] = {2, 0};
+    postsolve(presolver, x, y, z);
+
+    double correct_x[] = {3, 0, 1, 0};
+    double correct_y[] = {-2, 2, 0, 0};
+    double correct_z[] = {0, 2, 0, 0};
+    mu_assert("postsolve values",
+              is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
+                                  correct_y, presolver->sol->z, correct_z, n_rows,
+                                  n_cols, QP_TOL));
+    ProblemData orig =
+        problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, Ap[n_rows], lhs, rhs, lbs,
+                            ubs, c, Px, Pi, Pp, Pp[n_cols]);
+    mu_assert("KKT", is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                                  presolver->sol->z, QP_TOL));
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_qp()
 {
     mu_run_test(test_1_qp, counter_qp);
@@ -1701,6 +1766,7 @@ static const char *all_tests_qp()
     mu_run_test(test_30_qp, counter_qp);
     mu_run_test(test_31_qp, counter_qp);
     mu_run_test(test_32_qp, counter_qp);
+    mu_run_test(test_33_qp, counter_qp);
     return 0;
 }
 
