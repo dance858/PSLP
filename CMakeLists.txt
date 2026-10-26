@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.20)
 project(PSLP LANGUAGES C CXX) # The library is written in C, but we also have some C++ test files
 
 set(PSLP_VERSION_MAJOR 0)
-set(PSLP_VERSION_MINOR 2)
-set(PSLP_VERSION_PATCH 0)
+set(PSLP_VERSION_MINOR 3)
+set(PSLP_VERSION_PATCH 1)
 set(PSLP_VERSION "${PSLP_VERSION_MAJOR}.${PSLP_VERSION_MINOR}.${PSLP_VERSION_PATCH}")
 add_compile_definitions(PSLP_VERSION="${PSLP_VERSION}")
 
