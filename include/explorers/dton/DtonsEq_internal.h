@@ -46,6 +46,7 @@ typedef struct DtonSubst
     double dir_shift;
     double mult; /* x_k = shift + mult * x_target */
     double shift;
+    double rhs; /* right-hand side of the owner row as the record sees it */
     double Pkk; /* diagonal of a substituted column in P, 0 otherwise */
 } DtonSubst;
 
@@ -54,13 +55,15 @@ typedef struct DtonSubst
 typedef struct DtonSubsts
 {
     DtonSubst *recs; /* [cap] */
-    int *depth;      /* [cap] chain depth after composition */
+    int *depth;      /* [cap] chain depth after composition. A record of
+                        dton_cascade gets a rank above every earlier record. */
     int *order;      /* [cap] record indices by descending chain depth */
     int *succ; /* [cap] compute_chain_depths input: record of the stay column */
     int *drop_priority; /* [cap] compute_chain_depths input: owner row */
     int *stamp;         /* [cap] compute_chain_depths scratch */
     int cap;            /* also sizes DtonTargets.list */
     int n_recs;
+    int n_first;    /* records [n_first, n_recs) were claimed by dton_cascade */
     int *col_subst; /* [n_cols] record index of a claimed column, -1 otherwise. Reset
                        through recs. */
 } DtonSubsts;
@@ -79,7 +82,8 @@ typedef struct DtonTargets
     DtonTarget *list; /* [DtonSubsts.cap] each changed column once */
     int n_targets;
     int *col_to_target; /* [n_cols] index into list, -1 otherwise. Reset through
-                           list. */
+                           list. dton_cascade marks the round's surviving
+                           columns with 0 and resets them before it returns. */
 } DtonTargets;
 
 /* Phases 4-5: change log of the sweep, one (row, value) tuple for every entry
@@ -106,7 +110,11 @@ typedef struct DtonWorkspace
     uint64_t *swept_rows; /* [ceil(n_rows / 64)] bitmap of the rows the round sweeps.
                              Zero between rounds. */
     SparseAccumulator acc;
-    int *sort_aux; /* [n_cols] scratch of the sweep's sort_ints, borrowed */
+    int *sort_aux;       /* [n_cols] scratch of the sweep's sort_ints, borrowed */
+    int *claimed_in_row; /* [n_rows] claimed columns per row, counted by
+                            dton_cascade and zeroed by dton_apply */
+    int *cand_rows;      /* [n_rows] dton_cascade's stack of candidate rows,
+                            borrowed */
     DtonLog log;
     RowSlots AT_slots;   /* slots of A transpose's rows */
     bool AT_slots_valid; /* 'AT_slots' matches the layout of A transpose */
@@ -161,6 +169,22 @@ void dton_tighten_changed_columns(struct Problem *prob, const DtonTargets *targe
    the side the row implies. False when the row stays an inequality. */
 bool dton_tighten_dominated_row(struct Problem *prob, int i);
 
+/* Reserves the round's per-record arrays for n_records records. False if an
+   allocation fails. */
+bool dton_reserve_records(DtonWorkspace *dton_work, size_t n_records);
+
+/* The flags of a column pair for dton_choose_subst_qp: in_P[t] when column t is
+   in P, sub[t] when it can be substituted into the other one without fill-in,
+   with Pkk[t] its diagonal (0 unless the column is in P). */
+void dton_P_flags(const struct Problem *prob, int col0, int col1, bool *in_P,
+                  bool *sub, double *Pkk);
+
+/* Appends the record of row i eliminating column k into column j, where
+   aij x_j + aik x_k = rhs is the row as the record sees it, with the direct
+   link as its chain. Returns the index of the record. */
+int dton_push_record(DtonWorkspace *dton_work, int i, int k, int j, double aik,
+                     double aij, double rhs, double Pkk);
+
 /* Phase 1: claims the substituted column of every eliminable row. False if
    the round's records could not be reserved. */
 bool dton_claim(struct Problem *prob, DtonWorkspace *dton_work, int *deferred,
@@ -169,17 +193,24 @@ bool dton_claim(struct Problem *prob, DtonWorkspace *dton_work, int *deferred,
 /* Phase 2: composes the substitution chains and breaks cycles. */
 void dton_compose(DtonWorkspace *dton_work, int *deferred, int *n_deferred);
 
+/* Phase 2b: claims the rows that the round's substitutions turn into doubleton
+   equalities, cascade after cascade, and appends their records to the depths
+   and the order. */
+void dton_cascade(struct Problem *prob, DtonWorkspace *dton_work);
+
 /* Accumulates row 'row' of A with the round's substitutions applied (phase 4's
    view of the row) into dton_work->acc. Returns the shift of the row's sides. */
 double dton_accumulate_row(DtonWorkspace *dton_work, const struct Matrix *A,
                            int row);
 
-/* Phase 3: transfers the bounds of the eliminated columns onto their stay
-   columns. INFEASIBLE if a transfer contradicts a bound. */
+/* Phase 3: transfers the bounds of the first-pass eliminated columns onto
+   their stay columns. INFEASIBLE if a transfer contradicts a bound. */
 PresolveStatus dton_transfer_bounds(struct Problem *prob, DtonWorkspace *dton_work);
 
-/* Phase 3b: emits the postsolve records of the round. */
-void dton_record(struct Problem *prob, DtonWorkspace *dton_work);
+/* Phase 3b: emits the postsolve records of the round. A record claimed by
+   dton_cascade transfers its bounds here, right before its own records.
+   INFEASIBLE if such a transfer contradicts a bound. */
+PresolveStatus dton_record(struct Problem *prob, DtonWorkspace *dton_work);
 
 /* Phase 4: applies the round to A, the row sides, worklists and objective. */
 void dton_apply(struct Problem *prob, DtonWorkspace *dton_work, int *deferred,

@@ -30,15 +30,15 @@
 #include "Tags.h"
 
 /* Decides which of the two entries of a doubleton equality row to
-   substitute. Returns the index (0 or 1). The sparser column, since every
-   row it sits in is swept; the coefficient only decides between columns of
-   equal size, or vetoes a pivot below DTON_PIVOT_RATIO of the other one. */
+   substitute. Returns the index (0 or 1). We prefer the sparser column,
+   unless the coefficient of the sparser column is much smaller than the
+   other one */
 int dton_choose_subst(const double *row_vals, int col_size0, int col_size1)
 {
     double a_abs = ABS(row_vals[0]);
     double b_abs = ABS(row_vals[1]);
 
-    /* Equal sizes: the column with the larger absolute value. */
+    /* equal sizes: the column with the larger absolute value */
     if (col_size0 == col_size1)
     {
         return (a_abs > b_abs) ? 0 : 1;
@@ -48,8 +48,7 @@ int dton_choose_subst(const double *row_vals, int col_size0, int col_size1)
     double sparse_abs = (sparse == 0) ? a_abs : b_abs;
     double dense_abs = (sparse == 0) ? b_abs : a_abs;
 
-    /* Numerical veto: dividing by the sparser column's coefficient would
-       blow the substituted row up. */
+    /* numerical stability */
     if (sparse_abs < DTON_PIVOT_RATIO * dense_abs)
     {
         return 1 - sparse;
@@ -80,9 +79,7 @@ int dton_choose_subst_qp(const double *row_vals, int col_size0, int col_size1,
     return sub0 ? 0 : 1;
 }
 
-/* Reserves the round's per-record arrays for n_records records. False if an
-   allocation fails. */
-static inline bool dton_reserve_records(DtonWorkspace *dton_work, size_t n_records)
+bool dton_reserve_records(DtonWorkspace *dton_work, size_t n_records)
 {
     if (n_records <= (size_t) dton_work->substs.cap)
     {
@@ -104,11 +101,8 @@ static inline bool dton_reserve_records(DtonWorkspace *dton_work, size_t n_recor
     return true;
 }
 
-/* The flags of a column pair for dton_choose_subst_qp: in_P[t] when column t is
-   in P, sub[t] when it can be substituted into the other one without fill-in,
-   with Pkk[t] its diagonal (0 unless the column is in P). */
-static void dton_P_flags(const Problem *prob, int col0, int col1, bool *in_P,
-                         bool *sub, double *Pkk)
+void dton_P_flags(const Problem *prob, int col0, int col1, bool *in_P, bool *sub,
+                  double *Pkk)
 {
     const State *state = prob->constraints->state;
     const int *P_row_sizes = state->P_row_sizes;
@@ -130,10 +124,8 @@ static void dton_P_flags(const Problem *prob, int col0, int col1, bool *in_P,
     }
 }
 
-/* Appends the record of row i eliminating column k into column j, where
-   aij x_j + aik x_k = rhs is the row. Returns the index of the record. */
-static int dton_push_record(DtonWorkspace *dton_work, int i, int k, int j,
-                            double aik, double aij, double rhs, double Pkk)
+int dton_push_record(DtonWorkspace *dton_work, int i, int k, int j, double aik,
+                     double aij, double rhs, double Pkk)
 {
     assert(dton_work->substs.n_recs < dton_work->substs.cap);
     int idx = dton_work->substs.n_recs++;
@@ -145,6 +137,10 @@ static int dton_push_record(DtonWorkspace *dton_work, int i, int k, int j,
     rec->aij = aij;
     rec->dir_mult = -aij / aik;
     rec->dir_shift = rhs / aik;
+    rec->target = j;
+    rec->mult = rec->dir_mult;
+    rec->shift = rec->dir_shift;
+    rec->rhs = rhs;
     rec->Pkk = Pkk;
     dton_work->substs.col_subst[k] = idx;
     return idx;
@@ -295,6 +291,7 @@ void dton_compose(DtonWorkspace *dton_work, int *deferred, int *n_deferred)
         new_index[idx] = out++;
     }
     dton_work->substs.n_recs = out;
+    dton_work->substs.n_first = out;
     for (int ii = 0; ii < n_kept; ++ii)
     {
         order[ii] = new_index[order[ii]];
@@ -302,9 +299,10 @@ void dton_compose(DtonWorkspace *dton_work, int *deferred, int *n_deferred)
 }
 
 /* Transfers the bounds of a record's eliminated column x_k onto its stay
-   column x_j through its row aij * x_j + aik * x_k = rhs, given in column
-   order for the postsolve record. Returns INFEASIBLE when a transferred bound
-   contradicts the bounds of x_j, UNCHANGED otherwise. */
+   column x_j through the row as the record sees it, aij * x_j + aik * x_k =
+   rhs (row owner of A for a first-pass record), given in column order for the
+   postsolve record. Returns INFEASIBLE when a transferred bound contradicts the
+   bounds of x_j, UNCHANGED otherwise. */
 static PresolveStatus dton_transfer_bounds_rec(Constraints *constraints,
                                                const DtonSubst *rec)
 {
@@ -313,7 +311,6 @@ static PresolveStatus dton_transfer_bounds_rec(Constraints *constraints,
     int k = rec->k;
     double aij = rec->aij;
     double aik = rec->aik;
-    double rhs = constraints->rhs[i];
     const Bound *bound_k = constraints->bounds + k;
     ColTag col_tag_k = constraints->col_tags[k];
     int cols[2] = {k < j ? k : j, k < j ? j : k};
@@ -325,7 +322,7 @@ static PresolveStatus dton_transfer_bounds_rec(Constraints *constraints,
 
     if (!HAS_TAG(col_tag_k, C_TAG_LB_INF))
     {
-        double bound = (rhs - aik * bound_k->lb) / aij;
+        double bound = (rec->rhs - aik * bound_k->lb) / aij;
         status = same_sign ? update_ub_with_row(constraints, j, bound, i, cols, vals,
                                                 2 HUGE_BOUND_IS_NOT_OK)
                            : update_lb_with_row(constraints, j, bound, i, cols, vals,
@@ -335,7 +332,7 @@ static PresolveStatus dton_transfer_bounds_rec(Constraints *constraints,
 
     if (!HAS_TAG(col_tag_k, C_TAG_UB_INF))
     {
-        double bound = (rhs - aik * bound_k->ub) / aij;
+        double bound = (rec->rhs - aik * bound_k->ub) / aij;
         status = same_sign ? update_lb_with_row(constraints, j, bound, i, cols, vals,
                                                 2 HUGE_BOUND_IS_NOT_OK)
                            : update_ub_with_row(constraints, j, bound, i, cols, vals,
@@ -344,11 +341,12 @@ static PresolveStatus dton_transfer_bounds_rec(Constraints *constraints,
     return status;
 }
 
-/* Transfers the bounds of each eliminated column onto its direct stay
-   column, one link at a time in descending chain depth, so each transfer sees
-   the bounds tightened by the deeper links. A composed transfer would break
-   dual complementarity on chains. Returns INFEASIBLE at the first
-   contradicting transfer, UNCHANGED otherwise. */
+/* Transfers the bounds of each first-pass eliminated column onto its direct
+   stay column, one link at a time in descending chain depth, so each transfer
+   sees the bounds tightened by the deeper links. A composed transfer would
+   break dual complementarity on chains. A record of dton_cascade transfers in
+   dton_record instead, right before its own records. Returns INFEASIBLE at the
+   first contradicting transfer, UNCHANGED otherwise. */
 PresolveStatus dton_transfer_bounds(Problem *prob, DtonWorkspace *dton_work)
 {
     Constraints *constraints = prob->constraints;
@@ -359,6 +357,10 @@ PresolveStatus dton_transfer_bounds(Problem *prob, DtonWorkspace *dton_work)
     {
         assert(ii == 0 || dton_work->substs.depth[order[ii - 1]] >=
                               dton_work->substs.depth[order[ii]]);
+        if (order[ii] >= dton_work->substs.n_first)
+        {
+            continue;
+        }
         PresolveStatus status =
             dton_transfer_bounds_rec(constraints, recs + order[ii]);
         RETURN_IF_INFEASIBLE(status);
@@ -370,12 +372,12 @@ PresolveStatus dton_transfer_bounds(Problem *prob, DtonWorkspace *dton_work)
    and survivor s: ADDED_ROWS(i, column k, aik), SUB_COL_DTON(k, s, mult,
    shift) and DELETED_ROW(i, c_k / aik). Replayed in reverse they give x_k and
        y_i = (c_k - sum_{r != i} a_rk y_r) / a_ik,
-   where the sum includes the owner rows whose stay column is k. Those records
-   are deeper, so the columns are emitted by ascending depth and replayed
-   deepest first. A column in P (row k of P is the diagonal P_kk alone) adds
-   P_kk x_k / a_ik to y_i through a DELETED_ROW_ZK record, saved first and
-   hence replayed last. */
-void dton_record(Problem *prob, DtonWorkspace *dton_work)
+   where the sum includes the owner rows whose stay column is k and the owner
+   rows claimed in dton_cascade that held k. Those records are deeper, so the
+   columns are emitted by ascending depth and replayed deepest first. A column in P
+   (row k of P is the diagonal P_kk alone) adds P_kk x_k / a_ik to y_i through a
+   DELETED_ROW_ZK record, saved first and hence replayed last. */
+PresolveStatus dton_record(Problem *prob, DtonWorkspace *dton_work)
 {
     Constraints *constraints = prob->constraints;
     const Matrix *AT = constraints->AT; /* pre-round transpose */
@@ -385,10 +387,18 @@ void dton_record(Problem *prob, DtonWorkspace *dton_work)
     /* ascending depth: order lists the substitutions by descending depth */
     for (int ii = dton_work->substs.n_recs - 1; ii >= 0; --ii)
     {
-        const DtonSubst *rec = dton_work->substs.recs + dton_work->substs.order[ii];
+        int idx = dton_work->substs.order[ii];
+        const DtonSubst *rec = dton_work->substs.recs + idx;
         int k = rec->k;
         int i = rec->owner;
         double aik = rec->aik;
+
+        /* a cascade record transfers its bounds here, see dton_transfer_bounds */
+        if (idx >= dton_work->substs.n_first)
+        {
+            PresolveStatus status = dton_transfer_bounds_rec(constraints, rec);
+            RETURN_IF_INFEASIBLE(status);
+        }
 
         const int *rows = AT->i + AT->p[k].start;
         const double *col_vals = AT->x + AT->p[k].start;
@@ -410,4 +420,5 @@ void dton_record(Problem *prob, DtonWorkspace *dton_work)
         save_retrieval_sub_col_dton(info, k, rec->target, rec->mult, rec->shift);
         save_retrieval_deleted_row(info, i, c[k] / aik);
     }
+    return UNCHANGED;
 }

@@ -40,9 +40,10 @@ DtonWorkspace *dton_workspace_new(size_t n_rows, size_t n_cols)
     dton_work->acc.value = (double *) ps_malloc(n_cols, sizeof(double));
     dton_work->acc.flags = (uint8_t *) ps_malloc(n_cols, sizeof(uint8_t));
     dton_work->AT_slots.cap = (int *) ps_malloc(n_cols, sizeof(int));
+    dton_work->claimed_in_row = (int *) ps_calloc(n_rows, sizeof(int));
 
     if (!dton_work->swept_rows || !dton_work->acc.value || !dton_work->acc.flags ||
-        !dton_work->AT_slots.cap)
+        !dton_work->AT_slots.cap || !dton_work->claimed_in_row)
     {
         dton_workspace_free(dton_work);
         return NULL;
@@ -65,6 +66,7 @@ void dton_workspace_free(DtonWorkspace *dton_work)
     PS_FREE(dton_work->acc.value);
     PS_FREE(dton_work->acc.flags);
     PS_FREE(dton_work->AT_slots.cap);
+    PS_FREE(dton_work->claimed_in_row);
     PS_FREE(dton_work->log.row);
     PS_FREE(dton_work->log.val);
     PS_FREE(dton_work);
@@ -84,6 +86,7 @@ void dton_workspace_init(DtonWorkspace *dton_work, Work *work)
     dton_work->substs.col_subst = col_subst;
     dton_work->targets.col_to_target = col_to_target;
     dton_work->sort_aux = work->mappings->cols;
+    dton_work->cand_rows = work->mappings->rows;
     sparse_accumulator_init(&dton_work->acc, work->radix_aux, dton_work->acc.value,
                             dton_work->acc.flags, work->iwork_n_cols,
                             (size_t) dton_work->n_cols);
@@ -116,6 +119,7 @@ PresolveStatus remove_dton_eq_rows(Problem *prob)
         /* determine which columns to subtitute */
         bool progress = dton_claim(prob, dton_work, deferred, &n_deferred);
         dton_compose(dton_work, deferred, &n_deferred);
+        dton_cascade(prob, dton_work);
         progress = progress && dton_work->substs.n_recs > 0;
 
         if (progress)
@@ -127,7 +131,10 @@ PresolveStatus remove_dton_eq_rows(Problem *prob)
             }
 
             /* save postsolve information */
-            dton_record(prob, dton_work);
+            if (dton_record(prob, dton_work) == INFEASIBLE)
+            {
+                return INFEASIBLE;
+            }
 
             /* XXX some comment here */
             dton_apply(prob, dton_work, deferred, &n_deferred);

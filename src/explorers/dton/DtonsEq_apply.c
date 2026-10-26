@@ -296,29 +296,30 @@ void dton_apply(Problem *prob, DtonWorkspace *dton_work, int *deferred,
     const DtonSubsts *substs = &dton_work->substs;
     uint64_t *swept_rows = dton_work->swept_rows;
 
-    /* mark doubleton rows used for substitution as inactive */
+    /* mark the owner rows as inactive. A row claimed by dton_cascade still
+       holds the entries its substitutions remove. */
     for (int idx = 0; idx < substs->n_recs; ++idx)
     {
         int i = substs->recs[idx].owner;
-        assert(row_sizes[i] == 2 && !HAS_TAG(row_tags[i], R_TAG_INACTIVE));
+        assert(row_sizes[i] >= 2 && !HAS_TAG(row_tags[i], R_TAG_INACTIVE));
         RESET_TAG(row_tags[i], R_TAG_INACTIVE);
+        A->nnz -= (size_t) row_sizes[i];
         row_sizes[i] = SIZE_INACTIVE_ROW;
         A->p[i].end = A->p[i].start;
     }
 
-    /* update the number of nonzeros in A */
-    A->nnz -= 2 * (size_t) substs->n_recs;
-
     /* collect the surviving columns that the eliminated columns are mapped onto */
     dton_collect_targets(prob, dton_work);
 
-    /* mark rows that need to be updated (ie., rows with eliminated columns) */
+    /* mark rows that need to be updated (ie., rows with eliminated columns)
+       and zero the counts of dton_cascade, which cover the same rows */
     for (int idx = 0; idx < substs->n_recs; ++idx)
     {
         int k = substs->recs[idx].k;
         for (int jj = AT->p[k].start; jj < AT->p[k].end; ++jj)
         {
             int row = AT->i[jj];
+            dton_work->claimed_in_row[row] = 0;
             if (!HAS_TAG(row_tags[row], R_TAG_INACTIVE))
             {
                 bitmap_set(swept_rows, row);
