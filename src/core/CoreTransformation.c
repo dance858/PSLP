@@ -292,6 +292,11 @@ bool implied_free_from_above_by_row(double Aik, const ConstRowView *row, double 
         return true;
     }
 
+    if (HAS_TAG(*row->tag, R_TAG_CONE))
+    {
+        return false;
+    }
+
     assert(!IS_POS_INF(ub) && Aik != 0);
     double implied_ub = INF;
 
@@ -342,6 +347,11 @@ bool implied_free_from_below_by_row(double Aik, const ConstRowView *row, double 
     if (HAS_TAG(col_tag, C_TAG_LB_INF))
     {
         return true;
+    }
+
+    if (HAS_TAG(*row->tag, R_TAG_CONE))
+    {
+        return false;
     }
 
     assert(Aik != 0);

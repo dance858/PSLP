@@ -114,10 +114,10 @@ void verify_empty_rows(const Constraints *constraints)
     }
 
     // verify that all empty rows have been appended using a look-up
-    // table
+    // table (an empty cone row stays and leaves the list)
     for (size_t i = 0; i < n_rows; i++)
     {
-        if (row_sizes[i] == 0)
+        if (row_sizes[i] == 0 && !HAS_TAG(constraints->row_tags[i], R_TAG_CONE))
         {
             PSLP_ASSERT(lookup[i]);
         }
@@ -195,10 +195,10 @@ void verify_ston_rows(const Constraints *constraints)
     }
 
     // verify that all ston rows have been appended using a look-up
-    // table
+    // table (a singleton cone row stays and leaves the list)
     for (size_t i = 0; i < n_rows; i++)
     {
-        if (row_sizes[i] == 1)
+        if (row_sizes[i] == 1 && !HAS_TAG(constraints->row_tags[i], R_TAG_CONE))
         {
             PSLP_ASSERT(lookup[i]);
         }
@@ -358,7 +358,8 @@ void verify_row_tags(const Constraints *constraints)
         if (!HAS_TAG(row_tags[i], R_TAG_LHS_INF) &&
             !HAS_TAG(row_tags[i], R_TAG_RHS_INF) && lhs[i] == rhs[i])
         {
-            PSLP_ASSERT(HAS_TAG(row_tags[i], (R_TAG_EQ | R_TAG_INACTIVE)));
+            PSLP_ASSERT(
+                HAS_TAG(row_tags[i], (R_TAG_EQ | R_TAG_INACTIVE | R_TAG_CONE)));
         }
     }
 }
@@ -823,7 +824,7 @@ void ASSERT_NO_ACTIVE_STON_ROWS(const Matrix *A, const RowTag *row_tags)
     for (int i = 0; i < A->m; ++i)
     {
         PSLP_ASSERT(A->p[i].end - A->p[i].start != 1 ||
-                    HAS_TAG(row_tags[i], R_TAG_INACTIVE));
+                    HAS_TAG(row_tags[i], (R_TAG_INACTIVE | R_TAG_CONE)));
     }
 }
 

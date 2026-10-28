@@ -117,7 +117,7 @@ static inline void set_row_to_inactive(int row, RowTag *row_tag,
                                        iVec *rows_to_delete, PostsolveInfo *info,
                                        double val)
 {
-    assert(!HAS_TAG(*row_tag, R_TAG_INACTIVE));
+    assert(!HAS_TAG(*row_tag, (R_TAG_INACTIVE | R_TAG_CONE)));
     iVec_append(rows_to_delete, row);
 
     // very important that we use UPDATE_TAG here instead of RESET_TAG,
