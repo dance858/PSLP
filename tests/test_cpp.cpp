@@ -78,6 +78,8 @@ int main()
     problem.Px = Px;
     problem.Pi = Pi;
     problem.Pp = Pp;
+    problem.cones = NULL;
+    problem.n_cones = 0;
     problem.Pnnz = 1;
     Presolver *presolver_qp = new_presolver_from_problem(&problem, stgs);
     assert(presolver_qp != nullptr && "QP presolver initialization failed");

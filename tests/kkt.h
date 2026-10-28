@@ -88,4 +88,11 @@ bool is_primal_ray_certificate(const ProblemData *prob, const double *y, double 
    with P d = 0 and c^T d < -tol. Prints the reason on failure. */
 bool is_dual_ray_certificate(const ProblemData *prob, const double *d, double tol);
 
+/* True iff the point s of length dim lies in the cone of the given type, up to
+   tol. 'tol' is FEAS_TOL scaled by the block, max(1, ||s||_inf). The second-
+   order and rotated cones are self-dual, so cone_dual_member is the test of
+   the multiplier. */
+bool cone_member(ConeType type, const double *s, int dim, double tol);
+bool cone_dual_member(ConeType type, const double *y, int dim, double tol);
+
 #endif // KKT_H

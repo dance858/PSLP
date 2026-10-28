@@ -10,6 +10,7 @@
 #include "test_SparseAccumulator.h"
 #include "test_chains.h"
 #include "test_colour_refinement.h"
+#include "test_cones.h"
 #include "test_domain_propagation.h"
 #include "test_dton.h"
 #include "test_fold.h"
@@ -54,6 +55,7 @@ const char *run_all_tests()
     mu_assert("ray postsolve error", test_ray_postsolve());
     mu_assert("map to reduced error", test_map_to_reduced());
     mu_assert("QP error", test_qp());
+    mu_assert("cones error", test_cones());
 
     return NULL;
 }

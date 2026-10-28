@@ -17,6 +17,7 @@
  */
 
 #include "Activity.h"
+#include "Cones.h"
 #include "Constraints.h"
 #include "CoreTransformations.h"
 #include "Debugger.h"
@@ -243,7 +244,9 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
                            .rhs = rhs,
                            .c = c,
                            .lbs = lbs,
-                           .ubs = ubs};
+                           .ubs = ubs,
+                           .cones = NULL,
+                           .n_cones = 0};
     return new_presolver_from_problem(&problem, stgs);
 }
 
@@ -269,6 +272,16 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
     /* very basic validation */
     if (nnz > (size_t) INT_MAX || Pnnz > (size_t) INT_MAX ||
         (Pnnz > 0 && (Px == NULL || Pi == NULL || Pp == NULL)))
+    {
+        return NULL;
+    }
+    if (!cones_valid(problem->cones, problem->n_cones, m, rhs))
+    {
+        return NULL;
+    }
+
+    /* Cone rows are not presolved yet. */
+    if (problem->n_cones > 0)
     {
         return NULL;
     }

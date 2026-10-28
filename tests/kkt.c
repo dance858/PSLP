@@ -28,6 +28,8 @@ ProblemData problem_from_csr_qp(double *Ax, int *Ai, int *Ap, int n_rows, int n_
     prob.Pi = Pi;
     prob.Pp = Pp;
     prob.Pnnz = (size_t) Pnnz;
+    prob.cones = NULL;
+    prob.n_cones = 0;
     return prob;
 }
 
@@ -37,6 +39,53 @@ ProblemData problem_from_csr(double *Ax, int *Ai, int *Ap, int n_rows, int n_col
 {
     return problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs,
                                c, NULL, NULL, NULL, 0);
+}
+
+/* ||(s_first, ..., s_{dim-1})||_2. */
+static double tail_norm(const double *s, int first, int dim)
+{
+    double sum = 0.0;
+    for (int ii = first; ii < dim; ++ii)
+    {
+        sum += s[ii] * s[ii];
+    }
+    return sqrt(sum);
+}
+
+/* s_0 >= ||s_1..||. */
+static bool soc_member(const double *s, int dim, double tol)
+{
+    return s[0] >= tail_norm(s, 1, dim) - tol;
+}
+
+/* s_0, s_1 >= 0 and 2 s_0 s_1 >= ||s_2..||^2, tested as sqrt(2 s_0 s_1) >=
+   ||s_2..|| - tol. */
+static bool rotated_member(const double *s, int dim, double tol)
+{
+    if (s[0] < -tol || s[1] < -tol)
+    {
+        return false;
+    }
+    double head = sqrt(2.0 * MAX(s[0], 0.0) * MAX(s[1], 0.0));
+    return head >= tail_norm(s, 2, dim) - tol;
+}
+
+bool cone_member(ConeType type, const double *s, int dim, double tol)
+{
+    switch (type)
+    {
+        case PSLP_CONE_SOC:
+            return soc_member(s, dim, tol);
+        case PSLP_CONE_ROTATED:
+            return rotated_member(s, dim, tol);
+        default:
+            return false;
+    }
+}
+
+bool cone_dual_member(ConeType type, const double *y, int dim, double tol)
+{
+    return cone_member(type, y, dim, tol);
 }
 
 /* true if the problem has a quadratic objective term */

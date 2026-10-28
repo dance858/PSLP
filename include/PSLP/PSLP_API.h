@@ -72,13 +72,36 @@ extern "C"
         int n_threads;
     } Settings;
 
+    /* A cone block is a range of consecutive rows of A that is constrained as
+       A_B x - r_B in K_B. Here, 'rhs' holds r on these rows. The cone K is given
+       by 'type', with s = A_B x - r_B:
+
+         * PSLP_CONE_SOC      s_0 >= ||(s_1, ..., s_{dim-1})||_2, dim >= 1
+         * PSLP_CONE_ROTATED  2 s_0 s_1 >= ||(s_2, ..., s_{dim-1})||_2^2 with
+                              s_0, s_1 >= 0, dim >= 2
+         * PSLP_CONE_EXP      reserved, not accepted yet
+     */
+    typedef enum
+    {
+        PSLP_CONE_SOC = 1,
+        PSLP_CONE_ROTATED = 2,
+        PSLP_CONE_EXP = 3
+    } ConeType;
+
+    typedef struct
+    {
+        ConeType type;
+        int start; /* first row of the block */
+        int dim;   /* number of rows of the block */
+    } ConeBlock;
+
     /* struct corresponding to a problem min (1/2) x'Px + c'x + obj_offset s.t.
-       lhs <= Ax <= rhs,  lbs <= x <= ubs. It is used both for the problem given
-       to the presolver and for the reduced problem returned in 'reduced_prob'.
-       For an LP, set P to NULL and Pnnz to 0. The arrays of the reduced problem
-       are owned by the presolver and stay valid until
-       'free_presolver_reduced_problem' or 'free_presolver' is called. The user
-       must not modify or free them. */
+       lhs <= Ax <= rhs,  lbs <= x <= ubs, and A_B x - r_B in K_B for every cone
+       block B. It is used both for the problem given to the presolver and for
+       the reduced problem returned in 'reduced_prob'. For an LP, set P to NULL
+       and Pnnz to 0. The arrays of the reduced problem are owned by the
+       presolver and stay valid until 'free_presolver_reduced_problem' or
+       'free_presolver' is called. The user must not modify or free them. */
     typedef struct
     {
         /* CSR format of a matrix A of size m x n with nnz non-zeros */
@@ -112,6 +135,12 @@ extern "C"
            This offset should be taken into account on the solver side when
            evaluating the relative optimality gap of the reduced problem. */
         double obj_offset;
+
+        /* Cone blocks on the rows of A. The blocks are contiguous, in
+           increasing 'start', and occupy the last rows of A. cones == NULL
+           means no blocks. */
+        const ConeBlock *cones;
+        size_t n_cones;
     } ProblemData;
 
     /* struct corresponding to the presolver:
@@ -148,7 +177,9 @@ extern "C"
        The CSR structure of A and P is assumed to be valid (sorted column
        indices, no duplicates, consistent row pointers). The function returns
        NULL if the allocation fails, nnz or Pnnz is too large, an array of P is
-       missing although Pnnz > 0, or P is not exactly symmetric. */
+       missing although Pnnz > 0, P is not exactly symmetric, or the cone
+       blocks are not well formed. A problem with cone blocks is not presolved
+       yet, and the function returns NULL for it. */
     Presolver *new_presolver_from_problem(const ProblemData *problem,
                                           const Settings *stgs);
 
