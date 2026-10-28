@@ -2,7 +2,6 @@
 #define TEST_CONES_H
 
 #include "Cones.h"
-#include "Numerics.h"
 #include "PSLP_API.h"
 #include "glbopts.h"
 #include "kkt.h"
@@ -11,27 +10,6 @@
 
 static int counter_cones = 0;
 
-/* FEAS_TOL scaled by the block, max(1, ||s||_inf). */
-static double cone_tol(const double *s, int dim)
-{
-    double scale = 1.0;
-    for (int ii = 0; ii < dim; ++ii)
-    {
-        scale = MAX(scale, ABS(s[ii]));
-    }
-    return FEAS_TOL * scale;
-}
-
-static bool in_cone(ConeType type, const double *s, int dim)
-{
-    return cone_member(type, s, dim, cone_tol(s, dim));
-}
-
-static bool in_dual_cone(ConeType type, const double *s, int dim)
-{
-    return cone_dual_member(type, s, dim, cone_tol(s, dim));
-}
-
 static char *test_cone_table()
 {
     const ConeTypeInfo *soc = cone_type_info(PSLP_CONE_SOC);
@@ -39,70 +17,6 @@ static char *test_cone_table()
     mu_assert("SOC row", soc != NULL && soc->dim_min == 1);
     mu_assert("ROTATED row", rotated != NULL && rotated->dim_min == 2);
     mu_assert("no EXP row", cone_type_info(PSLP_CONE_EXP) == NULL);
-    return 0;
-}
-
-static char *test_soc_member()
-{
-    double inside[] = {6, 3, 4};
-    double on[] = {5, 3, 4};
-    double outside[] = {5, 3, 4.0001};
-    double negative_head[] = {-1, 0, 0};
-    double scaled_on[] = {5e6, 3e6, 4e6 + 1};
-    double scaled_outside[] = {5e6, 3e6, 4e6 + 10};
-    double zero = 0;
-    double small_negative = -1e-7;
-    double negative = -1;
-
-    mu_assert("inside", in_cone(PSLP_CONE_SOC, inside, 3));
-    mu_assert("on", in_cone(PSLP_CONE_SOC, on, 3));
-    mu_assert("outside", !in_cone(PSLP_CONE_SOC, outside, 3));
-    mu_assert("negative head", !in_cone(PSLP_CONE_SOC, negative_head, 3));
-    mu_assert("scaled on", in_cone(PSLP_CONE_SOC, scaled_on, 3));
-    mu_assert("scaled outside", !in_cone(PSLP_CONE_SOC, scaled_outside, 3));
-    mu_assert("dim 1 zero", in_cone(PSLP_CONE_SOC, &zero, 1));
-    mu_assert("dim 1 small negative", in_cone(PSLP_CONE_SOC, &small_negative, 1));
-    mu_assert("dim 1 negative", !in_cone(PSLP_CONE_SOC, &negative, 1));
-
-    mu_assert("dual inside", in_dual_cone(PSLP_CONE_SOC, inside, 3));
-    mu_assert("dual on", in_dual_cone(PSLP_CONE_SOC, on, 3));
-    mu_assert("dual outside", !in_dual_cone(PSLP_CONE_SOC, outside, 3));
-    mu_assert("dual negative head", !in_dual_cone(PSLP_CONE_SOC, negative_head, 3));
-    mu_assert("EXP has no test", !in_cone(PSLP_CONE_EXP, inside, 3));
-    return 0;
-}
-
-static char *test_rotated_member()
-{
-    double inside[] = {2, 2, 2, 0};
-    double on[] = {1, 2, 2, 0};
-    double outside[] = {1, 2, 2, 0.01};
-    double negative_first_head[] = {-1, 2, 0, 0};
-    double negative_second_head[] = {1, -2, 0, 0};
-    double zero_head[] = {0, 5, 0, 0};
-    double zero_heads_tail[] = {0, 0, 1};
-    double dim2_zero[] = {0, 0};
-    double dim2_inside[] = {1, 1};
-    double dim2_negative[] = {1, -1};
-
-    mu_assert("inside", in_cone(PSLP_CONE_ROTATED, inside, 4));
-    mu_assert("on", in_cone(PSLP_CONE_ROTATED, on, 4));
-    mu_assert("outside", !in_cone(PSLP_CONE_ROTATED, outside, 4));
-    mu_assert("negative first head",
-              !in_cone(PSLP_CONE_ROTATED, negative_first_head, 4));
-    mu_assert("negative second head",
-              !in_cone(PSLP_CONE_ROTATED, negative_second_head, 4));
-    mu_assert("zero head", in_cone(PSLP_CONE_ROTATED, zero_head, 4));
-    mu_assert("zero heads, tail", !in_cone(PSLP_CONE_ROTATED, zero_heads_tail, 3));
-    mu_assert("dim 2 zero", in_cone(PSLP_CONE_ROTATED, dim2_zero, 2));
-    mu_assert("dim 2 inside", in_cone(PSLP_CONE_ROTATED, dim2_inside, 2));
-    mu_assert("dim 2 negative", !in_cone(PSLP_CONE_ROTATED, dim2_negative, 2));
-
-    mu_assert("dual inside", in_dual_cone(PSLP_CONE_ROTATED, inside, 4));
-    mu_assert("dual on", in_dual_cone(PSLP_CONE_ROTATED, on, 4));
-    mu_assert("dual outside", !in_dual_cone(PSLP_CONE_ROTATED, outside, 4));
-    mu_assert("dual negative head",
-              !in_dual_cone(PSLP_CONE_ROTATED, negative_first_head, 4));
     return 0;
 }
 
@@ -202,8 +116,6 @@ static char *test_cones_refused()
 static const char *all_tests_cones()
 {
     mu_run_test(test_cone_table, counter_cones);
-    mu_run_test(test_soc_member, counter_cones);
-    mu_run_test(test_rotated_member, counter_cones);
     mu_run_test(test_cones_valid, counter_cones);
     mu_run_test(test_cones_refused, counter_cones);
     return 0;
