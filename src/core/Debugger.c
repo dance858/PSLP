@@ -335,6 +335,11 @@ void verify_row_tags(const Constraints *constraints)
 
     for (int i = 0; i < constraints->m; ++i)
     {
+        if (HAS_TAG(row_tags[i], R_TAG_CONE))
+        {
+            PSLP_ASSERT(row_tags[i] == R_TAG_CONE && lhs[i] == rhs[i]);
+        }
+
         if (IS_NEG_INF(lhs[i]) && !HAS_TAG(row_tags[i], R_TAG_INACTIVE))
         {
             PSLP_ASSERT(HAS_TAG(row_tags[i], R_TAG_LHS_INF));

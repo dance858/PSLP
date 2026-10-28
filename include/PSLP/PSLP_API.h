@@ -138,7 +138,8 @@ extern "C"
 
         /* Cone blocks on the rows of A. The blocks are contiguous, in
            increasing 'start', and occupy the last rows of A. cones == NULL
-           means no blocks. */
+           means no blocks. The reduced problem returns its blocks in the same
+           form and order, with lhs = rhs = r on their rows. */
         const ConeBlock *cones;
         size_t n_cones;
     } ProblemData;
@@ -178,8 +179,7 @@ extern "C"
        indices, no duplicates, consistent row pointers). The function returns
        NULL if the allocation fails, nnz or Pnnz is too large, an array of P is
        missing although Pnnz > 0, P is not exactly symmetric, or the cone
-       blocks are not well formed. A problem with cone blocks is not presolved
-       yet, and the function returns NULL for it. */
+       blocks are not well formed. */
     Presolver *new_presolver_from_problem(const ProblemData *problem,
                                           const Settings *stgs);
 
@@ -241,7 +241,9 @@ extern "C"
        to y_orig. It does not check whether y is a valid ray.
 
        y uses the Farkas sign convention, yi >= 0 when row i is active at its
-       rhs, the opposite of postsolve(). It matches Gurobi's FarkasDual. */
+       rhs, the opposite of postsolve(). It matches Gurobi's FarkasDual. Not
+       available yet for a problem with cone blocks: an error is printed and y_orig
+       is left untouched. */
     void postsolve_primal_infeas_ray(Presolver *presolver, const double *y,
                                      double *y_orig);
 
@@ -251,7 +253,8 @@ extern "C"
 
        x is an unbounded direction: a recession direction of the constraint
        set with Px = 0 and c'x < 0 (for an LP simply c'x < 0); no sign
-       convention involved. */
+       convention involved. Not available yet for a problem with cone
+       blocks: an error is printed and x_orig is left untouched. */
     void postsolve_dual_infeas_ray(Presolver *presolver, const double *x,
                                    double *x_orig);
 
