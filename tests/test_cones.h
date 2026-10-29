@@ -2,7 +2,10 @@
 #define TEST_CONES_H
 
 #include "Cones.h"
+#include "Constraints.h"
 #include "PSLP_API.h"
+#include "Problem.h"
+#include "State.h"
 #include "glbopts.h"
 #include "kkt.h"
 #include "minunit.h"
@@ -200,6 +203,156 @@ static char *test_cones_rotated_flow()
     return 0;
 }
 
+/*  min x0 + x2  s.t.  (x0, 0, x1) in SOC,  (x2, x3, 0) in SOC,  x1 = 2,
+    x3 = 1 (lb = ub). The empty rows with a zero side go, one inside its
+    block and one last in its block; the fixed columns leave constant rows
+    r = -2 and r = -1. Reduced: two blocks of dim 2, x0 >= 2 and x2 >= 1,
+    optimum x = (2, 1), y = (1, -1, 1, -1). Postsolve gives
+    y = (1, 0, -1, 1, -1, 0). */
+static char *test_cones_zero_tails()
+{
+    double Ax[] = {1, 1, 1, 1};
+    int Ai[] = {0, 1, 2, 3};
+    int Ap[] = {0, 1, 1, 2, 3, 4, 4};
+    double lhs[] = {-INF, -INF, -INF, -INF, -INF, -INF};
+    double rhs[] = {0, 0, 0, 0, 0, 0};
+    double lbs[] = {-INF, 2, -INF, 1};
+    double ubs[] = {INF, 2, INF, 1};
+    double c[] = {1, 0, 1, 0};
+    ConeBlock cones[] = {{PSLP_CONE_SOC, 0, 3}, {PSLP_CONE_SOC, 3, 3}};
+    ProblemData prob = problem_from_csr(Ax, Ai, Ap, 6, 4, 4, lhs, rhs, lbs, ubs, c);
+    prob.cones = cones;
+    prob.n_cones = 2;
+    Settings *stgs = default_settings();
+    stgs->verbose = false;
+
+    Presolver *presolver = new_presolver_from_problem(&prob, stgs);
+    mu_assert("init", presolver != NULL);
+    mu_assert("reduced", run_presolver(presolver) == REDUCED);
+    const ProblemData *reduced = presolver->reduced_prob;
+    mu_assert("reduced dims",
+              reduced->m == 4 && reduced->n == 2 && reduced->n_cones == 2);
+    mu_assert("reduced blocks",
+              reduced->cones[0].start == 0 && reduced->cones[0].dim == 2 &&
+                  reduced->cones[1].start == 2 && reduced->cones[1].dim == 2);
+    mu_assert("constant rows kept",
+              reduced->Ap[2] == reduced->Ap[1] && reduced->rhs[1] == -2 &&
+                  reduced->Ap[4] == reduced->Ap[3] && reduced->rhs[3] == -1);
+
+    double x_orig[] = {2, 2, 1, 1};
+    double y_orig[] = {1, 0, -1, 1, -1, 0};
+    double x_red[2], y_red[4], z_red[2];
+    map_original_sol_to_reduced(presolver, x_orig, y_orig, x_red, y_red, z_red);
+    mu_assert("mapped point", x_red[0] == 2 && x_red[1] == 1 && y_red[0] == 1 &&
+                                  y_red[1] == -1 && y_red[2] == 1 && y_red[3] == -1);
+    mu_assert("reduced KKT point", is_kkt_point(reduced, x_red, y_red, z_red, 1e-9));
+
+    postsolve(presolver, x_red, y_red, z_red);
+    const double *x = presolver->sol->x, *y = presolver->sol->y;
+    mu_assert("original KKT point",
+              is_kkt_point(&prob, x, y, presolver->sol->z, 1e-9));
+    mu_assert("postsolved point", x[0] == 2 && x[2] == 1 && y[1] == 0 && y[5] == 0 &&
+                                      y[2] == -1 && y[4] == -1);
+
+    free_presolver(presolver);
+    free_settings(stgs);
+    return 0;
+}
+
+/*  min x0 + 2 x1  s.t.  x0 + x1 >= 1,  x0 - x1 >= -3,  (x0, x1, 0) in ROTATED,
+    x free. The block is x0 >= 0, x1 >= 0 and goes. Reduced: the two linear
+    rows with lbs = 0, optimum x = (1, 0), y = (1, 0), z = (0, 1). Postsolve
+    moves z1 to the second head: y = (1, 0, 0, 1, 0). */
+static char *test_cones_block_to_bounds()
+{
+    double Ax[] = {1, 1, 1, -1, 1, 1};
+    int Ai[] = {0, 1, 0, 1, 0, 1};
+    int Ap[] = {0, 2, 4, 5, 6, 6};
+    double lhs[] = {1, -3, -INF, -INF, -INF};
+    double rhs[] = {INF, INF, 0, 0, 0};
+    double lbs[] = {-INF, -INF};
+    double ubs[] = {INF, INF};
+    double c[] = {1, 2};
+    ConeBlock cones[] = {{PSLP_CONE_ROTATED, 2, 3}};
+    ProblemData prob = problem_from_csr(Ax, Ai, Ap, 5, 2, 6, lhs, rhs, lbs, ubs, c);
+    prob.cones = cones;
+    prob.n_cones = 1;
+    Settings *stgs = default_settings();
+    stgs->verbose = false;
+
+    Presolver *presolver = new_presolver_from_problem(&prob, stgs);
+    mu_assert("init", presolver != NULL);
+    mu_assert("reduced", run_presolver(presolver) == REDUCED);
+    const ProblemData *reduced = presolver->reduced_prob;
+    mu_assert("reduced dims",
+              reduced->m == 2 && reduced->n == 2 && reduced->n_cones == 0);
+    mu_assert("heads became bounds", reduced->lbs[0] == 0 && reduced->lbs[1] == 0);
+
+    double x_orig[] = {1, 0};
+    double y_orig[] = {1, 0, 0, 1, 0};
+    double x_red[2], y_red[2], z_red[2];
+    map_original_sol_to_reduced(presolver, x_orig, y_orig, x_red, y_red, z_red);
+    mu_assert("mapped point", x_red[0] == 1 && x_red[1] == 0 && y_red[0] == 1 &&
+                                  y_red[1] == 0 && z_red[0] == 0 && z_red[1] == 1);
+    mu_assert("reduced KKT point", is_kkt_point(reduced, x_red, y_red, z_red, 1e-9));
+
+    postsolve(presolver, x_red, y_red, z_red);
+    const double *y = presolver->sol->y, *z = presolver->sol->z;
+    mu_assert("original KKT point",
+              is_kkt_point(&prob, presolver->sol->x, y, z, 1e-9));
+    mu_assert("bound dual moved to the head",
+              y[2] == 0 && y[3] == 1 && y[4] == 0 && z[0] == 0 && z[1] == 0);
+
+    free_presolver(presolver);
+    free_settings(stgs);
+    return 0;
+}
+
+/*  A block of empty rows: (-r) in SOC decides feasibility. With r = (1, 0, 0)
+    the problem is infeasible, with r = (-1, 0, 0) the block goes with y = 0.
+    The one column has x0 >= 1 and cost 1, so the reduced problem is empty. */
+static char *test_cones_constant_block()
+{
+    double Ax[] = {1};
+    int Ai[] = {0};
+    int Ap[] = {0, 1, 1, 1, 1};
+    double lhs[] = {2, -INF, -INF, -INF};
+    double rhs[] = {INF, 1, 0, 0};
+    double lbs[] = {-INF};
+    double ubs[] = {INF};
+    double c[] = {1};
+    ConeBlock cones[] = {{PSLP_CONE_SOC, 1, 3}};
+    ProblemData prob = problem_from_csr(Ax, Ai, Ap, 4, 1, 1, lhs, rhs, lbs, ubs, c);
+    prob.cones = cones;
+    prob.n_cones = 1;
+    Settings *stgs = default_settings();
+    stgs->verbose = false;
+
+    Presolver *presolver = new_presolver_from_problem(&prob, stgs);
+    mu_assert("init", presolver != NULL);
+    mu_assert("infeasible", run_presolver(presolver) == INFEASIBLE);
+    free_presolver(presolver);
+
+    rhs[1] = -1;
+    presolver = new_presolver_from_problem(&prob, stgs);
+    mu_assert("init feasible", presolver != NULL);
+    mu_assert("reduced", run_presolver(presolver) == REDUCED);
+    mu_assert("solved by presolve", presolver->reduced_prob->m == 0 &&
+                                        presolver->reduced_prob->n == 0 &&
+                                        presolver->reduced_prob->n_cones == 0);
+
+    double x_red[1], y_red[1], z_red[1]; /* the reduced problem is empty */
+    postsolve(presolver, x_red, y_red, z_red);
+    const double *y = presolver->sol->y;
+    mu_assert("original KKT point",
+              is_kkt_point(&prob, presolver->sol->x, y, presolver->sol->z, 1e-9));
+    mu_assert("block multipliers", y[1] == 0 && y[2] == 0 && y[3] == 0);
+
+    free_presolver(presolver);
+    free_settings(stgs);
+    return 0;
+}
+
 /* The two ray postsolves refuse a problem that had cones and leave their
    output untouched. */
 static char *test_cones_refusals()
@@ -229,6 +382,45 @@ static char *test_cones_refusals()
     return 0;
 }
 
+/*  min x0  s.t.  x1 + x2 >= 25,  (1, x0, 3 x1, 4 x2, 0) in ROTATED, visited
+    by hand: the zero tail goes and stays a hole (the block keeps its dim until
+    the cleanup) and a second visit changes nothing. The loop alone, no
+    presolver run after it. */
+static char *test_cones_hole()
+{
+    double Ax[] = {1, 1, 1, 3, 4};
+    int Ai[] = {1, 2, 0, 1, 2};
+    int Ap[] = {0, 2, 2, 3, 4, 5, 5};
+    double lhs[] = {25, -INF, -INF, -INF, -INF, -INF};
+    double rhs[] = {INF, -1, 0, 0, 0, 0};
+    double lbs[] = {-INF, -INF, -INF};
+    double ubs[] = {INF, INF, INF};
+    double c[] = {1, 0, 0};
+    ConeBlock cones[] = {{PSLP_CONE_ROTATED, 1, 5}};
+    ProblemData prob = problem_from_csr(Ax, Ai, Ap, 6, 3, 5, lhs, rhs, lbs, ubs, c);
+    prob.cones = cones;
+    prob.n_cones = 1;
+    Settings *stgs = default_settings();
+    stgs->verbose = false;
+
+    Presolver *presolver = new_presolver_from_problem(&prob, stgs);
+    mu_assert("init", presolver != NULL);
+    Problem *p = presolver->prob;
+    const Constraints *constraints = p->constraints;
+    const int *row_sizes = constraints->state->row_sizes;
+
+    mu_assert("first visit", process_cones(p) == UNCHANGED);
+    mu_assert("hole", row_sizes[5] == SIZE_INACTIVE_ROW && row_sizes[1] == 0 &&
+                          row_sizes[2] == 1 && row_sizes[3] == 1 &&
+                          row_sizes[4] == 1 && constraints->cones[0].dim == 5);
+    mu_assert("second visit", process_cones(p) == UNCHANGED);
+    mu_assert("nothing more", row_sizes[1] == 0 && row_sizes[4] == 1);
+
+    free_presolver(presolver);
+    free_settings(stgs);
+    return 0;
+}
+
 static const char *all_tests_cones()
 {
     mu_run_test(test_cone_table, counter_cones);
@@ -237,6 +429,10 @@ static const char *all_tests_cones()
     mu_run_test(test_cones_soc_flow, counter_cones);
     mu_run_test(test_cones_rotated_flow, counter_cones);
     mu_run_test(test_cones_refusals, counter_cones);
+    mu_run_test(test_cones_zero_tails, counter_cones);
+    mu_run_test(test_cones_block_to_bounds, counter_cones);
+    mu_run_test(test_cones_constant_block, counter_cones);
+    mu_run_test(test_cones_hole, counter_cones);
     return 0;
 }
 

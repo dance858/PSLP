@@ -37,4 +37,10 @@ const ConeTypeInfo *cone_type_info(ConeType type);
 bool cones_valid(const ConeBlock *cones, size_t n_cones, size_t m,
                  const double *rhs);
 
+struct Problem;
+
+/* Tries the cone-specific reductions on every block, then deletes the rows
+   they marked. Returns INFEASIBLE or UNCHANGED. */
+PresolveStatus process_cones(struct Problem *prob);
+
 #endif /* CORE_CONES_H */

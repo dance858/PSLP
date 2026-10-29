@@ -722,6 +722,22 @@ run_medium_explorers(Problem *prob, const Settings *stgs, PresolveStats *stats)
         stats->nnz_removed_parallel_cols += nnz_before - *nnz;
     }
 
+    if (prob->constraints->n_cones > 0)
+    {
+        nnz_before = *nnz;
+        clock_gettime(CLOCK_MONOTONIC, &timer.start);
+        status = process_cones(prob);
+        clock_gettime(CLOCK_MONOTONIC, &timer.end);
+        stats->time_cones += GET_ELAPSED_SECONDS(timer);
+        RETURN_IF_INFEASIBLE(status);
+        assert(prob->constraints->state->empty_rows->len == 0);
+        /* TODO: should we run trivial explorers here? */
+        status |= run_trivial_explorers(prob, stgs);
+        assert(!(status & REDUCED));
+        RETURN_IF_NOT_UNCHANGED(status);
+        stats->nnz_removed_cones += nnz_before - *nnz;
+    }
+
     return status;
 }
 

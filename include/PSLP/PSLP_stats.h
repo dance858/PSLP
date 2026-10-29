@@ -57,6 +57,7 @@ extern "C"
         size_t nnz_removed_parallel_rows;
         size_t nnz_removed_parallel_cols;
         size_t nnz_removed_lp_fold;
+        size_t nnz_removed_cones;
 
         /* time stats */
         double time_init;
@@ -68,6 +69,7 @@ extern "C"
         double time_primal_propagation;
         double time_parallel_rows;
         double time_parallel_cols;
+        double time_cones;
         double time_presolve;
         double time_postsolve;
 

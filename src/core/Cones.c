@@ -17,7 +17,14 @@
  */
 
 #include "Cones.h"
+#include "Cones_soc.h"
+#include "Constraints.h"
+#include "CoreTransformations.h"
+#include "Debugger.h"
+#include "Problem.h"
+#include "glbopts.h"
 
+#include <assert.h>
 #include <limits.h>
 #include <math.h>
 
@@ -73,4 +80,30 @@ bool cones_valid(const ConeBlock *cones, size_t n_cones, size_t m, const double 
         }
     }
     return true;
+}
+
+PresolveStatus process_cones(Problem *prob)
+{
+    Constraints *constraints = prob->constraints;
+    DEBUG(verify_problem_up_to_date(constraints));
+
+    for (size_t ii = 0; ii < constraints->n_cones; ++ii)
+    {
+        const ConeBlock *block = constraints->cones + ii;
+
+        /* A block keeps its start and dim until constraints_clean. Its heads
+           only go with the whole block, so an inactive head row is a block
+           deleted in an earlier round. */
+        if (HAS_TAG(constraints->row_tags[block->start], R_TAG_INACTIVE))
+        {
+            continue;
+        }
+
+        /* only second-order blocks pass cones_valid */
+        assert(block->type == PSLP_CONE_SOC || block->type == PSLP_CONE_ROTATED);
+        RETURN_IF_INFEASIBLE(process_soc_block(prob, block));
+    }
+
+    delete_inactive_rows(constraints);
+    return UNCHANGED;
 }

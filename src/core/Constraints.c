@@ -322,6 +322,36 @@ void delete_inactive_cols_from_A_and_AT(Constraints *constraints)
     iVec_clear_no_resize(sub_cols_to_delete);
 }
 
+/* Maps the cone blocks through the row map: a block shrinks to its surviving
+   rows or is dropped when none survive. */
+static inline void cones_shrink(Constraints *constraints, const int *row_map,
+                                size_t new_n_rows)
+{
+    size_t n_cones = 0;
+    for (size_t ii = 0; ii < constraints->n_cones; ++ii)
+    {
+        ConeBlock block = constraints->cones[ii];
+        int dim = 0;
+        for (int row = block.start; row < block.start + block.dim; ++row)
+        {
+            dim += row_map[row] >= 0;
+        }
+        if (dim == 0)
+        {
+            continue;
+        }
+        assert(row_map[block.start] >= 0);
+        block.start = row_map[block.start];
+        block.dim = dim;
+        constraints->cones[n_cones++] = block;
+    }
+    constraints->n_cones = n_cones;
+    assert(n_cones == 0 ||
+           (size_t) (constraints->cones[n_cones - 1].start +
+                     constraints->cones[n_cones - 1].dim) == new_n_rows);
+    (void) new_n_rows;
+}
+
 static void bounds_shrink(Bound *ptr, int *map, size_t len)
 {
     for (size_t i = 0; i < len; ++i)
@@ -361,17 +391,7 @@ void constraints_clean(Constraints *constraints, Mapping *map)
 
     size_t new_n_rows = update_column_map(row_sizes, map->rows, constraints->m);
 
-    /* Cone rows are never deleted, so a block only moves. */
-    for (size_t ii = 0; ii < constraints->n_cones; ++ii)
-    {
-        ConeBlock *block = constraints->cones + ii;
-        block->start = map->rows[block->start];
-    }
-    assert(constraints->n_cones == 0 ||
-           (size_t) (constraints->cones[constraints->n_cones - 1].start +
-                     constraints->cones[constraints->n_cones - 1].dim) ==
-               new_n_rows);
-    (void) new_n_rows;
+    cones_shrink(constraints, map->rows, new_n_rows);
 
     /* we don't need these for anything so no need to clean it */
 #if defined(TESTING) || !defined(NDEBUG)
