@@ -26,6 +26,7 @@
 #include "glbopts.h"
 #include "radix_sort.h"
 #include "utils.h"
+#include <assert.h>
 
 Constraints *constraints_new(Matrix *A, Matrix *AT, double *lhs, double *rhs,
                              Bound *bounds, State *state, RowTag *row_tags,
@@ -44,6 +45,8 @@ Constraints *constraints_new(Matrix *A, Matrix *AT, double *lhs, double *rhs,
     constraints->state = state;
     constraints->row_tags = row_tags;
     constraints->col_tags = col_tags;
+    constraints->cones = NULL;
+    constraints->n_cones = 0;
 
     return constraints;
 }
@@ -62,6 +65,7 @@ void free_constraints(Constraints *constraints)
     PS_FREE(constraints->bounds);
     PS_FREE(constraints->row_tags);
     PS_FREE(constraints->col_tags);
+    PS_FREE(constraints->cones);
     PS_FREE(constraints);
 }
 
@@ -356,6 +360,17 @@ void constraints_clean(Constraints *constraints, Mapping *map)
     remove_extra_space(constraints->A, row_sizes, map->cols, new_n_cols);
 
     size_t new_n_rows = update_column_map(row_sizes, map->rows, constraints->m);
+
+    /* Cone rows are never deleted, so a block only moves. */
+    for (size_t ii = 0; ii < constraints->n_cones; ++ii)
+    {
+        ConeBlock *block = constraints->cones + ii;
+        block->start = map->rows[block->start];
+    }
+    assert(constraints->n_cones == 0 ||
+           (size_t) (constraints->cones[constraints->n_cones - 1].start +
+                     constraints->cones[constraints->n_cones - 1].dim) ==
+               new_n_rows);
     (void) new_n_rows;
 
     /* we don't need these for anything so no need to clean it */

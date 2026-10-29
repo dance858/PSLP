@@ -21,6 +21,7 @@
 
 #include <stdbool.h>
 
+#include "PSLP_API.h"
 #include "Tags.h"
 #include <stddef.h>
 
@@ -50,6 +51,10 @@ typedef struct Constraints
 
     // the constraints must update internal data structures
     struct State *state;
+
+    // cone blocks on the last rows (owned)
+    ConeBlock *cones;
+    size_t n_cones;
 } Constraints;
 
 /* Constructor and destructor */

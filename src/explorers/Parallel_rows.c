@@ -366,7 +366,7 @@ void find_parallel_rows(const Matrix *A, const RowTag *r_Tags, iVec *group_start
               radix_aux, pool);
 
 #ifndef NDEBUG
-    if (INACTIVE_TAG == R_TAG_INACTIVE)
+    if (INACTIVE_TAG == (RowTag) (R_TAG_INACTIVE | R_TAG_CONE))
     {
         ASSERT_NO_ACTIVE_STON_ROWS(A, r_Tags);
     }
@@ -657,10 +657,10 @@ PresolveStatus remove_parallel_rows(Constraints *constraints)
     int *coeff_hashes = constraints->state->work->iwork2_max_nrows_ncols;
     iVec *group_starts = constraints->state->work->int_vec;
 
-    find_parallel_rows(constraints->A, constraints->row_tags, group_starts,
-                       parallel_rows, sparsity_IDs, coeff_hashes, R_TAG_INACTIVE,
-                       constraints->state->work->radix_aux,
-                       constraints->state->work->pool);
+    find_parallel_rows(
+        constraints->A, constraints->row_tags, group_starts, parallel_rows,
+        sparsity_IDs, coeff_hashes, (RowTag) (R_TAG_INACTIVE | R_TAG_CONE),
+        constraints->state->work->radix_aux, constraints->state->work->pool);
 
     PresolveStatus status =
         process_all_bins(constraints, parallel_rows, group_starts);

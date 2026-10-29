@@ -619,7 +619,7 @@ static PresolveStatus remove_ston_cols__(Problem *prob, bool *rows_deleted)
         // constraint will be inactive when the second column singleton is
         // processed. Also skip column singletons appearing in singleton rows.
         // It is necessary to both check for inactivity and the row size here.
-        if (HAS_TAG(row_tags[i], R_TAG_INACTIVE) || row_sizes[i] <= 1)
+        if (HAS_TAG(row_tags[i], (R_TAG_INACTIVE | R_TAG_CONE)) || row_sizes[i] <= 1)
         {
             continue;
         }

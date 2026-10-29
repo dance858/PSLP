@@ -1,6 +1,7 @@
 #ifndef TEST_PRESOLVER_H
 #define TEST_PRESOLVER_H
 
+#include "Constraints.h"
 #include "Debugger.h"
 #include "PSLP_API.h"
 
@@ -266,6 +267,49 @@ static char *test_05_presolver()
     return 0;
 }
 
+/*  min x0 + x1 + x2  s.t.  1 <= x0 + x1 + x2 <= 10,  -2 <= x0 - x1 <= 2,
+    x2 = 3,  0 <= x <= 5. The last row is a singleton with lhs = rhs; its tag
+    is overwritten with R_TAG_CONE after initialisation, which is the state a
+    cone row of dimension one has once cone rows flow through. The guarded
+    explorers must leave the row and its column alone, and in a Debug build
+    the singleton-row, row-tag and propagation invariants must accept it. The
+    test does not reach the guards of column singletons, activities, empty
+    rows and implied freeness; an API-level test with cone blocks follows. */
+static char *test_06_presolver()
+{
+    double Ax[] = {1, 1, 1, 1, -1, 1};
+    int Ai[] = {0, 1, 2, 0, 1, 2};
+    int Ap[] = {0, 3, 5, 6};
+    double lhs[] = {1, -2, 3};
+    double rhs[] = {10, 2, 3};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {5, 5, 5};
+    double c[] = {1, 1, 1};
+
+    Settings *stgs = default_settings();
+    stgs->verbose = false;
+    stgs->lp_fold = false;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 3, 3, 6, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("Presolver initialization failed", presolver != NULL);
+
+    Constraints *constraints = presolver->prob->constraints;
+    RESET_TAG(constraints->row_tags[2], R_TAG_CONE);
+    PresolveStatus status = run_presolver(presolver);
+
+    mu_assert("cone row made the problem infeasible", status != INFEASIBLE);
+    mu_assert("cone row deleted",
+              !HAS_TAG(constraints->row_tags[2], R_TAG_INACTIVE));
+    mu_assert("cone row column touched",
+              !HAS_TAG(constraints->col_tags[2], C_TAG_INACTIVE));
+    mu_assert("cone row missing from the reduced problem",
+              presolver->reduced_prob->m == 3 && presolver->reduced_prob->n == 3);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_presolver()
 {
     mu_run_test(test_00_presolver, counter_presolver);
@@ -274,6 +318,7 @@ static const char *all_tests_presolver()
     mu_run_test(test_03_presolver, counter_presolver);
     mu_run_test(test_04_presolver, counter_presolver);
     mu_run_test(test_05_presolver, counter_presolver);
+    mu_run_test(test_06_presolver, counter_presolver);
     return 0;
 }
 

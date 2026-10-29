@@ -113,7 +113,7 @@ void delete_fixed_cols_from_problem(Problem *prob)
             // Can a ranged row become an inequality due to numerics?
             assert(HAS_TAG(row_tags[row], R_TAG_LHS_INF) ||
                    HAS_TAG(row_tags[row], R_TAG_RHS_INF) ||
-                   HAS_TAG(row_tags[row], R_TAG_EQ) ||
+                   HAS_TAG(row_tags[row], (R_TAG_EQ | R_TAG_CONE)) ||
                    !IS_EQUAL_FEAS_TOL(lhs[row], rhs[row]));
         }
     }
@@ -264,7 +264,7 @@ PresolveStatus remove_ston_rows(Problem *prob)
         // eliminated equality rows have been marked as inactive
         // (or one might remain if the variable in it has been fixed
         // by another equality row)
-        if (HAS_TAG(row_tags[row], (R_TAG_INACTIVE | R_TAG_EQ)))
+        if (HAS_TAG(row_tags[row], (R_TAG_INACTIVE | R_TAG_EQ | R_TAG_CONE)))
         {
             continue;
         }
@@ -380,7 +380,7 @@ PresolveStatus check_activities(Problem *prob)
         // row may not yet have been updated when this function is called.
         // IDEA: it is a design choice to have skip equality rows here, but
         // we should try to remove this restriction and see if it matters.
-        if (HAS_TAG(row_tags[row], (R_TAG_INACTIVE | R_TAG_EQ)) ||
+        if (HAS_TAG(row_tags[row], (R_TAG_INACTIVE | R_TAG_EQ | R_TAG_CONE)) ||
             row_sizes[row] <= 1)
         {
             continue;
@@ -500,6 +500,11 @@ PresolveStatus remove_empty_rows(const Constraints *constraints)
     {
         int row = empty_rows_data[i];
         assert(row_sizes[row] == 0);
+
+        if (HAS_TAG(rtags[row], R_TAG_CONE))
+        {
+            continue;
+        }
 
         bool infeasible =
             (!HAS_TAG(rtags[row], R_TAG_LHS_INF) && IS_INFEAS_GT(lhs[row], 0.0)) ||

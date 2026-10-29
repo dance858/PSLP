@@ -17,6 +17,7 @@
  */
 
 #include "Activity.h"
+#include "Cones.h"
 #include "Constraints.h"
 #include "CoreTransformations.h"
 #include "Debugger.h"
@@ -243,7 +244,9 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
                            .rhs = rhs,
                            .c = c,
                            .lbs = lbs,
-                           .ubs = ubs};
+                           .ubs = ubs,
+                           .cones = NULL,
+                           .n_cones = 0};
     return new_presolver_from_problem(&problem, stgs);
 }
 
@@ -272,6 +275,12 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
     {
         return NULL;
     }
+    if (!cones_valid(problem->cones, problem->n_cones, m, rhs))
+    {
+        return NULL;
+    }
+    const size_t n_cones = problem->n_cones;
+    const size_t first_cone_row = n_cones > 0 ? (size_t) problem->cones[0].start : m;
 
     Timer timer;
     clock_gettime(CLOCK_MONOTONIC, &timer.start);
@@ -326,6 +335,10 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
     memcpy(rhs_copy, rhs, n_rows * sizeof(double));
     memcpy(c_copy, c, n_cols * sizeof(double));
 
+    /* A cone row stores lhs = rhs = r. */
+    memcpy(lhs_copy + first_cone_row, rhs_copy + first_cone_row,
+           (n_rows - first_cone_row) * sizeof(double));
+
     // ---------------------------------------------------------------------------
     //           Build and validate P (NULL for an LP)
     // ---------------------------------------------------------------------------
@@ -347,8 +360,9 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
         if (!P_row_sizes) goto cleanup;
         count_rows(P, P_row_sizes);
     }
-    size_t Pnnz_stripped = P ? P->nnz : 0;     /* after explicit zeros are dropped */
-    bool lp_fold = stgs->lp_fold && P == NULL; /* no fold of a QP */
+    size_t Pnnz_stripped = P ? P->nnz : 0; /* after explicit zeros are dropped */
+    /* No fold of a QP or of a problem with cones. */
+    bool lp_fold = stgs->lp_fold && P == NULL && n_cones == 0;
 
     // ---------------------------------------------------------------------------
     //  Build bounds, row tags, A and AT. We first build A, then in parallel
@@ -378,6 +392,10 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
 
     row_tags = parallel_data.row_tags;
     if (!row_tags) goto cleanup;
+    for (size_t i = first_cone_row; i < n_rows; ++i)
+    {
+        RESET_TAG(row_tags[i], R_TAG_CONE);
+    }
     locks = parallel_data.locks;
     activities = parallel_data.activities;
 
@@ -425,6 +443,13 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
     constraints =
         constraints_new(A, AT, lhs_copy, rhs_copy, bounds, data, row_tags, col_tags);
     if (!constraints) goto cleanup;
+    if (n_cones > 0)
+    {
+        constraints->cones = (ConeBlock *) ps_malloc(n_cones, sizeof(ConeBlock));
+        if (!constraints->cones) goto cleanup;
+        memcpy(constraints->cones, problem->cones, n_cones * sizeof(ConeBlock));
+        constraints->n_cones = n_cones;
+    }
 
     // ---------------------------------------------------------------------------
     //             Allocate the actual presolver
@@ -442,6 +467,8 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
     presolver->stats->n_rows_folded = A->m;
     presolver->stats->n_cols_folded = A->n;
     presolver->stats->Pnnz_original = Pnnz_stripped;
+    presolver->stats->n_cones_original = n_cones;
+    presolver->stats->n_cone_rows_original = n_rows - first_cone_row;
     presolver->reduced_prob = (ProblemData *) ps_calloc(1, sizeof(ProblemData));
     DEBUG(run_debugger_problem(presolver->prob, false));
 
@@ -712,6 +739,8 @@ void populate_presolved_problem(Presolver *presolver)
     reduced_prob->lhs = constraints->lhs;
     reduced_prob->c = presolver->prob->obj->c;
     reduced_prob->obj_offset = presolver->prob->obj->offset;
+    reduced_prob->cones = constraints->cones;
+    reduced_prob->n_cones = constraints->n_cones;
 
     /* The arrays of 'reduced_prob' are const for the user, so the ones the
        presolver allocates here are filled through local pointers. */
@@ -922,6 +951,11 @@ PresolveStatus run_presolver(Presolver *presolver)
     stats->n_cols_reduced = A->n;
     stats->nnz_reduced = A->nnz;
     stats->Pnnz_reduced = prob->obj->P ? prob->obj->P->nnz : 0;
+    stats->n_cones_reduced = prob->constraints->n_cones;
+    stats->n_cone_rows_reduced =
+        stats->n_cones_reduced > 0
+            ? A->m - (size_t) prob->constraints->cones[0].start
+            : 0;
     DEBUG(run_debugger_stats_consistency_check(stats));
     populate_presolved_problem(presolver);
 
@@ -965,6 +999,7 @@ void free_presolver_reduced_problem(Presolver *presolver)
             PS_FREE(constraints->bounds);
             PS_FREE(constraints->row_tags);
             PS_FREE(constraints->col_tags);
+            PS_FREE(constraints->cones);
         }
         if (prob->obj)
         {
@@ -981,6 +1016,8 @@ void free_presolver_reduced_problem(Presolver *presolver)
     reduced_prob->c = NULL;
     reduced_prob->Px = NULL;
     reduced_prob->Pi = NULL;
+    reduced_prob->cones = NULL;
+    reduced_prob->n_cones = 0;
     free_reduced_problem_arrays(reduced_prob);
 }
 
@@ -1073,6 +1110,13 @@ void postsolve_primal_infeas_ray(Presolver *presolver, const double *y,
                         "with lp_fold yet! y_orig is left untouched. \n");
         return;
     }
+    if (stats->n_cones_original > 0)
+    {
+        fprintf(stderr, "PSLP error: postsolve_primal_infeas_ray is not supported "
+                        "for problems with cone blocks yet! y_orig is left "
+                        "untouched. \n");
+        return;
+    }
     if (!reduced_prob || !reduced_prob->Ax)
     {
         // The reduced constraint matrix was released by
@@ -1121,6 +1165,13 @@ void postsolve_dual_infeas_ray(Presolver *presolver, const double *x, double *x_
     {
         fprintf(stderr, "PSLP error: postsolve_dual_infeas_ray is not supported "
                         "with lp_fold yet! x_orig is left untouched. \n");
+        return;
+    }
+    if (stats->n_cones_original > 0)
+    {
+        fprintf(stderr, "PSLP error: postsolve_dual_infeas_ray is not supported "
+                        "for problems with cone blocks yet! x_orig is left "
+                        "untouched. \n");
         return;
     }
     if (!ensure_solution(presolver))

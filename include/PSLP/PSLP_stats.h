@@ -44,6 +44,12 @@ extern "C"
         size_t Pnnz_original;
         size_t Pnnz_reduced;
 
+        /* cone blocks and their rows (0 for a problem without cones) */
+        size_t n_cones_original;
+        size_t n_cone_rows_original;
+        size_t n_cones_reduced;
+        size_t n_cone_rows_reduced;
+
         /* reduction stats */
         size_t nnz_removed_trivial;
         size_t nnz_removed_fast;

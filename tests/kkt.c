@@ -28,6 +28,8 @@ ProblemData problem_from_csr_qp(double *Ax, int *Ai, int *Ap, int n_rows, int n_
     prob.Pi = Pi;
     prob.Pp = Pp;
     prob.Pnnz = (size_t) Pnnz;
+    prob.cones = NULL;
+    prob.n_cones = 0;
     return prob;
 }
 
@@ -37,6 +39,50 @@ ProblemData problem_from_csr(double *Ax, int *Ai, int *Ap, int n_rows, int n_col
 {
     return problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs,
                                c, NULL, NULL, NULL, 0);
+}
+
+/* ||(s_first, ..., s_{dim-1})||_2. */
+static double tail_norm(const double *s, int first, int dim)
+{
+    double sum = 0.0;
+    for (int ii = first; ii < dim; ++ii)
+    {
+        sum += s[ii] * s[ii];
+    }
+    return sqrt(sum);
+}
+
+/* max(0, ||s_1..|| - s_0). */
+static double soc_violation(const double *s, int dim)
+{
+    return MAX(0.0, tail_norm(s, 1, dim) - s[0]);
+}
+
+/* The largest of -s_0, -s_1 and sqrt(max(0, ||s_2..||^2 - 2 s_0 s_1)). */
+static double rotated_violation(const double *s, int dim)
+{
+    double tail = tail_norm(s, 2, dim);
+    double defect = sqrt(MAX(0.0, tail * tail - 2.0 * s[0] * s[1]));
+    return MAX(0.0, MAX(MAX(-s[0], -s[1]), defect));
+}
+
+double cone_violation(ConeType type, const double *s, int dim)
+{
+    switch (type)
+    {
+        case PSLP_CONE_SOC:
+            return soc_violation(s, dim);
+        case PSLP_CONE_ROTATED:
+            return rotated_violation(s, dim);
+        default:
+            return INFINITY;
+    }
+}
+
+/* Both cones are self-dual. */
+double cone_dual_violation(ConeType type, const double *y, int dim)
+{
+    return cone_violation(type, y, dim);
 }
 
 /* true if the problem has a quadratic objective term */
@@ -80,6 +126,8 @@ void kkt_residuals(const ProblemData *prob, const double *x, const double *y,
     const double *Ax = prob->Ax, *c = prob->c;
     const double *lhs = prob->lhs, *rhs = prob->rhs;
     const double *lbs = prob->lbs, *ubs = prob->ubs;
+    const size_t first_cone_row =
+        prob->n_cones > 0 ? (size_t) prob->cones[0].start : m;
 
     double *Ax_vec = (double *) calloc(m > 0 ? m : 1, sizeof(double));
     double *ATy = (double *) calloc(n > 0 ? n : 1, sizeof(double));
@@ -94,6 +142,7 @@ void kkt_residuals(const ProblemData *prob, const double *x, const double *y,
         out->y_comp_slack = out->z_comp_slack = NAN;
         out->y_norm = out->z_norm = out->primal_obj = NAN;
         out->bound_viol = out->x_norm = NAN;
+        out->cone_primal_viol = out->cone_dual_viol = out->cone_comp = NAN;
         return;
     }
 
@@ -133,7 +182,7 @@ void kkt_residuals(const ProblemData *prob, const double *x, const double *y,
         double proj = clip(x[j], lbs[j], ubs[j]);
         bviol2 += (x[j] - proj) * (x[j] - proj);
     }
-    for (size_t i = 0; i < m; i++)
+    for (size_t i = 0; i < first_cone_row; i++)
     {
         if (!isinf(lhs[i])) sides_norm2 += lhs[i] * lhs[i];
         if (!isinf(rhs[i])) sides_norm2 += rhs[i] * rhs[i];
@@ -153,7 +202,7 @@ void kkt_residuals(const ProblemData *prob, const double *x, const double *y,
 
     // primal residual, y norm, row support term, y complementary slackness
     double primal2 = 0.0, y_norm2 = 0.0, p_y = 0.0, ycs2 = 0.0;
-    for (size_t i = 0; i < m; i++)
+    for (size_t i = 0; i < first_cone_row; i++)
     {
         double a = Ax_vec[i];
         double proj = clip(a, lhs[i], rhs[i]);
@@ -162,6 +211,39 @@ void kkt_residuals(const ProblemData *prob, const double *x, const double *y,
         p_y += support_term(-y[i], lhs[i], rhs[i]);
         double yi = admissible_multiplier(y[i], a, lhs[i], rhs[i]);
         ycs2 += (y[i] - yi) * (y[i] - yi);
+    }
+
+    // cone rows: the support term -r_i y_i, and the slack s = A x - r in place
+    for (size_t i = first_cone_row; i < m; i++)
+    {
+        y_norm2 += y[i] * y[i];
+        p_y += support_term(-y[i], rhs[i], rhs[i]);
+        Ax_vec[i] -= rhs[i];
+    }
+
+    // cone blocks: membership of the slack and the multiplier, complementarity
+    double cone_primal = 0.0, cone_dual = 0.0, cone_comp = 0.0;
+    for (size_t ii = 0; ii < prob->n_cones; ii++)
+    {
+        const ConeBlock *block = prob->cones + ii;
+        const double *s = Ax_vec + block->start;
+        const double *yb = y + block->start;
+        double s_inf = 0.0, y_inf = 0.0, s2 = 0.0, y2 = 0.0, sy = 0.0;
+        for (int k = 0; k < block->dim; k++)
+        {
+            s_inf = MAX(s_inf, fabs(s[k]));
+            y_inf = MAX(y_inf, fabs(yb[k]));
+            s2 += s[k] * s[k];
+            y2 += yb[k] * yb[k];
+            sy += s[k] * yb[k];
+        }
+        double primal = cone_violation(block->type, s, block->dim) / (1.0 + s_inf);
+        double dual =
+            cone_dual_violation(block->type, yb, block->dim) / (1.0 + y_inf);
+        double comp = fabs(sy) / (1.0 + sqrt(s2 * y2));
+        cone_primal = MAX(cone_primal, primal);
+        cone_dual = MAX(cone_dual, dual);
+        cone_comp = MAX(cone_comp, comp);
     }
 
     // at a KKT point c^T x = -x^T P x + y^T A x + z^T x, so the gap of an LP
@@ -180,6 +262,9 @@ void kkt_residuals(const ProblemData *prob, const double *x, const double *y,
     out->z_norm = sqrt(z_norm2);
     out->bound_viol = sqrt(bviol2);
     out->x_norm = sqrt(x_norm2);
+    out->cone_primal_viol = cone_primal;
+    out->cone_dual_viol = cone_dual;
+    out->cone_comp = cone_comp;
 
     free(Ax_vec);
     free(ATy);
@@ -192,15 +277,24 @@ bool is_kkt_point(const ProblemData *prob, const double *x, const double *y,
     KKTResiduals r;
     kkt_residuals(prob, x, y, z, &r);
 
-    const char *names[] = {
-        "bound violation",           "primal residual",           "dual residual",
-        "z complementary slackness", "y complementary slackness", "gap"};
+    const char *names[] = {"bound violation",
+                           "primal residual",
+                           "dual residual",
+                           "z complementary slackness",
+                           "y complementary slackness",
+                           "gap",
+                           "cone primal violation",
+                           "cone dual violation",
+                           "cone complementarity"};
     const double values[] = {r.bound_viol / (1.0 + r.x_norm),
                              r.primal_res_rel,
                              r.dual_res_rel,
                              r.z_comp_slack / (1.0 + r.z_norm),
                              r.y_comp_slack / (1.0 + r.y_norm),
-                             r.gap_rel};
+                             r.gap_rel,
+                             r.cone_primal_viol,
+                             r.cone_dual_viol,
+                             r.cone_comp};
 
     for (size_t k = 0; k < sizeof(values) / sizeof(values[0]); ++k)
     {

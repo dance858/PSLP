@@ -32,7 +32,16 @@
    P is the matrix of the quadratic term (1/2) x^T P x of the objective; for
    an LP (Pp == NULL or Pnnz == 0) the P terms vanish and the multipliers are
    z = c - A^T y. Equality tests in the complementary-slackness terms use
-   FEAS_TOL. */
+   FEAS_TOL.
+
+   A cone block B (ProblemData.cones) constrains s_B = A_B x - r_B in K_B with
+   r_B held in rhs; its multiplier y_B lies in the dual cone K_B*. Cone rows
+   leave primal_res_abs and y_comp_slack and contribute -r_B^T y_B to p(-y).
+   The block quantities, each the largest over the blocks, are
+
+     cone_primal_viol = cone_violation(s_B) / (1 + ||s_B||_inf)
+     cone_dual_viol   = cone_dual_violation(y_B) / (1 + ||y_B||_inf)
+     cone_comp        = |s_B^T y_B| / (1 + ||s_B||_2 ||y_B||_2) */
 
 typedef struct
 {
@@ -45,10 +54,13 @@ typedef struct
     double gap_rel;
     double y_comp_slack;
     double z_comp_slack;
-    double y_norm;     // ||y||_2, for scaling the comp-slack thresholds
-    double z_norm;     // ||z||_2
-    double bound_viol; // || x - proj_[lbs, ubs](x) ||_2
-    double x_norm;     // ||x||_2, for scaling the bound-violation threshold
+    double y_norm;           // ||y||_2, for scaling the comp-slack thresholds
+    double z_norm;           // ||z||_2
+    double bound_viol;       // || x - proj_[lbs, ubs](x) ||_2
+    double x_norm;           // ||x||_2, for scaling the bound-violation threshold
+    double cone_primal_viol; // the three cone quantities, 0 without cones
+    double cone_dual_viol;
+    double cone_comp;
 } KKTResiduals;
 
 /* Wraps CSR arrays as a ProblemData with obj_offset = 0 and P = 0. The
@@ -68,8 +80,8 @@ void kkt_residuals(const ProblemData *prob, const double *x, const double *y,
                    const double *z, KKTResiduals *out);
 
 /* True iff bound_viol / (1 + ||x||), primal_res_rel, dual_res_rel,
-   z_comp_slack / (1 + ||z||), y_comp_slack / (1 + ||y||) and gap_rel are all
-   <= tol. Prints the first violated quantity. */
+   z_comp_slack / (1 + ||z||), y_comp_slack / (1 + ||y||), gap_rel and the
+   three cone quantities are all <= tol. Prints the first violated quantity. */
 bool is_kkt_point(const ProblemData *prob, const double *x, const double *y,
                   const double *z, double tol);
 
@@ -87,5 +99,13 @@ bool is_primal_ray_certificate(const ProblemData *prob, const double *y, double 
    <= 0 on rhs-only rows, >= 0 on lhs-only rows, analogously for the bounds)
    with P d = 0 and c^T d < -tol. Prints the reason on failure. */
 bool is_dual_ray_certificate(const ProblemData *prob, const double *d, double tol);
+
+/* Membership violation of the point s of length dim in the cone of the given
+   type, 0 inside: SOC max(0, ||s_u|| - s_0), ROTATED the largest of -s_0,
+   -s_1 and sqrt(max(0, ||s_u||^2 - 2 s_0 s_1)), INF for a type without a
+   formula. cone_dual_violation is the same for the dual cone; both cones are
+   self-dual. */
+double cone_violation(ConeType type, const double *s, int dim);
+double cone_dual_violation(ConeType type, const double *y, int dim);
 
 #endif // KKT_H

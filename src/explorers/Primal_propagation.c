@@ -719,6 +719,7 @@ PresolveStatus propagate_primal(Problem *prob, bool finite_bound_tightening)
             assert(acts[i].status != NOT_ADDED);
 
             if (row_sizes[i] <= 1 || acts[i].status != ADDED ||
+                HAS_TAG(row_tags[i], R_TAG_CONE) ||
                 !(acts[i].n_inf_min == 0 || acts[i].n_inf_max == 0 ||
                   (acts[i].n_inf_min == 1 && !HAS_TAG(row_tags[i], R_TAG_RHS_INF)) ||
                   (acts[i].n_inf_max == 1 && !HAS_TAG(row_tags[i], R_TAG_LHS_INF))))
@@ -751,7 +752,7 @@ PresolveStatus propagate_primal(Problem *prob, bool finite_bound_tightening)
 #ifndef NDEBUG
     for (ii = 0; ii < A->m; ++ii)
     {
-        if (HAS_TAG(row_tags[ii], R_TAG_INACTIVE))
+        if (HAS_TAG(row_tags[ii], (R_TAG_INACTIVE | R_TAG_CONE)))
         {
             continue;
         }
