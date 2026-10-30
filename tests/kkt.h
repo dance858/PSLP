@@ -102,9 +102,11 @@ bool is_dual_ray_certificate(const ProblemData *prob, const double *d, double to
 
 /* Membership violation of the point s of length dim in the cone of the given
    type, 0 inside: SOC max(0, ||s_u|| - s_0), ROTATED the largest of -s_0,
-   -s_1 and sqrt(max(0, ||s_u||^2 - 2 s_0 s_1)), INF for a type without a
-   formula. cone_dual_violation is the same for the dual cone; both cones are
-   self-dual. */
+   -s_1 and sqrt(max(0, ||s_u||^2 - 2 s_0 s_1)), EXP (t, s, r) max(0,
+   s exp(r / s) - t) for s > 0 and max(0, -t, r, -s) otherwise, INF for a
+   type without a formula. cone_dual_violation is the same for the dual cone:
+   SOC and ROTATED are self-dual, EXP* (u, v, w) gives max(0,
+   -w exp(v / w - 1) - u) for w < 0 and max(0, -u, -v, w) otherwise. */
 double cone_violation(ConeType type, const double *s, int dim);
 double cone_dual_violation(ConeType type, const double *y, int dim);
 

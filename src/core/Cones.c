@@ -24,18 +24,18 @@
 #include "Problem.h"
 #include "glbopts.h"
 
-#include <assert.h>
 #include <limits.h>
 #include <math.h>
 
 static const ConeTypeInfo cone_types[] = {
     [PSLP_CONE_SOC] = {1, INT_MAX},
     [PSLP_CONE_ROTATED] = {2, INT_MAX},
+    [PSLP_CONE_EXP] = {3, 3},
 };
 
 const ConeTypeInfo *cone_type_info(ConeType type)
 {
-    if (type != PSLP_CONE_SOC && type != PSLP_CONE_ROTATED)
+    if (type != PSLP_CONE_SOC && type != PSLP_CONE_ROTATED && type != PSLP_CONE_EXP)
     {
         return NULL;
     }
@@ -102,9 +102,11 @@ PresolveStatus process_cones(Problem *prob, const Settings *stgs,
             continue;
         }
 
-        /* only second-order blocks pass cones_valid */
-        assert(block->type == PSLP_CONE_SOC || block->type == PSLP_CONE_ROTATED);
-        RETURN_IF_INFEASIBLE(process_soc_block(prob, block, rotated_to_P));
+        /* EXP blocks are passed through unchanged */
+        if (block->type == PSLP_CONE_SOC || block->type == PSLP_CONE_ROTATED)
+        {
+            RETURN_IF_INFEASIBLE(process_soc_block(prob, block, rotated_to_P));
+        }
     }
 
     delete_inactive_rows(constraints);

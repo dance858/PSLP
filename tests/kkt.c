@@ -66,6 +66,29 @@ static double rotated_violation(const double *s, int dim)
     return MAX(0.0, MAX(MAX(-s[0], -s[1]), defect));
 }
 
+/* s = (t, s, r) with t >= s exp(r / s), s > 0: the defect s exp(r / s) - t.
+   On the closure s = 0 the cone is t >= 0, r <= 0, and s < 0 is a violation
+   of -s. */
+static double exp_violation(const double *s)
+{
+    if (s[1] > 0.0)
+    {
+        return MAX(0.0, s[1] * exp(s[2] / s[1]) - s[0]);
+    }
+    return MAX(0.0, MAX(MAX(-s[0], s[2]), -s[1]));
+}
+
+/* y = (u, v, w) with u >= -w exp(v / w - 1), w < 0; on the closure w = 0 the
+   dual cone is u >= 0, v >= 0, and w > 0 is a violation of w. */
+static double exp_dual_violation(const double *y)
+{
+    if (y[2] < 0.0)
+    {
+        return MAX(0.0, -y[2] * exp(y[1] / y[2] - 1.0) - y[0]);
+    }
+    return MAX(0.0, MAX(MAX(-y[0], -y[1]), y[2]));
+}
+
 double cone_violation(ConeType type, const double *s, int dim)
 {
     switch (type)
@@ -74,14 +97,20 @@ double cone_violation(ConeType type, const double *s, int dim)
             return soc_violation(s, dim);
         case PSLP_CONE_ROTATED:
             return rotated_violation(s, dim);
+        case PSLP_CONE_EXP:
+            return exp_violation(s);
         default:
             return INFINITY;
     }
 }
 
-/* Both cones are self-dual. */
+/* SOC and ROTATED are self-dual. */
 double cone_dual_violation(ConeType type, const double *y, int dim)
 {
+    if (type == PSLP_CONE_EXP)
+    {
+        return exp_dual_violation(y);
+    }
     return cone_violation(type, y, dim);
 }
 
