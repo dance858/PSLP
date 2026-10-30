@@ -64,6 +64,14 @@ bool matrix_valid_csr_input(const int *Ai, const int *Ap, size_t n_rows,
 // Allocates a matrix with the given dimensions and room for nnz entries.
 Matrix *matrix_alloc(size_t n_rows, size_t n_cols, size_t nnz);
 
+/* Allocates an empty n by n matrix where row k has room for one entry, at
+   position k, so that a diagonal can be filled in without moving any row. */
+Matrix *matrix_alloc_diagonal(size_t n);
+
+/* Adds v to entry (k, k) of a matrix from matrix_alloc_diagonal, creating it
+   in its reserved position if row k is empty. */
+void matrix_add_to_diagonal(Matrix *M, int k, double v);
+
 /* Returns the transpose of A with room for 'tail' spare entries after its
    rows, or NULL on failure. */
 Matrix *transpose(const Matrix *A, int *work_n_cols, size_t tail);

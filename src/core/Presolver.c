@@ -102,6 +102,7 @@ Settings *default_settings(void)
     stgs->max_time = 60.0;
     stgs->verbose = true;
     stgs->n_threads = 0;
+    stgs->rotated_to_P = true;
     return stgs;
 }
 
@@ -173,6 +174,7 @@ void set_settings_true(Settings *stgs)
     stgs->relax_bounds = true;
     stgs->lp_fold = false;
     stgs->verbose = true;
+    stgs->rotated_to_P = true;
 }
 
 void set_settings_false(Settings *stgs)
@@ -187,6 +189,7 @@ void set_settings_false(Settings *stgs)
     stgs->relax_bounds = false;
     stgs->lp_fold = false;
     stgs->verbose = false;
+    stgs->rotated_to_P = false;
 }
 
 typedef struct clean_up_scope
@@ -726,7 +729,7 @@ run_medium_explorers(Problem *prob, const Settings *stgs, PresolveStats *stats)
     {
         nnz_before = *nnz;
         clock_gettime(CLOCK_MONOTONIC, &timer.start);
-        status = process_cones(prob);
+        status = process_cones(prob, stgs, stats);
         clock_gettime(CLOCK_MONOTONIC, &timer.end);
         stats->time_cones += GET_ELAPSED_SECONDS(timer);
         RETURN_IF_INFEASIBLE(status);

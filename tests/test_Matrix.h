@@ -161,12 +161,40 @@ static char *test_20_matrix()
     return 0;
 }
 
+/* matrix_alloc_diagonal and matrix_add_to_diagonal on a 3 by 3 matrix: the
+   rows start empty in their reserved positions; adding to a row creates its
+   entry once and accumulates after that, leaving the other rows alone. */
+static char *test_diagonal_matrix()
+{
+    Matrix *M = matrix_alloc_diagonal(3);
+    mu_assert("alloc", M != NULL && M->m == 3 && M->n == 3 && M->nnz == 0);
+    for (int k = 0; k <= 3; ++k)
+    {
+        mu_assert("empty rows", M->p[k].start == k && M->p[k].end == k);
+    }
+
+    matrix_add_to_diagonal(M, 1, 2.0);
+    mu_assert("entry created",
+              M->nnz == 1 && M->p[1].end == 2 && M->i[1] == 1 && M->x[1] == 2.0);
+    matrix_add_to_diagonal(M, 1, 0.5);
+    mu_assert("accumulated", M->nnz == 1 && M->p[1].end == 2 && M->x[1] == 2.5);
+    mu_assert("others untouched", M->p[0].end == 0 && M->p[2].end == 2);
+
+    matrix_add_to_diagonal(M, 2, -1.0);
+    mu_assert("second row", M->nnz == 2 && M->i[2] == 2 && M->x[2] == -1.0);
+    mu_assert("sorted and symmetric", matrix_is_symmetric(M));
+
+    free_matrix(M);
+    return 0;
+}
+
 static const char *all_tests_matrix()
 {
     mu_run_test(test_0_matrix, counter_matrix);
     mu_run_test(test_1_matrix, counter_matrix);
     mu_run_test(test_2_matrix, counter_matrix);
     mu_run_test(test_20_matrix, counter_matrix);
+    mu_run_test(test_diagonal_matrix, counter_matrix);
     return 0;
 }
 

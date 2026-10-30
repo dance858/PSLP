@@ -232,7 +232,7 @@ void map_original_sol_to_reduced(Presolver *presolver, const double *x,
     double *work;
 
     /* 'stats' survives 'free_presolver_reduced_problem', unlike the reduced P */
-    if (presolver->stats->Pnnz_original > 0)
+    if (presolver->stats->Pnnz_original > 0 || presolver->stats->Pnnz_reduced > 0)
     {
         fprintf(stderr, "PSLP error: map_original_sol_to_reduced is not supported "
                         "for QPs yet! Outputs are left untouched. \n");

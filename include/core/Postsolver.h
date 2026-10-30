@@ -63,6 +63,9 @@ enum ReductionTypes
 
     // required for the dual postsolve of a QP
     DELETED_ROW_ZK = 1 << 13,
+
+    // a rotated cone block replaced by a diagonal term of P
+    ROTATED_TO_P = 1 << 14,
 };
 
 typedef struct PostsolveInfo
