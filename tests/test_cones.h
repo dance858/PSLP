@@ -20,7 +20,11 @@ static char *test_cone_table()
     const ConeTypeInfo *rotated = cone_type_info(PSLP_CONE_ROTATED);
     mu_assert("SOC row", soc != NULL && soc->dim_min == 1);
     mu_assert("ROTATED row", rotated != NULL && rotated->dim_min == 2);
-    mu_assert("no EXP row", cone_type_info(PSLP_CONE_EXP) == NULL);
+    const ConeTypeInfo *exp_info = cone_type_info(PSLP_CONE_EXP);
+    mu_assert("EXP row",
+              exp_info != NULL && exp_info->dim_min == 3 && exp_info->dim_max == 3);
+    mu_assert("no row for 0", cone_type_info((ConeType) 0) == NULL);
+    mu_assert("no row for 99", cone_type_info((ConeType) 99) == NULL);
     return 0;
 }
 
@@ -61,7 +65,16 @@ static char *test_cones_valid()
     mu_assert("ROTATED dim 1", !cones_valid(rotated_dim_1, 1, m, rhs));
 
     ConeBlock exp_block[] = {{PSLP_CONE_EXP, 2, 3}};
-    mu_assert("EXP", !cones_valid(exp_block, 1, m, rhs));
+    mu_assert("EXP", cones_valid(exp_block, 1, m, rhs));
+
+    ConeBlock exp_dim_2[] = {{PSLP_CONE_EXP, 3, 2}};
+    mu_assert("EXP dim 2", !cones_valid(exp_dim_2, 1, m, rhs));
+
+    ConeBlock exp_dim_4[] = {{PSLP_CONE_EXP, 1, 4}};
+    mu_assert("EXP dim 4", !cones_valid(exp_dim_4, 1, m, rhs));
+
+    ConeBlock exp_and_soc[] = {{PSLP_CONE_EXP, 0, 3}, {PSLP_CONE_SOC, 3, 2}};
+    mu_assert("EXP and SOC", cones_valid(exp_and_soc, 2, m, rhs));
 
     double infinite_r[] = {1, 2, 3, 4, INF};
     mu_assert("infinite r", !cones_valid(one_soc, 1, m, infinite_r));
@@ -597,6 +610,121 @@ static char *test_cones_hole()
     return 0;
 }
 
+/*  min x0 - x3  s.t.  x1 - 2 x3 = 0,  (x0, x2, x1) in EXP,  x2 = 1 (lb = ub),
+    0.5 <= x3 <= 1. The LP reductions work on the block's rows: the fixed x2
+    leaves the second cone row empty with r = -1, and the doubleton row
+    eliminates x1 or x3 into the third. The block itself is passed through
+    with its three rows. Optimum x = (e, 1, 1, 1/2): s = (e, 1, 1) is on the
+    boundary with the supporting dual y_B = (1, 0, -e), y_0 = e,
+    z = (0, 0, 0, 2e - 1), objective e - 1/2. */
+static char *test_cones_exp_flow()
+{
+    double Ax[] = {1, -2, 1, 1, 1};
+    int Ai[] = {1, 3, 0, 2, 1};
+    int Ap[] = {0, 2, 3, 4, 5};
+    double lhs[] = {0, -INF, -INF, -INF};
+    double rhs[] = {0, 0, 0, 0};
+    double lbs[] = {-INF, -INF, 1, 0.5};
+    double ubs[] = {INF, INF, 1, 1};
+    double c[] = {1, 0, 0, -1};
+    ConeBlock cones[] = {{PSLP_CONE_EXP, 1, 3}};
+    ProblemData prob = problem_from_csr(Ax, Ai, Ap, 4, 4, 5, lhs, rhs, lbs, ubs, c);
+    prob.cones = cones;
+    prob.n_cones = 1;
+    double e = exp(1.0);
+    double x[] = {e, 1, 1, 0.5};
+    double y[] = {e, 1, 0, -e};
+    double z[] = {0, 0, 0, 2 * e - 1};
+    mu_assert("original KKT point", is_kkt_point(&prob, x, y, z, 1e-9));
+    Settings *stgs = default_settings();
+    stgs->verbose = false;
+
+    Presolver *presolver = new_presolver_from_problem(&prob, stgs);
+    mu_assert("init", presolver != NULL);
+    mu_assert("reduced", run_presolver(presolver) == REDUCED);
+    const ProblemData *reduced = presolver->reduced_prob;
+    mu_assert("reduced dims", reduced->m == 3 && reduced->n == 2);
+    mu_assert("block passed through",
+              reduced->n_cones == 1 && reduced->cones[0].type == PSLP_CONE_EXP &&
+                  reduced->cones[0].start == 0 && reduced->cones[0].dim == 3);
+    mu_assert("constant row kept", reduced->Ap[2] == reduced->Ap[1] &&
+                                       reduced->lhs[1] == -1 &&
+                                       reduced->rhs[1] == -1);
+    mu_assert("cone stats", presolver->stats->n_cones_reduced == 1 &&
+                                presolver->stats->n_cone_rows_reduced == 3);
+
+    double x_red[2], y_red[3], z_red[2];
+    map_original_sol_to_reduced(presolver, x, y, x_red, y_red, z_red);
+    mu_assert("reduced KKT point", is_kkt_point(reduced, x_red, y_red, z_red, 1e-9));
+
+    postsolve(presolver, x_red, y_red, z_red);
+    const double *xs = presolver->sol->x, *ys = presolver->sol->y;
+    mu_assert("original KKT point after postsolve",
+              is_kkt_point(&prob, xs, ys, presolver->sol->z, 1e-9));
+    mu_assert("postsolved point", ABS(xs[0] - e) <= 1e-12 && xs[1] == 1 &&
+                                      xs[2] == 1 && xs[3] == 0.5 &&
+                                      ABS(ys[0] - e) <= 1e-12 && ys[1] == 1 &&
+                                      ys[2] == 0 && ABS(ys[3] + e) <= 1e-12);
+
+    free_presolver(presolver);
+    free_settings(stgs);
+    return 0;
+}
+
+/*  min x0  s.t.  x0 >= 1,  (3, 1, 1) in EXP as a block of three empty rows
+    (r = (-3, -1, -1)). A constant SOC block goes (test_cones_constant_block);
+    a constant EXP block stays, its multiplier 0, and the column is solved by
+    presolve. With r = (-1, -1, -1) the block is infeasible (1 < e), which
+    the presolver does not detect: the solver sees the constant block. */
+static char *test_cones_exp_constant_block()
+{
+    double Ax[] = {1};
+    int Ai[] = {0};
+    int Ap[] = {0, 1, 1, 1, 1};
+    double lhs[] = {1, -INF, -INF, -INF};
+    double rhs[] = {INF, -3, -1, -1};
+    double lbs[] = {-INF};
+    double ubs[] = {INF};
+    double c[] = {1};
+    ConeBlock cones[] = {{PSLP_CONE_EXP, 1, 3}};
+    ProblemData prob = problem_from_csr(Ax, Ai, Ap, 4, 1, 1, lhs, rhs, lbs, ubs, c);
+    prob.cones = cones;
+    prob.n_cones = 1;
+    Settings *stgs = default_settings();
+    stgs->verbose = false;
+
+    Presolver *presolver = new_presolver_from_problem(&prob, stgs);
+    mu_assert("init", presolver != NULL);
+    mu_assert("reduced", run_presolver(presolver) == REDUCED);
+    const ProblemData *reduced = presolver->reduced_prob;
+    mu_assert("block kept",
+              reduced->m == 3 && reduced->n == 0 && reduced->n_cones == 1 &&
+                  reduced->cones[0].type == PSLP_CONE_EXP &&
+                  reduced->cones[0].start == 0 && reduced->cones[0].dim == 3);
+    mu_assert("constant rows", reduced->nnz == 0 && reduced->rhs[0] == -3 &&
+                                   reduced->rhs[1] == -1 && reduced->rhs[2] == -1);
+
+    double x_red[1];
+    double y_red[] = {0, 0, 0};
+    double z_red[1];
+    mu_assert("reduced KKT point", is_kkt_point(reduced, x_red, y_red, z_red, 1e-9));
+    postsolve(presolver, x_red, y_red, z_red);
+    const double *y = presolver->sol->y;
+    mu_assert("original KKT point",
+              is_kkt_point(&prob, presolver->sol->x, y, presolver->sol->z, 1e-9));
+    mu_assert("block multipliers", y[1] == 0 && y[2] == 0 && y[3] == 0);
+    free_presolver(presolver);
+
+    rhs[1] = -1;
+    presolver = new_presolver_from_problem(&prob, stgs);
+    mu_assert("init infeasible block", presolver != NULL);
+    mu_assert("not detected", run_presolver(presolver) == REDUCED);
+    mu_assert("infeasible block kept", presolver->stats->n_cones_reduced == 1);
+    free_presolver(presolver);
+    free_settings(stgs);
+    return 0;
+}
+
 static const char *all_tests_cones()
 {
     mu_run_test(test_cone_table, counter_cones);
@@ -612,6 +740,8 @@ static const char *all_tests_cones()
     mu_run_test(test_cones_constant_block, counter_cones);
     mu_run_test(test_cones_chain, counter_cones);
     mu_run_test(test_cones_hole, counter_cones);
+    mu_run_test(test_cones_exp_flow, counter_cones);
+    mu_run_test(test_cones_exp_constant_block, counter_cones);
     return 0;
 }
 

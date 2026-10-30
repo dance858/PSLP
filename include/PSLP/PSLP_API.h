@@ -83,7 +83,8 @@ extern "C"
          * PSLP_CONE_SOC      s_0 >= ||(s_1, ..., s_{dim-1})||_2, dim >= 1
          * PSLP_CONE_ROTATED  2 s_0 s_1 >= ||(s_2, ..., s_{dim-1})||_2^2 with
                               s_0, s_1 >= 0, dim >= 2
-         * PSLP_CONE_EXP      reserved, not accepted yet
+         * PSLP_CONE_EXP      s_0 >= s_1 exp(s_2 / s_1) with s_1 > 0, and its
+                              closure s_1 = 0, s_0 >= 0, s_2 <= 0; dim = 3
      */
     typedef enum
     {

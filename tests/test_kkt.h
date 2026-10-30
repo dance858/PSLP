@@ -259,7 +259,8 @@ static char *test_kkt_soc_violation()
     mu_assert("dim 1 negative", !in_cone(PSLP_CONE_SOC, &negative, 1));
     mu_assert("violation value",
               ABS(cone_violation(PSLP_CONE_SOC, two_off, 3) - 2) <= 1e-12);
-    mu_assert("EXP has no formula", isinf(cone_violation(PSLP_CONE_EXP, inside, 3)));
+    mu_assert("unknown type has no formula",
+              isinf(cone_violation((ConeType) 99, inside, 3)));
 
     mu_assert("dual inside", in_dual_cone(PSLP_CONE_SOC, inside, 3));
     mu_assert("dual on", in_dual_cone(PSLP_CONE_SOC, on, 3));
@@ -302,6 +303,72 @@ static char *test_kkt_rotated_violation()
     mu_assert("dual outside", !in_dual_cone(PSLP_CONE_ROTATED, outside, 4));
     mu_assert("dual negative head",
               !in_dual_cone(PSLP_CONE_ROTATED, negative_first_head, 4));
+    return 0;
+}
+
+/*  EXP is (t, s, r) with t >= s exp(r / s); its dual (u, v, w) has
+    u >= -w exp(v / w - 1) for w < 0. The point (e, 1, 1) is on the boundary
+    and (1, 0, -e) is its supporting dual, so the two are complementary. */
+static char *test_kkt_exp_violation()
+{
+    double inside[] = {3, 1, 1};
+    double on[] = {exp(1.0), 1, 1};
+    double outside[] = {2.7, 1, 1};
+    double negative_t[] = {-1, 1, -5};
+    double closure_inside[] = {1, 0, -1};
+    double closure_positive_r[] = {1, 0, 1};
+    double closure_negative_t[] = {-1, 0, -1};
+    double negative_s[] = {1, -1e-3, -1};
+    double zero[] = {0, 0, 0};
+    double scaled_inside[] = {3e6, 1e6, 1e6};
+    double scaled_outside[] = {2.7e6, 1e6, 1e6};
+    double one_off[] = {1, 1, 1};
+
+    mu_assert("inside", in_cone(PSLP_CONE_EXP, inside, 3));
+    mu_assert("on", in_cone(PSLP_CONE_EXP, on, 3));
+    mu_assert("outside", !in_cone(PSLP_CONE_EXP, outside, 3));
+    mu_assert("negative t", !in_cone(PSLP_CONE_EXP, negative_t, 3));
+    mu_assert("closure inside", in_cone(PSLP_CONE_EXP, closure_inside, 3));
+    mu_assert("closure positive r", !in_cone(PSLP_CONE_EXP, closure_positive_r, 3));
+    mu_assert("closure negative t", !in_cone(PSLP_CONE_EXP, closure_negative_t, 3));
+    mu_assert("negative s", !in_cone(PSLP_CONE_EXP, negative_s, 3));
+    mu_assert("zero", in_cone(PSLP_CONE_EXP, zero, 3));
+    mu_assert("scaled inside", in_cone(PSLP_CONE_EXP, scaled_inside, 3));
+    mu_assert("scaled outside", !in_cone(PSLP_CONE_EXP, scaled_outside, 3));
+    mu_assert("violation value", ABS(cone_violation(PSLP_CONE_EXP, one_off, 3) -
+                                     (exp(1.0) - 1)) <= 1e-12);
+
+    double dual_inside[] = {2, 0, -1};
+    double dual_on[] = {exp(-1.0), 0, -1};
+    double dual_outside[] = {0.3, 0, -1};
+    double dual_of_on[] = {1, 0, -exp(1.0)};
+    double dual_closure_inside[] = {1, 1, 0};
+    double dual_closure_negative_u[] = {-1, 1, 0};
+    double dual_closure_negative_v[] = {1, -1, 0};
+    double dual_positive_w[] = {1, 1, 1e-3};
+    double dual_one_off[] = {0, 0, -exp(1.0)};
+    double dual_negative_v[] = {1, -1, -1};
+
+    mu_assert("dual inside", in_dual_cone(PSLP_CONE_EXP, dual_inside, 3));
+    mu_assert("dual on", in_dual_cone(PSLP_CONE_EXP, dual_on, 3));
+    mu_assert("dual outside", !in_dual_cone(PSLP_CONE_EXP, dual_outside, 3));
+    mu_assert("dual of the boundary point",
+              in_dual_cone(PSLP_CONE_EXP, dual_of_on, 3));
+    mu_assert("dual closure inside",
+              in_dual_cone(PSLP_CONE_EXP, dual_closure_inside, 3));
+    mu_assert("dual closure negative u",
+              !in_dual_cone(PSLP_CONE_EXP, dual_closure_negative_u, 3));
+    mu_assert("dual closure negative v",
+              !in_dual_cone(PSLP_CONE_EXP, dual_closure_negative_v, 3));
+    mu_assert("dual positive w", !in_dual_cone(PSLP_CONE_EXP, dual_positive_w, 3));
+    mu_assert("dual violation value",
+              ABS(cone_dual_violation(PSLP_CONE_EXP, dual_one_off, 3) - 1) <= 1e-12);
+    mu_assert("dual negative v", in_dual_cone(PSLP_CONE_EXP, dual_negative_v, 3));
+    mu_assert("the cones differ", !in_dual_cone(PSLP_CONE_EXP, on, 3) &&
+                                      !in_cone(PSLP_CONE_EXP, dual_negative_v, 3));
+    mu_assert("complementary pair",
+              ABS(on[0] * dual_of_on[0] + on[1] * dual_of_on[1] +
+                  on[2] * dual_of_on[2]) <= 1e-12);
     return 0;
 }
 
@@ -442,6 +509,7 @@ static const char *all_tests_kkt()
     mu_run_test(test_kkt_dual_ray_certificate, counter_kkt);
     mu_run_test(test_kkt_soc_violation, counter_kkt);
     mu_run_test(test_kkt_rotated_violation, counter_kkt);
+    mu_run_test(test_kkt_exp_violation, counter_kkt);
     mu_run_test(test_kkt_soc_block, counter_kkt);
     mu_run_test(test_kkt_cone_primal_violation, counter_kkt);
     mu_run_test(test_kkt_cone_dual_violation, counter_kkt);
