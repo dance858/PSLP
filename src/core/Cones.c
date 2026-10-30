@@ -82,10 +82,13 @@ bool cones_valid(const ConeBlock *cones, size_t n_cones, size_t m, const double 
     return true;
 }
 
-PresolveStatus process_cones(Problem *prob)
+PresolveStatus process_cones(Problem *prob, const Settings *stgs,
+                             const PresolveStats *stats)
 {
     Constraints *constraints = prob->constraints;
     DEBUG(verify_problem_up_to_date(constraints));
+
+    bool rotated_to_P = stgs->rotated_to_P && stats->Pnnz_original == 0;
 
     for (size_t ii = 0; ii < constraints->n_cones; ++ii)
     {
@@ -101,7 +104,7 @@ PresolveStatus process_cones(Problem *prob)
 
         /* only second-order blocks pass cones_valid */
         assert(block->type == PSLP_CONE_SOC || block->type == PSLP_CONE_ROTATED);
-        RETURN_IF_INFEASIBLE(process_soc_block(prob, block));
+        RETURN_IF_INFEASIBLE(process_soc_block(prob, block, rotated_to_P));
     }
 
     delete_inactive_rows(constraints);

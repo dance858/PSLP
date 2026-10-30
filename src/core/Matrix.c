@@ -85,6 +85,32 @@ Matrix *matrix_alloc(size_t n_rows, size_t n_cols, size_t nnz)
     return A;
 }
 
+Matrix *matrix_alloc_diagonal(size_t n)
+{
+    Matrix *M = matrix_alloc(n, n, n);
+    RETURN_PTR_IF_NULL(M, NULL);
+
+    M->nnz = 0;
+    for (size_t k = 0; k <= n; ++k)
+    {
+        M->p[k].start = M->p[k].end = (int) k;
+    }
+    return M;
+}
+
+void matrix_add_to_diagonal(Matrix *M, int k, double v)
+{
+    assert(M->p[k].start == k); // the layout of matrix_alloc_diagonal
+    if (M->p[k].end == k)
+    {
+        M->i[k] = k;
+        M->x[k] = 0.0;
+        M->p[k].end = k + 1;
+        M->nnz++;
+    }
+    M->x[k] += v;
+}
+
 bool matrix_is_symmetric(const Matrix *A)
 {
     int j, k, l, rel;

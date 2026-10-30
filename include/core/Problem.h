@@ -24,8 +24,9 @@
 struct Constraints;
 struct Matrix;
 
-/* Objective (1/2) x'Px + c'x + offset. P is the full symmetric matrix in CSR
-   without extra row space. For an LP, P is NULL. */
+/* Objective (1/2) x'Px + c'x + offset. P is the full symmetric matrix in CSR,
+   NULL for an LP. Its rows are read through their ranges, since removals
+   leave unused positions between them until problem_clean packs it. */
 typedef struct
 {
     double *c;
@@ -64,6 +65,13 @@ void fix_var_in_obj(Problem *prob, int col, double value);
    (vals, cols, len, rhs). Row k of P must be empty and is marked inactive. */
 void sub_var_in_obj(Problem *prob, const double *vals, const int *cols, int len,
                     int k, double aik, double rhs);
+
+/* Gives a problem without P an empty P from matrix_alloc_diagonal, with its
+   row sizes. Returns false if the allocation fails. */
+bool diagonal_P_alloc(Problem *prob);
+
+/* Adds v to P_kk of a P from diagonal_P_alloc. */
+void diagonal_P_add(Problem *prob, int k, double v);
 
 /* Marks row k of P (which must be empty) as removed. */
 void mark_P_row_inactive(Problem *prob, int k);

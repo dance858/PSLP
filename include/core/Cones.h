@@ -20,6 +20,7 @@
 #define CORE_CONES_H
 
 #include "PSLP_API.h"
+#include "PSLP_stats.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -41,6 +42,7 @@ struct Problem;
 
 /* Tries the cone-specific reductions on every block, then deletes the rows
    they marked. Returns INFEASIBLE or UNCHANGED. */
-PresolveStatus process_cones(struct Problem *prob);
+PresolveStatus process_cones(struct Problem *prob, const Settings *stgs,
+                             const PresolveStats *stats);
 
 #endif /* CORE_CONES_H */

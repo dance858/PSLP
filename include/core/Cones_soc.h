@@ -21,11 +21,14 @@
 
 #include "PSLP_API.h"
 
+#include <stdbool.h>
+
 struct Problem;
 
 /* Reductions specific to second-order cones (SOC and ROTATED blocks). The
    rows removed are marked and listed in rows_to_delete; the caller deletes
    them. Returns INFEASIBLE or UNCHANGED. */
-PresolveStatus process_soc_block(struct Problem *prob, const ConeBlock *block);
+PresolveStatus process_soc_block(struct Problem *prob, const ConeBlock *block,
+                                 bool rotated_to_P);
 
 #endif /* CORE_CONES_SOC_H */

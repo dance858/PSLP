@@ -70,6 +70,10 @@ extern "C"
            the number of processors the system reports. Note that this setting
            is ignored on Windows, where PSLP always runs single-threaded. */
         int n_threads;
+
+        /* replace rotated cone blocks by diagonal terms of P where possible
+           (only for a problem without P) */
+        bool rotated_to_P;
     } Settings;
 
     /* A cone block is a range of consecutive rows of A that is constrained as

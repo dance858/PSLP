@@ -21,6 +21,7 @@
 #include "Constraints.h"
 #include "Matrix.h"
 #include "Numerics.h"
+#include "Postsolver_cones.h"
 #include "State.h"
 #include "dVec.h"
 #include "debug_macros.h"
@@ -478,6 +479,12 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
             SubColDtonRecord r =
                 decode_sub_col_dton(indices + start, vals + start, len);
             retrieve_sub_col_dton(sol, &r);
+        }
+        else if (type == ROTATED_TO_P)
+        {
+            RotatedToPRecord r =
+                decode_rotated_to_p(indices + start, vals + start, len);
+            retrieve_rotated_to_p(sol, &r);
         }
         else if (type == FIXED_COL_INF)
         {

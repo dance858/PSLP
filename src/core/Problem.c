@@ -93,6 +93,37 @@ static void objective_clean(Objective *obj, const int *P_row_sizes,
     remove_extra_space(obj->P, P_row_sizes, col_map, n_cols_new);
 }
 
+bool diagonal_P_alloc(Problem *prob)
+{
+    Constraints *constraints = prob->constraints;
+    size_t n = constraints->n;
+    assert(prob->obj->P == NULL);
+    Matrix *P = matrix_alloc_diagonal(n);
+    int *P_row_sizes = (int *) ps_malloc(n, sizeof(int));
+    if (!P || !P_row_sizes)
+    {
+        free_matrix(P);
+        PS_FREE(P_row_sizes);
+        return false;
+    }
+
+    for (size_t k = 0; k < n; ++k)
+    {
+        P_row_sizes[k] = HAS_TAG(constraints->col_tags[k], C_TAG_INACTIVE)
+                             ? SIZE_INACTIVE_COL
+                             : 0;
+    }
+    prob->obj->P = P;
+    constraints->state->P_row_sizes = P_row_sizes;
+    return true;
+}
+
+void diagonal_P_add(Problem *prob, int k, double v)
+{
+    matrix_add_to_diagonal(prob->obj->P, k, v);
+    prob->constraints->state->P_row_sizes[k] = 1;
+}
+
 void mark_P_row_inactive(Problem *prob, int k)
 {
     if (prob->obj->P == NULL)
