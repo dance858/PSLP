@@ -634,11 +634,13 @@ static inline PresolveStatus run_fast_explorers(Problem *prob, const Settings *s
         status |= remove_ston_cols(prob);
         clock_gettime(CLOCK_MONOTONIC, &timer.end);
         stats->time_ston_cols += GET_ELAPSED_SECONDS(timer);
+        RETURN_IF_UNBNDORINFEAS(status);
 
         // after removing singleton columns, there can be new empty columns
         // and singleton rows, but no empty rows
         assert(prob->constraints->state->empty_rows->len == 0);
         status |= run_trivial_explorers(prob, stgs);
+        RETURN_IF_NOT_UNCHANGED(status);
     }
 
     if (stgs->dton_eq)
@@ -680,6 +682,7 @@ run_medium_explorers(Problem *prob, const Settings *stgs, PresolveStats *stats)
         status |= propagate_primal(prob, stgs->finite_bound_tightening);
         clock_gettime(CLOCK_MONOTONIC, &timer.end);
         stats->time_primal_propagation += GET_ELAPSED_SECONDS(timer);
+        RETURN_IF_INFEASIBLE(status);
 
         // after dom prop propagation there can be new empty and ston rows
         status |= run_trivial_explorers(prob, stgs);
