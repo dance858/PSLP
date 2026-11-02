@@ -83,10 +83,12 @@ static inline PresolveStatus process_single_bin(Problem *prob, const int *bin,
             ratio = ak0 / aj_vals[0];
             assert(ratio != 0);
 
-            // if column j and column k are parallel, remove column k
-            // if you run into issues with parallel cols activated, try to
-            // change this
-            if (IS_EQUAL_FEAS_TOL(ck * aj_vals[0], cj * ak0))
+            // if column j and column k are parallel, remove column k. The merged
+            // column keeps only cj, so the costs must be proportional up to
+            // rounding: an absolute tolerance would silently change the objective
+            // (by up to FEAS_TOL / |aj0| per unit of xk), and badly so on
+            // problems with small costs
+            if (IS_EQUAL_REL(ck * aj_vals[0], cj * ak0))
             {
                 // mark that we must recount n_infs for rows in which column j
                 // appears in
