@@ -55,6 +55,11 @@
 #define IS_LT_FEAS_TOL(x, y) ((y) - (x) >= FEAS_TOL)
 #define IS_HUGE(x) (ABS(x) >= HUGE_VAL_PS)
 
+/* Equal up to rounding noise relative to the larger magnitude. For decisions
+   where any tolerance changes the problem itself, such as merging parallel
+   columns, which keeps only one of the two costs. */
+#define IS_EQUAL_REL(x, y) (ABS((x) - (y)) <= CANCEL_TOL_REL * MAX(ABS(x), ABS(y)))
+
 /* Tolerance of an infeasibility verdict: FEAS_TOL near zero, relative to the
    larger magnitude beyond one. */
 #define INFEAS_TOL(x, y) (FEAS_TOL * MAX(1.0, MAX(ABS(x), ABS(y))))

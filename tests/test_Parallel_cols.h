@@ -570,6 +570,98 @@ static char *test_8_parallel_cols()
     return 0;
 }
 
+/* Like test 1, but the cost of column 1 is 4e-7 away from half the cost of
+   column 0. That is below FEAS_TOL, yet the columns are not parallel in the
+   objective: merging them would replace column 1's cost by 2 and shift the
+   objective by 4e-7 per unit of x1. Nothing may be merged, and the costs must
+   be kept as given.
+    min. [4 2+4e-7 1]x
+    s.t. [-2 -1 -1]x <= -10
+         0 <= x <= [4 3 5]
+*/
+static char *test_9_parallel_cols_unequal_cost()
+{
+    double Ax[] = {-2, -1, -1};
+    int Ai[] = {0, 1, 2};
+    int Ap[] = {0, 3};
+    int nnz = 3;
+    int n_rows = 1;
+    int n_cols = 3;
+
+    double lhs[] = {-INF};
+    double rhs[] = {-10};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {4, 3, 5};
+    double c[] = {4, 2 + 4e-7, 1};
+
+    Settings *stgs = default_settings();
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    Problem *prob = presolver->prob;
+    Constraints *constraints = prob->constraints;
+    Matrix *A = constraints->A;
+    remove_parallel_cols(prob);
+    problem_clean(prob);
+
+    mu_assert("no column may be removed", A->n == 3);
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax, A->x, 3));
+    mu_assert("error bounds", check_bounds(constraints->bounds, lbs, ubs, 3));
+    mu_assert("error obj", ARRAYS_EQUAL_DOUBLE(c, prob->obj->c, 3));
+    mu_assert("error offset", prob->obj->offset == 0);
+
+    PS_FREE(stgs);
+    DEBUG(run_debugger(constraints, false));
+    free_presolver(presolver);
+    return 0;
+}
+
+/* Like test 1, but the costs of columns 0 and 1 are proportional only up to
+   rounding noise (relative 1e-15), as costs updated by earlier reductions can
+   be. They must still be merged, exactly as in test 1. */
+static char *test_10_parallel_cols_cost_rounding()
+{
+    double Ax[] = {-2, -1, -1};
+    int Ai[] = {0, 1, 2};
+    int Ap[] = {0, 3};
+    int nnz = 3;
+    int n_rows = 1;
+    int n_cols = 3;
+
+    double lhs[] = {-INF};
+    double rhs[] = {-10};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {4, 3, 5};
+    double c[] = {4, 2 * (1 + 1e-15), 1};
+
+    Settings *stgs = default_settings();
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    Problem *prob = presolver->prob;
+    Constraints *constraints = prob->constraints;
+    Matrix *A = constraints->A;
+    remove_parallel_cols(prob);
+    problem_clean(prob);
+
+    double Ax_correct[] = {-1, -1};
+    int Ai_correct[] = {0, 1};
+    int Ap_correct[] = {0, 2};
+    mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 2));
+    mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 2));
+    mu_assert("rows", check_row_starts(A, Ap_correct));
+
+    double lbs_correct[] = {0, 0};
+    double ubs_correct[] = {11, 5};
+    mu_assert("error bounds",
+              check_bounds(constraints->bounds, lbs_correct, ubs_correct, 2));
+
+    PS_FREE(stgs);
+    DEBUG(run_debugger(constraints, false));
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_parallel_cols()
 {
     mu_run_test(test_1_parallel_cols, counter_parallel_cols);
@@ -582,6 +674,8 @@ static const char *all_tests_parallel_cols()
     mu_run_test(test_6_negated_parallel_cols, counter_parallel_cols);
     mu_run_test(test_7_parallel_cols, counter_parallel_cols);
     mu_run_test(test_8_parallel_cols, counter_parallel_cols);
+    mu_run_test(test_9_parallel_cols_unequal_cost, counter_parallel_cols);
+    mu_run_test(test_10_parallel_cols_cost_rounding, counter_parallel_cols);
 
     return 0;
 }

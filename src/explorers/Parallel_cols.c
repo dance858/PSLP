@@ -84,9 +84,7 @@ static inline PresolveStatus process_single_bin(Problem *prob, const int *bin,
             assert(ratio != 0);
 
             // if column j and column k are parallel, remove column k
-            // if you run into issues with parallel cols activated, try to
-            // change this
-            if (IS_EQUAL_FEAS_TOL(ck * aj_vals[0], cj * ak0))
+            if (IS_EQUAL_REL(ck * aj_vals[0], cj * ak0))
             {
                 // mark that we must recount n_infs for rows in which column j
                 // appears in
