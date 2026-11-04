@@ -222,10 +222,13 @@ PresolveStatus simple_dual_fix(Problem *prob)
                                    col_tags[k], (int) k, cols_to_inf);
     }
 
+    // take the finite fixes out of the sides before the inf fixes, since
+    // save_retrieval_fixed_col_inf stores the sides of the rows it deletes
+    delete_fixed_cols_from_problem(prob);
+
     // now fix the columns that can be fixed to inf
     // (processing the inf columns after processing the other columns
-    // simplifies the dual postsolve a lot, and save_retrieval_fixed_col_inf
-    // relies on it to net the finite fixes out of the sides)
+    // simplifies the dual postsolve a lot)
     for (size_t i = 0; i < cols_to_inf->len; ++i)
     {
         int col = cols_to_inf->data[i];
@@ -256,7 +259,6 @@ PresolveStatus simple_dual_fix(Problem *prob)
     // after the simple dual fix we might have inactive rows, and fixed
     // columns
     delete_inactive_rows(prob->constraints);
-    delete_fixed_cols_from_problem(prob);
     delete_inactive_cols_from_A_and_AT(prob->constraints);
 
     return status;

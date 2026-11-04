@@ -1286,6 +1286,64 @@ static char *test_fix_col_inf_same_pass_finite_fix()
     return 0;
 }
 
+/*  Dual fix with two columns to -inf in a shared row, in the same pass as
+    finite fixes, one of them to zero.
+    min. [0  0  1  1  -1] x
+    s.t. [1  1  1  1  -1] x <= 10
+         [1  0  1  0  -1] x <= 4
+         [0  1  2  1   0] x <= 3
+    x1, x2 free, x3 in [1, 2], x4 in [0, 1], x5 in [2, 3]
+    The dual fix puts x3 = 1, x4 = 0, x5 = 3 and x1, x2 at -inf. Postsolve
+    undoes x2 first (treating x1 as zero), x2 = min(12, 1) = 1, then
+    x1 = min(12 - 1, 6) = 6. */
+static char *test_fix_col_inf_same_pass_two_inf()
+{
+    double Ax[] = {1, 1, 1, 1, -1, 1, 1, -1, 1, 2, 1};
+    int Ai[] = {0, 1, 2, 3, 4, 0, 2, 4, 1, 2, 3};
+    int Ap[] = {0, 5, 8, 11};
+    int nnz = 11;
+    int n_rows = 3;
+    int n_cols = 5;
+
+    double lhs[] = {-INF, -INF, -INF};
+    double rhs[] = {10, 4, 3};
+    double lbs[] = {-INF, -INF, 1, 0, 2};
+    double ubs[] = {INF, INF, 2, 1, 3};
+    double c[] = {0, 0, 1, 1, -1};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dual_fix = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    ProblemData *red = presolver->reduced_prob;
+    mu_assert("expected everything removed", red->m == 0 && red->n == 0);
+
+    double x[1] = {0};
+    double y[1] = {0};
+    double z[1] = {0};
+    postsolve(presolver, x, y, z);
+
+    double correct_x[] = {6, 1, 1, 0, 3};
+    double correct_y[] = {0, 0, 0};
+    double correct_z[] = {0, 0, 1, 1, -1};
+    mu_assert("fix col inf with two inf columns postsolve error",
+              is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
+                                  correct_y, presolver->sol->z, correct_z, n_rows,
+                                  n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 /*  Parallel-column dual postsolve: z_k = ratio * z_j is an exact identity.
 
     min. [1  2  0.1] x
@@ -1656,6 +1714,7 @@ static const char *all_tests_postsolve()
     mu_run_test(test_pathological_ston_two, counter_postsolve);
     mu_run_test(test_fix_col_inf, counter_postsolve);
     mu_run_test(test_fix_col_inf_same_pass_finite_fix, counter_postsolve);
+    mu_run_test(test_fix_col_inf_same_pass_two_inf, counter_postsolve);
     mu_run_test(test_parallel_col_dual_identity, counter_postsolve);
     mu_run_test(test_ston_row_bound_dual_approximate_solution, counter_postsolve);
     mu_run_test(test_propagation_bound_dual_approximate_solution, counter_postsolve);
