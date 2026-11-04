@@ -28,6 +28,7 @@
 #include <assert.h>
 
 struct Constraints;
+struct Problem;
 struct Lock;
 struct Activity;
 struct RowView;
@@ -36,16 +37,16 @@ struct ConstRowView;
 struct Matrix;
 struct Bound;
 
-/* Checks if fixing a column to 'val' is feasible with respect to its bounds.
-   If yes, it fixes it and updates the activities. When a variable is fixed we
-   set both its lb and ub to its value. */
-PresolveStatus fix_col(struct Constraints *constraints, int col, double val,
-                       double ck);
+/* Fixes a column to 'val' if the fixing is feasible with respect to its bounds.
+   If not, it returns INFEASIBLE without modifying anything. The column must be
+   non-empty. Empty columns are fixed by remove_empty_cols. */
+PresolveStatus fix_col(struct Problem *prob, int col, double val);
 
 /* Fixes a variable to infinity and marks the constraints it appears in as
-   inactive. */
-void fix_col_to_negative_inf(struct Constraints *constraints, int col);
-void fix_col_to_positive_inf(struct Constraints *constraints, int col);
+   inactive. Only valid for a variable with a zero objective coefficient that
+   does not appear in P. */
+void fix_col_to_negative_inf(struct Problem *prob, int col);
+void fix_col_to_positive_inf(struct Problem *prob, int col);
 
 // These should not be called with large values of new_lb or new_ub.
 // 'row' is the row that causes the bound change.
@@ -53,6 +54,18 @@ PresolveStatus update_lb(struct Constraints *constraints, int col, double new_lb
                          int row HUGE_BOUND_PARAM);
 PresolveStatus update_ub(struct Constraints *constraints, int col, double new_ub,
                          int row HUGE_BOUND_PARAM);
+
+/* Same as update_lb and update_ub, with the causing row given as (row_cols,
+   row_vals, row_len) instead of read from A, for a caller whose view of the
+   row differs from A. */
+PresolveStatus update_lb_with_row(struct Constraints *constraints, int col,
+                                  double new_lb, int row, const int *row_cols,
+                                  const double *row_vals,
+                                  size_t row_len HUGE_BOUND_PARAM);
+PresolveStatus update_ub_with_row(struct Constraints *constraints, int col,
+                                  double new_ub, int row, const int *row_cols,
+                                  const double *row_vals,
+                                  size_t row_len HUGE_BOUND_PARAM);
 
 /* Updates the rhs/lhs of a row. These functions check for infeasibility
    and also if the row becomes an equality constraint after the bound change.
@@ -104,7 +117,7 @@ static inline void set_row_to_inactive(int row, RowTag *row_tag,
                                        iVec *rows_to_delete, PostsolveInfo *info,
                                        double val)
 {
-    assert(!HAS_TAG(*row_tag, R_TAG_INACTIVE));
+    assert(!HAS_TAG(*row_tag, (R_TAG_INACTIVE | R_TAG_CONE)));
     iVec_append(rows_to_delete, row);
 
     // very important that we use UPDATE_TAG here instead of RESET_TAG,

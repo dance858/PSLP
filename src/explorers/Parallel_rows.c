@@ -29,10 +29,12 @@
 #include "iVec.h"
 #include "limits.h" // for INT_MAX
 #include "radix_sort.h"
+#include "thread_pool.h"
 #include "utils.h"
 #include <PSLP_warnings.h>
 #include <math.h> // For round()
 #include <stdint.h>
+#include <string.h>
 
 // djb2 hash function
 static inline uint32_t hash_int_array(const int *arr, int size)
@@ -109,9 +111,9 @@ static inline
 }
 
 static void sort_rows(int *rows, size_t n, const int *sparsity_IDs,
-                      const int *coeff_hashes, int *aux)
+                      const int *coeff_hashes, int *aux, ThreadPool *pool)
 {
-    parallel_radix_sort_rows(rows, n, sparsity_IDs, coeff_hashes, aux);
+    parallel_radix_sort_rows(rows, n, sparsity_IDs, coeff_hashes, aux, pool);
 }
 
 static inline int get_bin_size(int start, size_t n_rows, const int *rows,
@@ -190,7 +192,10 @@ void VERIFY_PARALLEL_ROWS(const Matrix *A, const RowTag *rows_tags,
             double ratio = vals1[0] / vals2[0];
             for (k = 1; k < len1; ++k)
             {
-                assert(IS_ZERO_FEAS_TOL(vals1[k] - ratio * vals2[k]));
+                // relative tolerance: rows with large coefficients are
+                // detected through hashes of normalized values
+                assert(ABS(vals1[k] - ratio * vals2[k]) <=
+                       FEAS_TOL * MAX(1.0, ABS(vals1[k])));
             }
         }
     }
@@ -269,10 +274,65 @@ static inline int find_parallel_rows_in_bin(const Matrix *A, const int *bin,
     return n_new_parallel_rows;
 }
 
+#define MIN_ROWS_FOR_KEY_FILTER 64
+
+static inline size_t get_key_position(int row, const int *sparsity_IDs,
+                                      const int *coeff_hashes, size_t mask)
+{
+    uint32_t key =
+        (uint32_t) sparsity_IDs[row] ^ ((uint32_t) coeff_hashes[row] * 0x9E3779B1u);
+    return (size_t) key & mask;
+}
+
+/* Keeps only the rows whose key (sparsity ID, coefficient hash) may be shared
+   with another row, in their original order, and returns how many are kept.
+   The two bitmaps use fewer than 32 * n bits, so they fit in n ints. */
+static int remove_rows_with_unique_key(int *rows, int n, const int *sparsity_IDs,
+                                       const int *coeff_hashes, uint32_t *bits)
+{
+    size_t n_bits = 64;
+    while (n_bits < 8 * (size_t) n)
+    {
+        n_bits *= 2;
+    }
+
+    size_t mask = n_bits - 1;
+    size_t n_words = n_bits / 32;
+    uint32_t *seen = bits;
+    uint32_t *shared = bits + n_words;
+    memset(bits, 0, 2 * n_words * sizeof(uint32_t));
+
+    for (int idx = 0; idx < n; ++idx)
+    {
+        size_t pos = get_key_position(rows[idx], sparsity_IDs, coeff_hashes, mask);
+        uint32_t bit = 1u << (pos & 31);
+        if (seen[pos >> 5] & bit)
+        {
+            shared[pos >> 5] |= bit;
+        }
+        else
+        {
+            seen[pos >> 5] |= bit;
+        }
+    }
+
+    int n_kept = 0;
+    for (int idx = 0; idx < n; ++idx)
+    {
+        size_t pos = get_key_position(rows[idx], sparsity_IDs, coeff_hashes, mask);
+        if (shared[pos >> 5] & (1u << (pos & 31)))
+        {
+            rows[n_kept++] = rows[idx];
+        }
+    }
+
+    return n_kept;
+}
+
 // replaced rows with parallel_rows for less memory usage
 void find_parallel_rows(const Matrix *A, const RowTag *r_Tags, iVec *group_starts,
                         int *parallel_rows, int *sparsity_IDs, int *coeff_hashes,
-                        RowTag INACTIVE_TAG, int *radix_aux)
+                        RowTag INACTIVE_TAG, int *radix_aux, ThreadPool *pool)
 {
     int i, bin_size;
     int n_p_rows_total = 0;
@@ -294,11 +354,19 @@ void find_parallel_rows(const Matrix *A, const RowTag *r_Tags, iVec *group_start
             parallel_rows[n_active++] = i;
         }
     }
+
+    /* Remove rows that no other row can share a bin with. */
+    if (n_active >= MIN_ROWS_FOR_KEY_FILTER)
+    {
+        n_active = remove_rows_with_unique_key(parallel_rows, n_active, sparsity_IDs,
+                                               coeff_hashes, (uint32_t *) radix_aux);
+    }
+
     sort_rows(parallel_rows, (size_t) n_active, sparsity_IDs, coeff_hashes,
-              radix_aux);
+              radix_aux, pool);
 
 #ifndef NDEBUG
-    if (INACTIVE_TAG == R_TAG_INACTIVE)
+    if (INACTIVE_TAG == (RowTag) (R_TAG_INACTIVE | R_TAG_CONE))
     {
         ASSERT_NO_ACTIVE_STON_ROWS(A, r_Tags);
     }
@@ -586,7 +654,6 @@ PresolveStatus remove_parallel_rows(Constraints *constraints)
 {
     assert(constraints->state->ston_rows->len == 0);
     assert(constraints->state->empty_rows->len == 0);
-    assert(constraints->state->empty_cols->len == 0);
     DEBUG(verify_problem_up_to_date(constraints));
 
     int *parallel_rows = constraints->state->work->iwork_n_rows;
@@ -594,9 +661,10 @@ PresolveStatus remove_parallel_rows(Constraints *constraints)
     int *coeff_hashes = constraints->state->work->iwork2_max_nrows_ncols;
     iVec *group_starts = constraints->state->work->int_vec;
 
-    find_parallel_rows(constraints->A, constraints->row_tags, group_starts,
-                       parallel_rows, sparsity_IDs, coeff_hashes, R_TAG_INACTIVE,
-                       constraints->state->work->radix_aux);
+    find_parallel_rows(
+        constraints->A, constraints->row_tags, group_starts, parallel_rows,
+        sparsity_IDs, coeff_hashes, (RowTag) (R_TAG_INACTIVE | R_TAG_CONE),
+        constraints->state->work->radix_aux, constraints->state->work->pool);
 
     PresolveStatus status =
         process_all_bins(constraints, parallel_rows, group_starts);

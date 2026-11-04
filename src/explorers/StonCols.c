@@ -212,7 +212,7 @@ static void handle_impl_free_from_below_eq(RowView *row, int k, double Aik,
     }
 }
 
-static PresolveStatus process_colston_eq(RowView *row, ColView *col, Objective *obj,
+static PresolveStatus process_colston_eq(RowView *row, ColView *col, Problem *prob,
                                          double Aik, bool impl_free_from_above,
                                          bool impl_free_from_below, Activity *act,
                                          Lock *locks, iVec *rows_to_delete,
@@ -232,11 +232,11 @@ static PresolveStatus process_colston_eq(RowView *row, ColView *col, Objective *
     }
 
     // must store for dual postsolve
-    double ck = obj->c[col->k];
+    double ck = prob->obj->c[col->k];
 
     // substitute variable in objective and mark it as substituted
     // (note that we don't push it to list of substituted cols)
-    sub_var_in_obj(obj, row->vals, row->cols, *row->len, col->k, Aik, *row->rhs);
+    sub_var_in_obj(prob, row->vals, row->cols, *row->len, col->k, Aik, *row->rhs);
     UPDATE_TAG(*col->tag, C_TAG_SUBSTITUTED);
     *col->len = SIZE_INACTIVE_COL;
     col->range->end = col->range->start;
@@ -379,16 +379,17 @@ static void fix_col_ston(double val, double Aik, RowView *row, ColView *col,
 */
 
 static inline PresolveStatus
-process_colston_ineq(RowView *row, ColView *col, Objective *obj, double Aik,
+process_colston_ineq(RowView *row, ColView *col, Problem *prob, double Aik,
                      bool impl_free_from_above, bool impl_free_from_below,
-                     Lock *locks, iVec *rows_to_delete, iVec *dton_rows,
+                     Activity *act, Lock *locks, iVec *rows_to_delete, size_t *A_nnz,
+                     const Bound *bounds, iVec *ston_rows, iVec *dton_rows,
                      PostsolveInfo *postsolve_info)
 {
     bool is_lhs_inf = HAS_TAG(*row->tag, R_TAG_LHS_INF);
     bool is_rhs_inf = HAS_TAG(*row->tag, R_TAG_RHS_INF);
     bool is_ub_inf = HAS_TAG(*col->tag, C_TAG_UB_INF);
     bool is_lb_inf = HAS_TAG(*col->tag, C_TAG_LB_INF);
-    double ck = obj->c[col->k];
+    double ck = prob->obj->c[col->k];
 
     /* unboundedness check */
     if ((ck > 0 && Aik > 0 && is_lhs_inf && is_lb_inf) ||
@@ -434,7 +435,7 @@ process_colston_ineq(RowView *row, ColView *col, Objective *obj, double Aik,
 
         // substitute variable in objective and mark it as substituted
         // (note that we don't push it to list of substituted cols)
-        sub_var_in_obj(obj, row->vals, row->cols, *row->len, col->k, Aik, new_side);
+        sub_var_in_obj(prob, row->vals, row->cols, *row->len, col->k, Aik, new_side);
         col->range->end = col->range->start;
         UPDATE_TAG(*col->tag, C_TAG_SUBSTITUTED);
         *col->len = SIZE_INACTIVE_COL;
@@ -465,12 +466,15 @@ process_colston_ineq(RowView *row, ColView *col, Objective *obj, double Aik,
         *row->lhs = *row->rhs;
         RESET_TAG(*row->tag, R_TAG_EQ);
 
-        if (*row->len == 2)
-        {
-            assert(!iVec_contains(dton_rows, row->i));
-            iVec_append(dton_rows, row->i);
-        }
-        return REDUCED;
+        // Eliminate the singleton right away so that the row leaves as a
+        // one-sided inequality with an EQ_TO_INEQ record. Leaving it as a bare
+        // equality for a later pass lets other reductions treat it as a genuine
+        // equality, whose postsolve returns a multiplier of either sign, while
+        // the original one-sided row only admits one.
+        return process_colston_eq(row, col, prob, Aik, impl_free_from_above,
+                                  impl_free_from_below, act, locks, rows_to_delete,
+                                  A_nnz, bounds, ston_rows, dton_rows,
+                                  postsolve_info);
     }
 
     // ----------------------------------------------------------------
@@ -491,13 +495,11 @@ process_colston_ineq(RowView *row, ColView *col, Objective *obj, double Aik,
         *row->rhs = *row->lhs;
         RESET_TAG(*row->tag, R_TAG_EQ);
 
-        if (*row->len == 2)
-        {
-            assert(!iVec_contains(dton_rows, row->i));
-            iVec_append(dton_rows, row->i);
-        }
-
-        return REDUCED;
+        // see the comment in the branch above
+        return process_colston_eq(row, col, prob, Aik, impl_free_from_above,
+                                  impl_free_from_below, act, locks, rows_to_delete,
+                                  A_nnz, bounds, ston_rows, dton_rows,
+                                  postsolve_info);
     }
 
     return UNCHANGED;
@@ -531,13 +533,36 @@ static inline void refresh_ston_cols(const int *col_sizes, iVec *ston_cols)
     ston_cols->len = n_ston_cols;
 }
 
-PresolveStatus remove_ston_cols__(Problem *prob)
+/* Removes the coefficients of deleted rows from singleton column k of AT, so
+   that its one live coefficient is at the start of the column. Rows deleted
+   by earlier rounds of the explorer are still stored in AT. */
+static inline void compact_singleton_col(Matrix *AT, const int *row_sizes,
+                                         int col_size, int k)
+{
+    int start = AT->p[k].start;
+    int write_pos = start;
+
+    for (int jj = start; jj < AT->p[k].end; ++jj)
+    {
+        if (row_sizes[AT->i[jj]] != SIZE_INACTIVE_ROW)
+        {
+            AT->x[write_pos] = AT->x[jj];
+            AT->i[write_pos] = AT->i[jj];
+            write_pos++;
+        }
+    }
+
+    assert(write_pos == start + col_size);
+    AT->p[k].end = start + col_size;
+}
+
+static PresolveStatus remove_ston_cols__(Problem *prob, bool *rows_deleted)
 {
     Constraints *constraints = prob->constraints;
     PostsolveInfo *postsolve_info = constraints->state->postsolve_info;
     const Matrix *A = constraints->A;
     size_t *A_nnz = &(constraints->A->nnz);
-    const Matrix *AT = constraints->AT;
+    Matrix *AT = constraints->AT;
     RowTag *row_tags = constraints->row_tags;
     ColTag *col_tags = constraints->col_tags;
     double *lhs = constraints->lhs;
@@ -569,6 +594,14 @@ PresolveStatus remove_ston_cols__(Problem *prob)
     for (kk = 0; kk < ston_cols->len; ++kk)
     {
         k = ston_cols->data[kk];
+
+        /* A column that grew through a doubleton substitution and shrank back
+           to a singleton is listed twice; its first entry may have eliminated it. */
+        if (col_sizes[k] != 1)
+        {
+            continue;
+        }
+        compact_singleton_col(AT, row_sizes, col_sizes[k], k);
         i = AT->i[AT->p[k].start];
         Aik = AT->x[AT->p[k].start];
 
@@ -586,7 +619,12 @@ PresolveStatus remove_ston_cols__(Problem *prob)
         // constraint will be inactive when the second column singleton is
         // processed. Also skip column singletons appearing in singleton rows.
         // It is necessary to both check for inactivity and the row size here.
-        if (HAS_TAG(row_tags[i], R_TAG_INACTIVE) || row_sizes[i] <= 1)
+        if (HAS_TAG(row_tags[i], (R_TAG_INACTIVE | R_TAG_CONE)) || row_sizes[i] <= 1)
+        {
+            continue;
+        }
+
+        if (col_in_P(constraints->state, k))
         {
             continue;
         }
@@ -622,22 +660,23 @@ PresolveStatus remove_ston_cols__(Problem *prob)
         {
 
             status |= process_colston_eq(
-                &row_view, &col_view, prob->obj, Aik, impl_free_from_above,
+                &row_view, &col_view, prob, Aik, impl_free_from_above,
                 impl_free_from_below, acts + i, locks, rows_to_delete, A_nnz, bounds,
                 ston_rows, dton_rows, postsolve_info);
         }
         else
         {
             status |= process_colston_ineq(
-                &row_view, &col_view, prob->obj, Aik, impl_free_from_above,
-                impl_free_from_below, locks, rows_to_delete, dton_rows,
-                postsolve_info);
+                &row_view, &col_view, prob, Aik, impl_free_from_above,
+                impl_free_from_below, acts + i, locks, rows_to_delete, A_nnz, bounds,
+                ston_rows, dton_rows, postsolve_info);
         }
     }
 
-    // process the rows that should be deleted
+    // process the rows that should be deleted. AT is compacted once all
+    // rounds are done.
     constraints->AT->nnz = A->nnz;
-    delete_inactive_rows(constraints);
+    *rows_deleted |= delete_inactive_rows_from_A(constraints);
 
     if (HAS_STATUS(status, UNBNDORINFEAS))
     {
@@ -658,17 +697,23 @@ PresolveStatus remove_ston_cols(Problem *prob)
 {
     assert(prob->constraints->state->ston_rows->len == 0);
     assert(prob->constraints->state->empty_rows->len == 0);
-    assert(prob->constraints->state->empty_cols->len == 0);
+    assert(empty_cols_drained(prob));
     DEBUG(verify_problem_up_to_date(prob->constraints));
-    DEBUG(verify_no_duplicates_sort(prob->constraints->state->ston_cols));
 
     PresolveStatus status = UNCHANGED;
+    bool rows_deleted = false;
 
     do
     {
-        status = remove_ston_cols__(prob);
+        status = remove_ston_cols__(prob, &rows_deleted);
     } while (status == REDUCED);
 
+    if (rows_deleted)
+    {
+        delete_inactive_rows_from_AT(prob->constraints);
+    }
+
+    assert(prob->constraints->AT->nnz == prob->constraints->A->nnz);
     DEBUG(verify_problem_up_to_date(prob->constraints));
 
     // status will always be UNBNDORINFEAS or UNCHANGED (never REDUCED).

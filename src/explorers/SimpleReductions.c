@@ -56,7 +56,8 @@ void delete_fixed_cols_from_problem(Problem *prob)
         assert(!IS_ABS_INF(bounds[col].ub));
         assert(bounds[col].lb == bounds[col].ub);
 
-        // If the variable has been fixed to 0 or INF we must not do anything.
+        // A variable fixed to 0 contributes nothing to lhs, rhs or the
+        // activities. (Its objective contribution was added by fix_col.)
         // It is not necessary to update n_inf_min and n_inf_max (this has
         // already been done by boundChange).
         double ub = bounds[col].ub;
@@ -112,12 +113,9 @@ void delete_fixed_cols_from_problem(Problem *prob)
             // Can a ranged row become an inequality due to numerics?
             assert(HAS_TAG(row_tags[row], R_TAG_LHS_INF) ||
                    HAS_TAG(row_tags[row], R_TAG_RHS_INF) ||
-                   HAS_TAG(row_tags[row], R_TAG_EQ) ||
+                   HAS_TAG(row_tags[row], (R_TAG_EQ | R_TAG_CONE)) ||
                    !IS_EQUAL_FEAS_TOL(lhs[row], rhs[row]));
         }
-
-        // fix variable in the objective
-        fix_var_in_obj(prob->obj, col, ub);
     }
 }
 
@@ -154,9 +152,18 @@ static inline PresolveStatus remove_stonrow(Problem *prob, int row)
     if (HAS_TAG(*row_tag, R_TAG_EQ))
     {
         assert(lhs == rhs);
+        double ck = prob->obj->c[k];
+        bool k_in_P = col_in_P(constrs->state, k);
 
-        // printf("fixing col %d to %f from row %d \n", k, rhs / aik, row);
-        if (fix_col(constrs, k, rhs / aik, prob->obj->c[k]) == INFEASIBLE)
+        // For a variable in P the multiplier yi = (Px + c)_k / aik needs x, so
+        // the postsolve takes it from zk once xk is recovered. The record is
+        // saved before fix_col since it must be replayed after FIXED_COL.
+        if (k_in_P)
+        {
+            save_retrieval_deleted_row_zk(postsolve_info, row, k, aik, 0.0);
+        }
+
+        if (fix_col(prob, k, rhs / aik) == INFEASIBLE)
         {
             return INFEASIBLE;
         }
@@ -175,7 +182,7 @@ static inline PresolveStatus remove_stonrow(Problem *prob, int row)
         const double *vals = AT->x + AT->p[k].start;
         size_t len = (size_t) (AT->p[k].end - AT->p[k].start);
         save_retrieval_added_rows(postsolve_info, row, rows, vals, len, aik);
-        save_retrieval_deleted_row(postsolve_info, row, prob->obj->c[k] / aik);
+        save_retrieval_deleted_row(postsolve_info, row, k_in_P ? 0.0 : ck / aik);
     }
     // ----------------------------------------------------------------------
     //  if the row is an inequality, we update the bounds (if they are tighter
@@ -257,7 +264,7 @@ PresolveStatus remove_ston_rows(Problem *prob)
         // eliminated equality rows have been marked as inactive
         // (or one might remain if the variable in it has been fixed
         // by another equality row)
-        if (HAS_TAG(row_tags[row], (R_TAG_INACTIVE | R_TAG_EQ)))
+        if (HAS_TAG(row_tags[row], (R_TAG_INACTIVE | R_TAG_EQ | R_TAG_CONE)))
         {
             continue;
         }
@@ -305,7 +312,7 @@ static inline RowTag check_activity(const Activity *act, double lhs, double rhs,
     // -------------------------------------------------------------------------
     if (!HAS_TAG(row_tag, R_TAG_RHS_INF))
     {
-        if (act->n_inf_min == 0 && act->min >= rhs + FEAS_TOL)
+        if (act->n_inf_min == 0 && IS_INFEAS_GT(act->min, rhs))
         {
             return R_TAG_INFEAS;
         }
@@ -321,7 +328,7 @@ static inline RowTag check_activity(const Activity *act, double lhs, double rhs,
     // -------------------------------------------------------------------------
     if (!HAS_TAG(row_tag, R_TAG_LHS_INF))
     {
-        if (act->n_inf_max == 0 && act->max <= lhs - FEAS_TOL)
+        if (act->n_inf_max == 0 && IS_INFEAS_LT(act->max, lhs))
         {
             return R_TAG_INFEAS;
         }
@@ -373,7 +380,7 @@ PresolveStatus check_activities(Problem *prob)
         // row may not yet have been updated when this function is called.
         // IDEA: it is a design choice to have skip equality rows here, but
         // we should try to remove this restriction and see if it matters.
-        if (HAS_TAG(row_tags[row], (R_TAG_INACTIVE | R_TAG_EQ)) ||
+        if (HAS_TAG(row_tags[row], (R_TAG_INACTIVE | R_TAG_EQ | R_TAG_CONE)) ||
             row_sizes[row] <= 1)
         {
             continue;
@@ -494,9 +501,14 @@ PresolveStatus remove_empty_rows(const Constraints *constraints)
         int row = empty_rows_data[i];
         assert(row_sizes[row] == 0);
 
+        if (HAS_TAG(rtags[row], R_TAG_CONE))
+        {
+            continue;
+        }
+
         bool infeasible =
-            (!HAS_TAG(rtags[row], R_TAG_LHS_INF) && lhs[row] >= FEAS_TOL) ||
-            (!HAS_TAG(rtags[row], R_TAG_RHS_INF) && rhs[row] <= -FEAS_TOL);
+            (!HAS_TAG(rtags[row], R_TAG_LHS_INF) && IS_INFEAS_GT(lhs[row], 0.0)) ||
+            (!HAS_TAG(rtags[row], R_TAG_RHS_INF) && IS_INFEAS_LT(rhs[row], 0.0));
 
         if (infeasible)
         {
@@ -510,6 +522,49 @@ PresolveStatus remove_empty_rows(const Constraints *constraints)
 
     iVec_clear_no_resize(empty_rows);
     return UNCHANGED;
+}
+
+/* Fixes an empty column k that appears in P. With only a positive diagonal
+   in P the objective in x_k is (1/2) P_kk x_k^2 + c_k x_k, so
+   x_k = clip(-c_k / P_kk, lb, ub), whatever the size of the minimiser: the
+   column has no rows, so the value only enters the objective offset. Returns
+   false, leaving the column for the dual fix, when its row of P is not a
+   diagonal alone. */
+static bool fix_empty_P_col(Problem *prob, int k)
+{
+    const State *state = prob->constraints->state;
+    const Matrix *P = prob->obj->P;
+    ColTag *col_tags = prob->constraints->col_tags;
+    Bound *bounds = prob->constraints->bounds;
+    const double *c = prob->obj->c;
+    double Pkk;
+
+    if (!diagonal_only_P_entry(P, state->P_row_sizes, k, &Pkk))
+    {
+        return false;
+    }
+
+    double val = -c[k] / Pkk;
+    if (!HAS_TAG(col_tags[k], C_TAG_LB_INF) && val < bounds[k].lb)
+    {
+        val = bounds[k].lb;
+    }
+    else if (!HAS_TAG(col_tags[k], C_TAG_UB_INF) && val > bounds[k].ub)
+    {
+        val = bounds[k].ub;
+    }
+
+    bounds[k].lb = val;
+    bounds[k].ub = val;
+
+    // for the postsolve zk = ck + Pkk xk; as in fix_col the record is saved
+    // before the objective update
+    save_retrieval_fixed_col(state->postsolve_info, k, val, c[k], NULL, NULL, 0,
+                             P->x + P->p[k].start, P->i + P->p[k].start, 1);
+    fix_var_in_obj(prob, k, val);
+    UPDATE_TAG(col_tags[k], C_TAG_FIXED);
+    state->col_sizes[k] = SIZE_INACTIVE_COL;
+    return true;
 }
 
 PresolveStatus remove_empty_cols(Problem *prob)
@@ -530,8 +585,9 @@ PresolveStatus remove_empty_cols(Problem *prob)
     int *col_sizes = prob->constraints->state->col_sizes;
     ColTag *col_tags = prob->constraints->col_tags;
     Bound *bounds = prob->constraints->bounds;
-    double *c = prob->obj->c;
-    double *offset = &(prob->obj->offset);
+    const double *c = prob->obj->c;
+    const State *state = prob->constraints->state;
+    size_t n_kept = 0;
 
     for (size_t i = 0; i < len; ++i)
     {
@@ -543,6 +599,16 @@ PresolveStatus remove_empty_cols(Problem *prob)
         }
 
         assert(col_sizes[k] == 0 && !HAS_TAG(col_tags[k], C_TAG_INACTIVE));
+
+        // a column in P is fixed only when its row of P is a diagonal alone
+        if (col_in_P(state, k))
+        {
+            if (!fix_empty_P_col(prob, k))
+            {
+                empty_cols->data[n_kept++] = k;
+            }
+            continue;
+        }
 
         // --------------------------------------------------------------------
         // if the objective coefficient is 0 we set the variable to 0 if
@@ -591,20 +657,21 @@ PresolveStatus remove_empty_cols(Problem *prob)
             bounds[k].ub = bounds[k].lb;
         }
 
-        // add offset to objective
-        *offset += c[k] * val;
-
-        // mark column as fixed
+        // mark column as fixed (not appended to fixed_cols_to_delete since
+        // there are no coefficients to delete from A and AT)
         UPDATE_TAG(col_tags[k], C_TAG_FIXED);
         col_sizes[k] = SIZE_INACTIVE_COL;
 
         // store postsolve information (for empty cols we want zk = ck)
-        // passing NULL ptrs are safe since the length is 0
-        save_retrieval_fixed_col(postsolve_info, k, val, prob->obj->c[k], NULL, NULL,
-                                 0);
+        // passing NULL ptrs are safe since the length is 0. As in fix_col,
+        // the record is saved before the objective is updated.
+        save_retrieval_fixed_col(postsolve_info, k, val, c[k], NULL, NULL, 0, NULL,
+                                 NULL, 0);
+        fix_var_in_obj(prob, k, val);
     }
 
-    iVec_clear_no_resize(empty_cols);
+    // only the columns in P that were kept above remain
+    empty_cols->len = n_kept;
     return UNCHANGED;
 }
 
@@ -686,7 +753,6 @@ void clean_small_coeff_A(Matrix *A, const Bound *bounds, const RowTag *row_tags,
 PresolveStatus remove_variables_with_close_bounds(Problem *prob)
 {
     Constraints *constraints = prob->constraints;
-    const double *c = prob->obj->c;
     const Bound *bounds = constraints->bounds;
     const ColTag *col_tags = constraints->col_tags;
     size_t n_cols = constraints->n;
@@ -702,7 +768,7 @@ PresolveStatus remove_variables_with_close_bounds(Problem *prob)
 
         assert(!HAS_TAG(col_tags[ii], C_TAG_INACTIVE));
 
-        if (bounds[ii].lb > bounds[ii].ub + FEAS_TOL)
+        if (IS_INFEAS_GT(bounds[ii].lb, bounds[ii].ub))
         {
             return INFEASIBLE;
         }
@@ -712,8 +778,18 @@ PresolveStatus remove_variables_with_close_bounds(Problem *prob)
         // objective contribution to the offset twice.
         if (col_sizes[ii] > 0 && IS_EQUAL_FEAS_TOL(bounds[ii].lb, bounds[ii].ub))
         {
-            // no need to check return value since bounds are equal
-            fix_col(constraints, (int) ii, bounds[ii].lb, c[ii]);
+            // fix at integral bound or at midpoint
+            double lb = bounds[ii].lb, ub = bounds[ii].ub;
+            double val = 0.5 * (lb + ub);
+            if (IS_INTEGRAL(lb))
+            {
+                val = lb;
+            }
+            else if (IS_INTEGRAL(ub))
+            {
+                val = ub;
+            }
+            fix_col(prob, (int) ii, val);
         }
     }
 

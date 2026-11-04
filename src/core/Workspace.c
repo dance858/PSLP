@@ -17,17 +17,22 @@
  */
 
 #include "Workspace.h"
+#include "DtonsEq.h"
 #include "Memory_wrapper.h"
 #include "Numerics.h"
+#include "PSLP_sol.h"
+#include "fold.h"
+#include "thread_pool.h"
 #include <stdio.h>
 
 #define INT_VEC_INITIALIZATION 25
 
-Work *new_work(size_t n_rows, size_t n_cols)
+Work *new_work(size_t n_rows, size_t n_cols, bool dton_eq)
 {
     Work *work = (Work *) ps_malloc(1, sizeof(Work));
     RETURN_PTR_IF_NULL(work, NULL);
 
+    work->dton = dton_eq ? dton_workspace_new(n_rows, n_cols) : NULL;
     work->iwork_n_cols = (int *) ps_calloc(n_cols, sizeof(int));
     work->iwork_n_rows = (int *) ps_calloc(n_rows, sizeof(int));
     work->iwork1_max_nrows_ncols =
@@ -39,17 +44,38 @@ Work *new_work(size_t n_rows, size_t n_cols)
     work->mappings = (Mapping *) ps_malloc(1, sizeof(Mapping));
     work->mappings->cols = (int *) ps_malloc(n_cols, sizeof(int));
     work->mappings->rows = (int *) ps_malloc(n_rows, sizeof(int));
+    work->fold_maps = NULL;
+    work->folded_sol = NULL;
+    work->pool = NULL;
 
     if (!work->iwork_n_cols || !work->iwork_n_rows ||
         !work->iwork1_max_nrows_ncols || !work->iwork2_max_nrows_ncols ||
         !work->int_vec || !work->mappings || !work->mappings->cols ||
-        !work->mappings->rows || !work->radix_aux)
+        !work->mappings->rows || !work->radix_aux || (dton_eq && !work->dton))
     {
         free_work(work);
         return NULL;
     }
 
     return work;
+}
+
+void free_work_scratch(Work *work)
+{
+    PS_FREE(work->iwork_n_cols);
+    PS_FREE(work->iwork_n_rows);
+    PS_FREE(work->iwork1_max_nrows_ncols);
+    PS_FREE(work->iwork2_max_nrows_ncols);
+    PS_FREE(work->radix_aux);
+    if (work->int_vec)
+    {
+        iVec_free(work->int_vec);
+        work->int_vec = NULL;
+    }
+    dton_workspace_free(work->dton);
+    work->dton = NULL;
+    thread_pool_free(work->pool);
+    work->pool = NULL;
 }
 
 void free_work(Work *work)
@@ -59,14 +85,37 @@ void free_work(Work *work)
         return;
     }
 
-    PS_FREE(work->iwork_n_cols);
-    PS_FREE(work->iwork_n_rows);
-    PS_FREE(work->iwork1_max_nrows_ncols);
-    PS_FREE(work->iwork2_max_nrows_ncols);
-    iVec_free(work->int_vec);
+    free_work_scratch(work);
     PS_FREE(work->mappings->cols);
     PS_FREE(work->mappings->rows);
     PS_FREE(work->mappings);
-    PS_FREE(work->radix_aux);
+    fold_maps_free(work->fold_maps);
+    free_solution(work->folded_sol);
     PS_FREE(work);
+}
+
+Solution *new_solution(size_t n_rows, size_t n_cols)
+{
+    Solution *sol = (Solution *) ps_malloc(1, sizeof(Solution));
+    RETURN_PTR_IF_NULL(sol, NULL);
+    sol->x = (double *) ps_malloc(n_cols + 1, sizeof(double));
+    sol->y = (double *) ps_malloc(n_rows + 1, sizeof(double));
+    sol->z = (double *) ps_malloc(n_cols + 1, sizeof(double));
+    sol->dim_x = n_cols;
+    sol->dim_y = n_rows;
+    if (!sol->x || !sol->y || !sol->z)
+    {
+        free_solution(sol);
+        return NULL;
+    }
+    return sol;
+}
+
+void free_solution(Solution *sol)
+{
+    RETURN_IF_NULL(sol);
+    PS_FREE(sol->x);
+    PS_FREE(sol->y);
+    PS_FREE(sol->z);
+    PS_FREE(sol);
 }

@@ -20,18 +20,20 @@
    (the inverse direction of postsolve), e.g. to warm start a solver on the
    reduced problem. The public entry point is 'map_original_sol_to_reduced' in
    PSLP_API.h; the core replay of the recorded reductions is
-   'postsolver_map_to_reduced', declared in Postsolver.h. */
+   'postsolver_map_to_reduced', declared in Postsolver.h. With a fold the
+   records live in the folded problem, so the point is folded first. */
 
 #include "Constraints.h"
 #include "Memory_wrapper.h"
 #include "Numerics.h"
 #include "PSLP_API.h"
-#include "PSLP_sol.h"
+#include "PSLP_stats.h"
 #include "Postsolver.h"
 #include "Problem.h"
 #include "State.h"
 #include "Workspace.h"
 #include "dVec.h"
+#include "fold_postsolve.h"
 #include "iVec.h"
 #include "u16Vec.h"
 #include <assert.h>
@@ -77,16 +79,16 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
     {
         ReductionType type = reductions[t];
         int start = starts[t];
+        int len = starts[t + 1] - start;
 
         if (type == PARALLEL_COL)
         {
             // (xj, xk) was replaced by x_new = xj + ratio * xk
             if (map_primal)
             {
-                int j = indices[start];
-                int k = indices[start + 1];
-                double ratio = vals[start + 4];
-                x_work[j] += ratio * x_work[k];
+                ParallelColRecord r =
+                    decode_parallel_col(indices + start, vals + start, len);
+                x_work[r.j] += r.ratio * x_work[r.k];
             }
         }
         else if (type == PARALLEL_ROW)
@@ -96,11 +98,10 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
             // of row j is transferred to row i.
             if (map_dual)
             {
-                int i = indices[start];
-                int j = indices[start + 1];
-                double ratio = vals[start];
-                y_work[i] += y_work[j] / ratio;
-                y_work[j] = 0.0;
+                ParallelRowRecord r =
+                    decode_parallel_row(indices + start, vals + start, len);
+                y_work[r.i] += y_work[r.j] / r.ratio;
+                y_work[r.j] = 0.0;
             }
         }
         else if (type == EQ_TO_INEQ)
@@ -115,10 +116,10 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
             // admissible sign is exactly that redistribution.
             if (map_dual)
             {
-                int i = indices[start];
-                int sign = indices[start + 1];
-                double val = y_work[i] - vals[start];
-                y_work[i] = (sign > 0) ? MAX(val, 0.0) : MIN(val, 0.0);
+                EqToIneqRecord r =
+                    decode_eq_to_ineq(indices + start, vals + start, len);
+                double val = y_work[r.row] - r.val;
+                y_work[r.row] = (r.sign > 0) ? MAX(val, 0.0) : MIN(val, 0.0);
             }
         }
         else if (type == SIDE_RELAXED)
@@ -134,17 +135,25 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
             // another row.
             if (map_dual)
             {
-                int i = indices[start];
-                int sign = indices[start + 1];
-                y_work[i] = (sign > 0) ? MAX(y_work[i], 0.0) : MIN(y_work[i], 0.0);
+                SideRelaxedRecord r =
+                    decode_side_relaxed(indices + start, vals + start, len);
+                y_work[r.row] =
+                    (r.sign > 0) ? MAX(y_work[r.row], 0.0) : MIN(y_work[r.row], 0.0);
             }
         }
-        else if (type == ADDED_ROW || type == ADDED_ROWS)
+        else if (type == ADDED_ROW)
         {
             // row i was added to other rows to eliminate a column. Postsolve
             // adjusts yi, but row i itself is always removed afterwards (see
             // DtonsEq.c and SimpleReductions.c), so there is nothing to map.
-            assert(row_map[indices[start]] == -1);
+            assert(row_map[decode_added_row(indices + start, vals + start, len).i] ==
+                   -1);
+        }
+        else if (type == ADDED_ROWS)
+        {
+            assert(
+                row_map[decode_added_rows(indices + start, vals + start, len).i] ==
+                -1);
         }
         else if (type == LHS_CHANGE || type == RHS_CHANGE)
         {
@@ -152,7 +161,8 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
             // PARALLEL_ROW record that follows
         }
         else if (type == FIXED_COL || type == FIXED_COL_INF || type == SUB_COL ||
-                 type == DELETED_ROW)
+                 type == SUB_COL_DTON || type == DELETED_ROW ||
+                 type == DELETED_ROW_ZK)
         {
             // only affects a removed row or column
         }
@@ -189,8 +199,9 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
     }
 }
 
-/* z = c - A^T y for the reduced problem */
-static void compute_reduced_dual_slack(double *z, const PresolvedProblem *prob,
+/* z = c - A^T y for the reduced problem. This assumes an LP; for a QP the term
+   P x is missing, which is why 'map_original_sol_to_reduced' refuses QPs. */
+static void compute_reduced_dual_slack(double *z, const ProblemData *prob,
                                        const double *y)
 {
     memcpy(z, prob->c, prob->n * sizeof(double));
@@ -208,13 +219,25 @@ void map_original_sol_to_reduced(Presolver *presolver, const double *x,
                                  const double *y, double *x_red, double *y_red,
                                  double *z_red)
 {
-    Solution *sol = presolver->sol;
     State *data = presolver->prob->constraints->state;
     const Mapping *maps = data->work->mappings;
-    const PresolvedProblem *reduced_prob = presolver->reduced_prob;
-    size_t n_cols_orig = sol->dim_x;
-    size_t n_rows_orig = sol->dim_y;
+    const FoldMaps *fold_maps = data->work->fold_maps;
+    const ProblemData *reduced_prob = presolver->reduced_prob;
+    size_t n_cols_orig = presolver->stats->n_cols_original;
+    size_t n_rows_orig = presolver->stats->n_rows_original;
+    /* the dimensions the records live in; the original ones without a fold */
+    size_t n_cols_fold = presolver->stats->n_cols_folded;
+    size_t n_rows_fold = presolver->stats->n_rows_folded;
+    size_t n_fold = n_cols_fold + n_rows_fold;
     double *work;
+
+    /* 'stats' survives 'free_presolver_reduced_problem', unlike the reduced P */
+    if (presolver->stats->Pnnz_original > 0 || presolver->stats->Pnnz_reduced > 0)
+    {
+        fprintf(stderr, "PSLP error: map_original_sol_to_reduced is not supported "
+                        "for QPs yet! Outputs are left untouched. \n");
+        return;
+    }
 
     if (x_red && !x)
     {
@@ -245,9 +268,10 @@ void map_original_sol_to_reduced(Presolver *presolver, const double *x,
         return;
     }
 
-    // scratch space of the original dimensions (we do not use presolver->sol
-    // since it may hold a solution obtained by postsolve)
-    work = (double *) ps_malloc(n_cols_orig + n_rows_orig + 1, sizeof(double));
+    // scratch space for the replay and, with a fold, for the folded point (we
+    // do not use presolver->sol or the folded scratch of postsolve since they
+    // may hold a solution obtained by postsolve)
+    work = (double *) ps_malloc(n_fold * (fold_maps ? 2 : 1) + 1, sizeof(double));
     if (!work)
     {
         fprintf(stderr,
@@ -256,9 +280,20 @@ void map_original_sol_to_reduced(Presolver *presolver, const double *x,
         return;
     }
 
+    if (fold_maps)
+    {
+        // x averaged over each column class, y summed over each row class
+        double *x_fold = work + n_fold;
+        double *y_fold = x_fold + n_cols_fold;
+        fold_map_to_folded(fold_maps, (int) n_rows_orig, (int) n_cols_orig, x, y,
+                           x_red ? x_fold : NULL, y_red ? y_fold : NULL);
+        x = x_fold;
+        y = y_fold;
+    }
+
     postsolver_map_to_reduced(data->postsolve_info, maps->cols, maps->rows,
-                              n_cols_orig, n_rows_orig, x, y, work,
-                              work + n_cols_orig, x_red, y_red);
+                              n_cols_fold, n_rows_fold, x, y, work,
+                              work + n_cols_fold, x_red, y_red);
     PS_FREE(work);
 
     // project onto the (possibly tightened) bounds of the reduced problem. The

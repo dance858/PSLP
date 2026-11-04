@@ -17,12 +17,12 @@
  */
 
 #include "radix_sort.h"
-#include "pslp_thread.h"
+#include "thread_pool.h"
 #include <stdint.h>
 #include <string.h>
 
-#define NUM_SORT_THREADS 4
-#define PARALLEL_SORT_THRESHOLD 100000
+/* Chunks of the parallel sort: the threads of the pool, at most this many. */
+#define RADIX_SORT_CHUNK_CAP 4
 
 static void insertion_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
                                 const int *coeff_hashes)
@@ -139,33 +139,45 @@ void radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
 }
 
 // --- Single-key radix sort ---
+//
+// One core serves radix_sort_by_key (the key of element x is keys[x]) and
+// sort_ints (keys NULL: the key is x itself). The test on keys is loop
+// invariant and folds away once the core is inlined into each wrapper.
 
-static void insertion_sort_by_key(int *indices, size_t n, const int *keys)
+static inline uint32_t sort_key(const int *keys, int x)
+{
+    return (uint32_t) (keys ? keys[x] : x);
+}
+
+static void insertion_sort_core(int *v, size_t n, const int *keys)
 {
     for (size_t i = 1; i < n; i++)
     {
-        int idx = indices[i];
-        int idx_key = keys[idx];
+        int x = v[i];
+        uint32_t x_key = sort_key(keys, x);
         size_t j = i;
-        while (j > 0 && keys[indices[j - 1]] > idx_key)
+        while (j > 0 && sort_key(keys, v[j - 1]) > x_key)
         {
-            indices[j] = indices[j - 1];
+            v[j] = v[j - 1];
             j--;
         }
-        indices[j] = idx;
+        v[j] = x;
     }
 }
 
-void radix_sort_by_key(int *indices, size_t n, const int *keys, int *aux)
+// Stable LSD radix sort of v by sort_key, one byte per pass. A pass whose
+// byte is the same in every element is skipped: a stable scatter into a
+// single bucket would leave the array unchanged. aux holds n ints.
+static void radix_sort_core(int *v, size_t n, const int *keys, int *aux)
 {
-    if (n < 256)
+    if (n < RADIX_SORT_INSERTION_MAX)
     {
-        insertion_sort_by_key(indices, n, keys);
+        insertion_sort_core(v, n, keys);
         return;
     }
 
     size_t counts[256];
-    int *src = indices, *dst = aux;
+    int *src = v, *dst = aux;
 
     for (int pass = 0; pass < 4; pass++)
     {
@@ -175,26 +187,23 @@ void radix_sort_by_key(int *indices, size_t n, const int *keys, int *aux)
         memset(counts, 0, 256 * sizeof(size_t));
         for (size_t i = 0; i < n; i++)
         {
-            unsigned byte = ((uint32_t) keys[src[i]] >> shift) & 0xFF;
+            unsigned byte = (sort_key(keys, src[i]) >> shift) & 0xFF;
             counts[byte]++;
         }
 
-        // skip pass if all values fall in one bucket
-        if (pass > 0)
+        // skip the pass if every element falls in one bucket
+        int skip = 0;
+        for (int b = 0; b < 256; b++)
         {
-            int skip = 0;
-            for (int b = 0; b < 256; b++)
+            if (counts[b] == n)
             {
-                if (counts[b] == n)
-                {
-                    skip = 1;
-                    break;
-                }
+                skip = 1;
+                break;
             }
-            if (skip)
-            {
-                continue;
-            }
+        }
+        if (skip)
+        {
+            continue;
         }
 
         // prefix sum
@@ -206,10 +215,10 @@ void radix_sort_by_key(int *indices, size_t n, const int *keys, int *aux)
             total += c;
         }
 
-        // scatter (forward — stable)
+        // scatter (forward: stable)
         for (size_t i = 0; i < n; i++)
         {
-            unsigned byte = ((uint32_t) keys[src[i]] >> shift) & 0xFF;
+            unsigned byte = (sort_key(keys, src[i]) >> shift) & 0xFF;
             dst[counts[byte]++] = src[i];
         }
 
@@ -219,11 +228,21 @@ void radix_sort_by_key(int *indices, size_t n, const int *keys, int *aux)
         dst = tmp;
     }
 
-    // if result ended up in aux, copy back to indices
-    if (src != indices)
+    // if the result ended up in aux, copy it back
+    if (src != v)
     {
-        memcpy(indices, src, n * sizeof(int));
+        memcpy(v, src, n * sizeof(int));
     }
+}
+
+void radix_sort_by_key(int *indices, size_t n, const int *keys, int *aux)
+{
+    radix_sort_core(indices, n, keys, aux);
+}
+
+void sort_ints(int *v, size_t n, int *aux)
+{
+    radix_sort_core(v, n, NULL, aux);
 }
 
 // --- Parallel radix sort infrastructure ---
@@ -237,11 +256,14 @@ typedef struct
     int *aux;
 } SortChunkArg;
 
-static void *sort_chunk_func(void *arg)
+// Pool callback: sorts one chunk. The thread index is not needed because each
+// chunk has its own slice of rows and aux.
+static void sort_chunk(void *context, int chunk, int thread)
 {
-    SortChunkArg *a = (SortChunkArg *) arg;
-    radix_sort_rows(a->rows, a->n, a->sparsity_IDs, a->coeff_hashes, a->aux);
-    return NULL;
+    (void) thread;
+    SortChunkArg *arg = (SortChunkArg *) context + chunk;
+    radix_sort_rows(arg->rows, arg->n, arg->sparsity_IDs, arg->coeff_hashes,
+                    arg->aux);
 }
 
 // Compare two row indices by (sparsity_ID, coeff_hash) as uint32_t.
@@ -258,17 +280,19 @@ static inline int merge_compare(int a, int b, const int *sparsity_IDs,
     return 0;
 }
 
-// 4-way merge of sorted chunks into dst.
-static void merge_4way(int *dst, int *chunk_ptrs[NUM_SORT_THREADS],
-                       size_t chunk_sizes[NUM_SORT_THREADS], const int *sparsity_IDs,
-                       const int *coeff_hashes, size_t total_n)
+// Merges the sorted chunks into dst. The sequential sort leaves equal keys in
+// reverse input order, so the last chunk wins ties: the result does not depend
+// on the number of chunks.
+static void merge_chunks(int *dst, int *const *chunk_ptrs, const size_t *chunk_sizes,
+                         int n_chunks, const int *sparsity_IDs,
+                         const int *coeff_hashes, size_t total_n)
 {
-    size_t pos[NUM_SORT_THREADS] = {0, 0, 0, 0};
+    size_t pos[RADIX_SORT_MAX_CHUNKS] = {0};
 
     for (size_t out = 0; out < total_n; out++)
     {
         int best = -1;
-        for (int k = 0; k < NUM_SORT_THREADS; k++)
+        for (int k = 0; k < n_chunks; k++)
         {
             if (pos[k] >= chunk_sizes[k]) continue;
             if (best < 0 ||
@@ -282,28 +306,36 @@ static void merge_4way(int *dst, int *chunk_ptrs[NUM_SORT_THREADS],
     }
 }
 
-void parallel_radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
-                              const int *coeff_hashes, int *aux)
+void radix_sort_rows_chunked(int *rows, size_t n, const int *sparsity_IDs,
+                             const int *coeff_hashes, int *aux, ThreadPool *pool,
+                             int n_chunks)
 {
-    if (n < PARALLEL_SORT_THRESHOLD)
+    if (n_chunks > RADIX_SORT_MAX_CHUNKS)
+    {
+        n_chunks = RADIX_SORT_MAX_CHUNKS;
+    }
+    if (n_chunks > 1 && (size_t) n_chunks > n)
+    {
+        n_chunks = (int) n;
+    }
+    if (!pool || n_chunks <= 1)
     {
         radix_sort_rows(rows, n, sparsity_IDs, coeff_hashes, aux);
         return;
     }
 
-    // Divide into NUM_SORT_THREADS chunks.
-    // First (n % NUM_SORT_THREADS) chunks get one extra element.
-    size_t base = n / NUM_SORT_THREADS;
-    size_t extra = n % NUM_SORT_THREADS;
+    // Divide into n_chunks chunks. The first (n % n_chunks) get one extra element.
+    size_t base = n / (size_t) n_chunks;
+    size_t extra = n % (size_t) n_chunks;
 
-    SortChunkArg args[NUM_SORT_THREADS];
-    size_t chunk_sizes[NUM_SORT_THREADS];
-    int *chunk_ptrs[NUM_SORT_THREADS];
+    SortChunkArg args[RADIX_SORT_MAX_CHUNKS];
+    size_t chunk_sizes[RADIX_SORT_MAX_CHUNKS];
+    int *chunk_ptrs[RADIX_SORT_MAX_CHUNKS];
     size_t offset = 0;
 
-    for (int k = 0; k < NUM_SORT_THREADS; k++)
+    for (int k = 0; k < n_chunks; k++)
     {
-        chunk_sizes[k] = base + (k < (int) extra ? 1 : 0);
+        chunk_sizes[k] = base + ((size_t) k < extra ? 1 : 0);
         chunk_ptrs[k] = rows + offset;
         args[k].rows = rows + offset;
         args[k].n = chunk_sizes[k];
@@ -313,20 +345,28 @@ void parallel_radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
         offset += chunk_sizes[k];
     }
 
-    // Launch worker threads for chunks 1..3, main thread sorts chunk 0.
-    ps_thread_t threads[NUM_SORT_THREADS - 1];
-    for (int k = 1; k < NUM_SORT_THREADS; k++)
-    {
-        ps_thread_create(&threads[k - 1], NULL, sort_chunk_func, &args[k]);
-    }
-    sort_chunk_func(&args[0]);
+    // Sort the chunks on the pool; the calling thread takes chunks too.
+    thread_pool_run(pool, sort_chunk, args, n_chunks);
 
-    for (int k = 1; k < NUM_SORT_THREADS; k++)
-    {
-        ps_thread_join(&threads[k - 1], NULL);
-    }
-
-    // 4-way merge into aux, then copy back.
-    merge_4way(aux, chunk_ptrs, chunk_sizes, sparsity_IDs, coeff_hashes, n);
+    // Merge into aux, then copy back.
+    merge_chunks(aux, chunk_ptrs, chunk_sizes, n_chunks, sparsity_IDs, coeff_hashes,
+                 n);
     memcpy(rows, aux, n * sizeof(int));
+}
+
+void parallel_radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
+                              const int *coeff_hashes, int *aux, ThreadPool *pool)
+{
+    if (!pool || n < PARALLEL_SORT_THRESHOLD)
+    {
+        radix_sort_rows(rows, n, sparsity_IDs, coeff_hashes, aux);
+        return;
+    }
+    int n_chunks = thread_pool_n_threads(pool);
+    if (n_chunks > RADIX_SORT_CHUNK_CAP)
+    {
+        n_chunks = RADIX_SORT_CHUNK_CAP;
+    }
+    radix_sort_rows_chunked(rows, n, sparsity_IDs, coeff_hashes, aux, pool,
+                            n_chunks);
 }

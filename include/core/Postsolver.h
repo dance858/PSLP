@@ -19,6 +19,7 @@
 #ifndef CORE_POSTSOLVER_H
 #define CORE_POSTSOLVER_H
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -54,10 +55,17 @@ enum ReductionTypes
     EQ_TO_INEQ = 1 << 8,
     BOUND_CHANGE_NO_ROW = 1 << 9,
     BOUND_CHANGE_THE_ROW = 1 << 10,
+    SUB_COL_DTON = 1 << 15,
 
     // only required for mapping a solution to the reduced problem
     PARALLEL_ROW = 1 << 11,
     SIDE_RELAXED = 1 << 12,
+
+    // required for the dual postsolve of a QP
+    DELETED_ROW_ZK = 1 << 13,
+
+    // a rotated cone block replaced by a diagonal term of P
+    ROTATED_TO_P = 1 << 14,
 };
 
 typedef struct PostsolveInfo
@@ -111,17 +119,71 @@ void postsolver_map_to_reduced(const PostsolveInfo *info, const int *col_map,
                                double *y_red);
 
 void retrieve_deleted_row(Solution *sol, int row, double val);
-void retrieve_added_row(Solution *sol, const int *rows, const double *vals);
+void retrieve_added_row(Solution *sol, int i, int j, double ratio);
 void retrieve_added_rows(Solution *sol, int i, const int *rows, const double *vals,
                          int len, double aik);
 
+/* -------------------------------------------------------------------------
+   Records
+   -------------------------------------------------------------------------
+   Reduction i is stored as the slices indices[starts[i] .. starts[i + 1]) and
+   vals[starts[i] .. starts[i + 1]) of the two parallel arrays, so both slices
+   have the same length, called the record length below. Each record type has
+   a save_retrieval_* function that writes it and a decode_* function that
+   reads it back into a *Record struct. The decoders take the two slices (i.e.
+   indices + starts[i], vals + starts[i]) and the record length, and are the
+   only place that knows the layouts; consumers must not index into a record
+   themselves. Placeholder entries hold DUMMY_VALUE and are checked. The
+   pointers in a decoded record point into the record and stay valid as long
+   as the PostsolveInfo is not modified.
+   ------------------------------------------------------------------------- */
+
 /* Saves the information required to retrieve variable xk that was fixed
-   to val. To recover the dual variable we need zk = ck - ak^T y
-   * info->vals stores    [val, ck, ak[0], ak[1], .., dots, ak[len - 1]
-   * info->indices stores [col, dummy, rows[0], rows[1], ... rows[len - 1]].
+   to val. To recover the dual variable we need
+       zk = ck + sum_l Pkl xl - ak^T y,
+   where (Pvals, Pcols) is row k of P restricted to the columns still active
+   when xk was fixed (including the diagonal) and ck is the linear coefficient
+   at that moment. For an LP, P_len is 0.
+   * info->vals stores    [val, ck, ak[0], .., ak[len - 1],
+                           Pvals[0], .., Pvals[P_len - 1]]
+   * info->indices stores [col, P_len, rows[0], .., rows[len - 1],
+                           Pcols[0], .., Pcols[P_len - 1]].
+   len is 0 for an empty column.
 */
 void save_retrieval_fixed_col(PostsolveInfo *info, int col, double val, double ck,
-                              const double *vals, const int *rows, size_t len);
+                              const double *vals, const int *rows, size_t len,
+                              const double *Pvals, const int *Pcols, size_t P_len);
+
+typedef struct FixedColRecord
+{
+    int col;
+    double val;
+    double ck;
+    int len;
+    const int *rows;
+    const double *vals;
+    int P_len;
+    const int *P_cols;
+    const double *P_vals;
+} FixedColRecord;
+
+static inline FixedColRecord decode_fixed_col(const int *indices, const double *vals,
+                                              int record_len)
+{
+    FixedColRecord r;
+    assert(record_len >= 2);
+    r.col = indices[0];
+    r.P_len = indices[1];
+    r.val = vals[0];
+    r.ck = vals[1];
+    r.len = record_len - 2 - r.P_len;
+    assert(r.len >= 0 && r.P_len >= 0);
+    r.rows = indices + 2;
+    r.vals = vals + 2;
+    r.P_cols = indices + 2 + r.len;
+    r.P_vals = vals + 2 + r.len;
+    return r;
+}
 
 /* Saves the information required to retrieve variable xk that was fixed
    to either +INF or -INF.
@@ -136,18 +198,140 @@ void save_retrieval_fixed_col_inf(PostsolveInfo *info, int col, int pos_inf,
                                   const struct Constraints *constraints,
                                   double bound);
 
+/* The n_rows rows are stored one after the other in row_indices / row_vals
+   and are read with fixed_col_inf_row below. */
+typedef struct FixedColInfRecord
+{
+    bool pos_inf;
+    int col;
+    int n_rows;
+    double bound;
+    const int *row_indices;
+    const double *row_vals;
+} FixedColInfRecord;
+
+typedef struct FixedColInfRow
+{
+    int len;
+    double side; // the finite side of the row (rhs or lhs)
+    const int *cols;
+    const double *coeffs;
+} FixedColInfRow;
+
+/* Returns the row at offset *pos of r's row area and advances *pos to the
+   next row. Start from *pos = 0 and call n_rows times. */
+static inline FixedColInfRow fixed_col_inf_row(const FixedColInfRecord *r, int *pos)
+{
+    FixedColInfRow row;
+    row.len = r->row_indices[*pos];
+    row.side = r->row_vals[*pos];
+    row.cols = r->row_indices + *pos + 1;
+    row.coeffs = r->row_vals + *pos + 1;
+    *pos += row.len + 1;
+    return row;
+}
+
+static inline FixedColInfRecord
+decode_fixed_col_inf(const int *indices, const double *vals, int record_len)
+{
+    FixedColInfRecord r;
+    assert(record_len >= 2);
+    assert(indices[0] == 1 || indices[0] == -1);
+    r.pos_inf = (indices[0] > 0);
+    r.col = indices[1];
+    r.n_rows = (int) vals[0];
+    r.bound = vals[1];
+    r.row_indices = indices + 2;
+    r.row_vals = vals + 2;
+
+#ifndef NDEBUG
+    // the rows must fill the record exactly
+    int pos = 0;
+    for (int i = 0; i < r.n_rows; ++i)
+    {
+        assert(pos < record_len - 2);
+        (void) fixed_col_inf_row(&r, &pos);
+    }
+    assert(pos == record_len - 2);
+#else
+    (void) record_len;
+#endif
+
+    return r;
+}
+
 /* This function saves the information required to retrieve variable xk
    that was substituted from the problem using equality constraint i:
    aik xk + sum_{j != k} aij xj = rhs.
    info->vals stores    [rhs, vals[0], vals[1], ... vals[len - 1], ck].
    info->indices stores [k  , cols[0], cols[1], ... cols[len - 1], i].
+   (vals, cols) is the whole row i including column k, so len >= 2.
  */
-void save_retrieval_sub_col(PostsolveInfo *info, int col, int *cols, double *coeffs,
-                            size_t len, double rhs, int i, double ck);
+void save_retrieval_sub_col(PostsolveInfo *info, int col, const int *cols,
+                            const double *coeffs, size_t len, double rhs, int i,
+                            double ck);
+
+typedef struct SubColRecord
+{
+    int k;
+    double rhs;
+    int len;
+    const int *cols;
+    const double *vals;
+    int row;
+    double ck;
+} SubColRecord;
+
+static inline SubColRecord decode_sub_col(const int *indices, const double *vals,
+                                          int record_len)
+{
+    SubColRecord r;
+    assert(record_len >= 4);
+    r.k = indices[0];
+    r.rhs = vals[0];
+    r.len = record_len - 2;
+    r.cols = indices + 1;
+    r.vals = vals + 1;
+    r.row = indices[1 + r.len];
+    r.ck = vals[1 + r.len];
+    return r;
+}
+
+/* Saves the substitution x_k = shift + mult * x_s made by the doubleton
+   eliminator. The owner row's multiplier comes from the DELETED_ROW and
+   ADDED_ROWS records, so this record carries only the primal map; the
+   postsolve sets z_k = 0.
+   info->vals stores    [mult, shift].
+   info->indices stores [k, s].
+*/
+void save_retrieval_sub_col_dton(PostsolveInfo *info, int k, int s, double mult,
+                                 double shift);
+
+typedef struct SubColDtonRecord
+{
+    int k;
+    int s;
+    double mult;
+    double shift;
+} SubColDtonRecord;
+
+static inline SubColDtonRecord
+decode_sub_col_dton(const int *indices, const double *vals, int record_len)
+{
+    SubColDtonRecord r;
+    assert(record_len == 2);
+    (void) record_len; // only used by the assert
+    r.k = indices[0];
+    r.s = indices[1];
+    r.mult = vals[0];
+    r.shift = vals[1];
+    return r;
+}
 
 /* This function saves the information required to retrieve variable xj
    and xk that were replaced with a new variable x_new = xj + ratio * xk
-   due to parallel column reduction.
+   due to parallel column reduction. (Note that the parameter order is
+   ub_j, lb_j while the record stores lb_j first.)
     info->vals stores    [lb_j, ub_j, lb_k, ub_k, ratio].
     info->indices stores [j, k, cTag_j, cTag_k, dummy_value].
 */
@@ -155,13 +339,123 @@ void save_retrieval_parallel_col(PostsolveInfo *info, double ub_j, double lb_j,
                                  double lb_k, double ub_k, double ratio, int j,
                                  int k, ColTag cTag_j, ColTag cTag_k);
 
-/* This function saves the value on yi when row i is deleted */
+typedef struct ParallelColRecord
+{
+    int j;
+    int k;
+    ColTag cTag_j;
+    ColTag cTag_k;
+    double lb_j;
+    double ub_j;
+    double lb_k;
+    double ub_k;
+    double ratio;
+} ParallelColRecord;
+
+static inline ParallelColRecord
+decode_parallel_col(const int *indices, const double *vals, int record_len)
+{
+    ParallelColRecord r;
+    assert(record_len == 5);
+    (void) record_len; // only used by the assert
+    assert(indices[4] == DUMMY_VALUE);
+    r.j = indices[0];
+    r.k = indices[1];
+    r.cTag_j = (ColTag) indices[2];
+    r.cTag_k = (ColTag) indices[3];
+    r.lb_j = vals[0];
+    r.ub_j = vals[1];
+    r.lb_k = vals[2];
+    r.ub_k = vals[3];
+    r.ratio = vals[4];
+    return r;
+}
+
+/* This function saves the value on yi when row i is deleted.
+ * info->vals stores    [val].
+ * info->indices stores [row].
+ */
 void save_retrieval_deleted_row(PostsolveInfo *info, int row, double val);
 
+typedef struct DeletedRowRecord
+{
+    int row;
+    double val;
+} DeletedRowRecord;
+
+static inline DeletedRowRecord decode_deleted_row(const int *indices,
+                                                  const double *vals, int record_len)
+{
+    DeletedRowRecord r;
+    assert(record_len == 1);
+    (void) record_len; // only used by the assert
+    r.row = indices[0];
+    r.val = vals[0];
+    return r;
+}
+
+/* Recovers yi when equality row i (coefficient aik) eliminated a column k that
+   appears in P. The multiplier needs the gradient at k, hence x, so the LP
+   records leave the P part out of yi. This record is saved before them,
+   replays after them and adds it:
+       yi += (zk + Pkk xk) / aik,   zk = 0.
+   For a fixed xk, FIXED_COL (which holds row k of P) has already put the P
+   part into zk and Pkk = 0. For an xk substituted by the doubleton
+   eliminator, SUB_COL_DTON leaves zk = 0 and Pkk is the diagonal of row k of
+   P at that time (its only entry, see diagonal_only_P_entry).
+   * info->vals stores    [aik, Pkk]
+   * info->indices stores [row, col]
+*/
+void save_retrieval_deleted_row_zk(PostsolveInfo *info, int row, int col, double aik,
+                                   double Pkk);
+
+typedef struct DeletedRowZkRecord
+{
+    int row;
+    int col;
+    double aik;
+    double Pkk;
+} DeletedRowZkRecord;
+
+static inline DeletedRowZkRecord
+decode_deleted_row_zk(const int *indices, const double *vals, int record_len)
+{
+    DeletedRowZkRecord r;
+    assert(record_len == 2);
+    (void) record_len; // only used by the assert
+    r.row = indices[0];
+    r.col = indices[1];
+    r.aik = vals[0];
+    r.Pkk = vals[1];
+    return r;
+}
+
 /* This function saves the information required to retrieve yi when
-   row i is added to row j so the new row j becomes aj = aj + ratio * ai
+   row i is added to row j so the new row j becomes aj = aj + ratio * ai.
+   * info->vals stores    [ratio, dummy].
+   * info->indices stores [i, j].
 */
 void save_retrieval_added_row(PostsolveInfo *info, int i, int j, double ratio);
+
+typedef struct AddedRowRecord
+{
+    int i;
+    int j;
+    double ratio;
+} AddedRowRecord;
+
+static inline AddedRowRecord decode_added_row(const int *indices, const double *vals,
+                                              int record_len)
+{
+    AddedRowRecord r;
+    assert(record_len == 2);
+    (void) record_len; // only used by the assert
+    assert(vals[1] == DUMMY_VALUE);
+    r.i = indices[0];
+    r.j = indices[1];
+    r.ratio = vals[0];
+    return r;
+}
 
 /* This function saves the information required to retrieve yi and yj
    when the rhs or lhs of row i is changed because of row j. Here we assume that
@@ -170,11 +464,37 @@ void save_retrieval_added_row(PostsolveInfo *info, int i, int j, double ratio);
    * info->vals stores [new_side, ratio, vals[0], vals[1], ... vals[len - 1]].
    * info->indices stores [i, j, cols[0], cols[1], ... cols[len - 1]].
 
-   where vals and cols correspond to row i.
+   where vals and cols correspond to row i (len >= 2).
 */
 void save_retrieval_rhs_or_lhs_change(PostsolveInfo *info, int i, const double *vals,
                                       const int *cols, size_t len, double new_side,
                                       int j, double ratio, bool is_lhs_change);
+
+typedef struct SideChangeRecord
+{
+    int i;
+    int j;
+    double new_side;
+    double ratio;
+    int len;
+    const int *cols;
+    const double *vals;
+} SideChangeRecord;
+
+static inline SideChangeRecord decode_side_change(const int *indices,
+                                                  const double *vals, int record_len)
+{
+    SideChangeRecord r;
+    assert(record_len >= 4);
+    r.i = indices[0];
+    r.j = indices[1];
+    r.new_side = vals[0];
+    r.ratio = vals[1];
+    r.len = record_len - 2;
+    r.cols = indices + 2;
+    r.vals = vals + 2;
+    return r;
+}
 
 /* This function saves the information required to retrieve yi when
    row i has been added to many other rows. In this case we have
@@ -182,9 +502,32 @@ void save_retrieval_rhs_or_lhs_change(PostsolveInfo *info, int i, const double *
 
    * info->vals stores [aik, vals[0], vals[1], ... vals[len - 1]].
    * info->indices stores [i, rows[0], rows[1], ... rows[len - 1]].
+   (len >= 1)
 */
 void save_retrieval_added_rows(PostsolveInfo *info, int i, const int *rows,
                                const double *vals, size_t len, double aik);
+
+typedef struct AddedRowsRecord
+{
+    int i;
+    double aik;
+    int len;
+    const int *rows;
+    const double *vals;
+} AddedRowsRecord;
+
+static inline AddedRowsRecord decode_added_rows(const int *indices,
+                                                const double *vals, int record_len)
+{
+    AddedRowsRecord r;
+    assert(record_len >= 2);
+    r.i = indices[0];
+    r.aik = vals[0];
+    r.len = record_len - 1;
+    r.rows = indices + 1;
+    r.vals = vals + 1;
+    return r;
+}
 
 /* This function saves the information required to undo the effect of a bound
    change. Suppose we use row 'i' to update one bound on variable 'j'.
@@ -192,21 +535,66 @@ void save_retrieval_added_rows(PostsolveInfo *info, int i, const int *rows,
    of the reduced problem, we set yi = yi + zj / aij. For every variable k
    appearing in row 'i', we update zk = zk - (aik / aij) * zj.
 
-   * info->vals stores [implied_bound, original_bound].
-   * info->indices stores [j, is_original_lower_bound]
+   * info->vals stores [implied_bound, original_other_bound].
+   * info->indices stores [j, is_original_other_bound_lower_bound]
 */
 void save_retrieval_bound_change_no_row(PostsolveInfo *info, int j,
                                         double implied_bound,
                                         double original_other_bound,
                                         int is_original_other_bound_lower_bound);
 
-/* This function saves the actual row that was used to derive several bound changes.
-   info->vals stores [(double) num_of_bound_changes), vals]
-   info->indices stores [i, cols]
+typedef struct BoundChangeNoRowRecord
+{
+    int j;
+    int is_original_other_bound_lower_bound;
+    double implied_bound;
+    double original_other_bound;
+} BoundChangeNoRowRecord;
+
+static inline BoundChangeNoRowRecord
+decode_bound_change_no_row(const int *indices, const double *vals, int record_len)
+{
+    BoundChangeNoRowRecord r;
+    assert(record_len == 2);
+    (void) record_len; // only used by the assert
+    r.j = indices[0];
+    r.is_original_other_bound_lower_bound = indices[1];
+    r.implied_bound = vals[0];
+    r.original_other_bound = vals[1];
+    return r;
+}
+
+/* This function saves the actual row that was used to derive several bound
+   changes (the BOUND_CHANGE_NO_ROW records that precede this one).
+   info->vals stores    [(double) num_of_bound_changes, vals[0], .., vals[len - 1]]
+   info->indices stores [i, cols[0], .., cols[len - 1]]
+   (len >= 1)
 */
 void save_retrieval_bound_change_the_row(PostsolveInfo *info, int i, const int *cols,
                                          const double *vals, size_t len,
                                          int num_of_bound_changes);
+
+typedef struct BoundChangeTheRowRecord
+{
+    int i;
+    int num_of_bound_changes;
+    int len;
+    const int *cols;
+    const double *vals;
+} BoundChangeTheRowRecord;
+
+static inline BoundChangeTheRowRecord
+decode_bound_change_the_row(const int *indices, const double *vals, int record_len)
+{
+    BoundChangeTheRowRecord r;
+    assert(record_len >= 2);
+    r.i = indices[0];
+    r.num_of_bound_changes = (int) vals[0];
+    r.len = record_len - 1;
+    r.cols = indices + 1;
+    r.vals = vals + 1;
+    return r;
+}
 
 /* This function saves that parallel row j (with aj = ai / ratio) was removed
    in favour of row i. Postsolve does not need this (yj is recovered through
@@ -217,6 +605,26 @@ void save_retrieval_bound_change_the_row(PostsolveInfo *info, int i, const int *
    * info->indices stores [i, j].
 */
 void save_retrieval_parallel_row(PostsolveInfo *info, int i, int j, double ratio);
+
+typedef struct ParallelRowRecord
+{
+    int i;
+    int j;
+    double ratio;
+} ParallelRowRecord;
+
+static inline ParallelRowRecord
+decode_parallel_row(const int *indices, const double *vals, int record_len)
+{
+    ParallelRowRecord r;
+    assert(record_len == 2);
+    (void) record_len; // only used by the assert
+    assert(vals[1] == DUMMY_VALUE);
+    r.i = indices[0];
+    r.j = indices[1];
+    r.ratio = vals[0];
+    return r;
+}
 
 /* This function saves the information required to retrieve yi when
    equality row i has been transformed into an inequality by eliminating
@@ -232,6 +640,27 @@ void save_retrieval_parallel_row(PostsolveInfo *info, int i, int j, double ratio
 */
 void save_retrieval_eq_to_ineq(PostsolveInfo *info, int row, double val, int sign);
 
+typedef struct EqToIneqRecord
+{
+    int row;
+    int sign;
+    double val;
+} EqToIneqRecord;
+
+static inline EqToIneqRecord decode_eq_to_ineq(const int *indices,
+                                               const double *vals, int record_len)
+{
+    EqToIneqRecord r;
+    assert(record_len == 2);
+    (void) record_len; // only used by the assert
+    assert(vals[1] == DUMMY_VALUE);
+    assert(indices[1] == 1 || indices[1] == -1);
+    r.row = indices[0];
+    r.sign = indices[1];
+    r.val = vals[0];
+    return r;
+}
+
 /* This function saves that a finite side of row i was dropped as redundant
    (check_activities in SimpleReductions.c). Postsolve does not need it; the
    forward map to the reduced problem projects yi onto the sign the surviving
@@ -242,5 +671,25 @@ void save_retrieval_eq_to_ineq(PostsolveInfo *info, int row, double val, int sig
    * info->indices stores [i, sign].
 */
 void save_retrieval_side_relaxed(PostsolveInfo *info, int row, int sign);
+
+typedef struct SideRelaxedRecord
+{
+    int row;
+    int sign;
+} SideRelaxedRecord;
+
+static inline SideRelaxedRecord
+decode_side_relaxed(const int *indices, const double *vals, int record_len)
+{
+    SideRelaxedRecord r;
+    assert(record_len == 2);
+    (void) record_len; // only used by the assert
+    assert(vals[0] == DUMMY_VALUE && vals[1] == DUMMY_VALUE);
+    (void) vals;
+    assert(indices[1] == 1 || indices[1] == -1);
+    r.row = indices[0];
+    r.sign = indices[1];
+    return r;
+}
 
 #endif // CORE_POSTSOLVER_H

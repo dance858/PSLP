@@ -1,0 +1,487 @@
+#include "kkt.h"
+#include "Numerics.h"
+#include "glbopts.h"
+
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+ProblemData problem_from_csr_qp(double *Ax, int *Ai, int *Ap, int n_rows, int n_cols,
+                                int nnz, double *lhs, double *rhs, double *lbs,
+                                double *ubs, double *c, double *Px, int *Pi, int *Pp,
+                                int Pnnz)
+{
+    ProblemData prob;
+    prob.Ax = Ax;
+    prob.Ai = Ai;
+    prob.Ap = Ap;
+    prob.m = (size_t) n_rows;
+    prob.n = (size_t) n_cols;
+    prob.nnz = (size_t) nnz;
+    prob.lhs = lhs;
+    prob.rhs = rhs;
+    prob.c = c;
+    prob.lbs = lbs;
+    prob.ubs = ubs;
+    prob.obj_offset = 0.0;
+    prob.Px = Px;
+    prob.Pi = Pi;
+    prob.Pp = Pp;
+    prob.Pnnz = (size_t) Pnnz;
+    prob.cones = NULL;
+    prob.n_cones = 0;
+    return prob;
+}
+
+ProblemData problem_from_csr(double *Ax, int *Ai, int *Ap, int n_rows, int n_cols,
+                             int nnz, double *lhs, double *rhs, double *lbs,
+                             double *ubs, double *c)
+{
+    return problem_from_csr_qp(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs,
+                               c, NULL, NULL, NULL, 0);
+}
+
+/* ||(s_first, ..., s_{dim-1})||_2. */
+static double tail_norm(const double *s, int first, int dim)
+{
+    double sum = 0.0;
+    for (int ii = first; ii < dim; ++ii)
+    {
+        sum += s[ii] * s[ii];
+    }
+    return sqrt(sum);
+}
+
+/* max(0, ||s_1..|| - s_0). */
+static double soc_violation(const double *s, int dim)
+{
+    return MAX(0.0, tail_norm(s, 1, dim) - s[0]);
+}
+
+/* The largest of -s_0, -s_1 and sqrt(max(0, ||s_2..||^2 - 2 s_0 s_1)). */
+static double rotated_violation(const double *s, int dim)
+{
+    double tail = tail_norm(s, 2, dim);
+    double defect = sqrt(MAX(0.0, tail * tail - 2.0 * s[0] * s[1]));
+    return MAX(0.0, MAX(MAX(-s[0], -s[1]), defect));
+}
+
+/* s = (t, s, r) with t >= s exp(r / s), s > 0: the defect s exp(r / s) - t.
+   On the closure s = 0 the cone is t >= 0, r <= 0, and s < 0 is a violation
+   of -s. */
+static double exp_violation(const double *s)
+{
+    if (s[1] > 0.0)
+    {
+        return MAX(0.0, s[1] * exp(s[2] / s[1]) - s[0]);
+    }
+    return MAX(0.0, MAX(MAX(-s[0], s[2]), -s[1]));
+}
+
+/* y = (u, v, w) with u >= -w exp(v / w - 1), w < 0; on the closure w = 0 the
+   dual cone is u >= 0, v >= 0, and w > 0 is a violation of w. */
+static double exp_dual_violation(const double *y)
+{
+    if (y[2] < 0.0)
+    {
+        return MAX(0.0, -y[2] * exp(y[1] / y[2] - 1.0) - y[0]);
+    }
+    return MAX(0.0, MAX(MAX(-y[0], -y[1]), y[2]));
+}
+
+double cone_violation(ConeType type, const double *s, int dim)
+{
+    switch (type)
+    {
+        case PSLP_CONE_SOC:
+            return soc_violation(s, dim);
+        case PSLP_CONE_ROTATED:
+            return rotated_violation(s, dim);
+        case PSLP_CONE_EXP:
+            return exp_violation(s);
+        default:
+            return INFINITY;
+    }
+}
+
+/* SOC and ROTATED are self-dual. */
+double cone_dual_violation(ConeType type, const double *y, int dim)
+{
+    if (type == PSLP_CONE_EXP)
+    {
+        return exp_dual_violation(y);
+    }
+    return cone_violation(type, y, dim);
+}
+
+/* true if the problem has a quadratic objective term */
+static bool has_P(const ProblemData *prob)
+{
+    return prob->Pp != NULL && prob->Pnnz > 0;
+}
+
+/* p(s; l, u) = sum_i (s_i < 0 ? s_i l_i : s_i > 0 ? s_i u_i : 0).
+   A term with an infinite bound is skipped; for a dual feasible point the
+   corresponding multiplier is zero anyway. */
+static double support_term(double s, double l, double u)
+{
+    if (s < 0.0) return isinf(l) ? 0.0 : s * l;
+    if (s > 0.0) return isinf(u) ? 0.0 : s * u;
+    return 0.0;
+}
+
+/* Complementary-slackness projection: the part of the multiplier v that is
+   admissible when the activity a sits in [l, u]. */
+static double admissible_multiplier(double v, double a, double l, double u)
+{
+    if (!isinf(l) && !isinf(u) && fabs(l - u) <= FEAS_TOL) return v;
+    if (!isinf(l) && fabs(a - l) <= FEAS_TOL) return v > 0.0 ? v : 0.0;
+    if (!isinf(u) && fabs(a - u) <= FEAS_TOL) return v < 0.0 ? v : 0.0;
+    return 0.0;
+}
+
+static double clip(double v, double l, double u)
+{
+    if (!isinf(l) && v < l) v = l;
+    if (!isinf(u) && v > u) v = u;
+    return v;
+}
+
+void kkt_residuals(const ProblemData *prob, const double *x, const double *y,
+                   const double *z, KKTResiduals *out)
+{
+    const size_t m = prob->m, n = prob->n;
+    const int *Ap = prob->Ap, *Ai = prob->Ai;
+    const double *Ax = prob->Ax, *c = prob->c;
+    const double *lhs = prob->lhs, *rhs = prob->rhs;
+    const double *lbs = prob->lbs, *ubs = prob->ubs;
+    const size_t first_cone_row =
+        prob->n_cones > 0 ? (size_t) prob->cones[0].start : m;
+
+    double *Ax_vec = (double *) calloc(m > 0 ? m : 1, sizeof(double));
+    double *ATy = (double *) calloc(n > 0 ? n : 1, sizeof(double));
+    double *Px_vec = (double *) calloc(n > 0 ? n : 1, sizeof(double));
+    if (!Ax_vec || !ATy || !Px_vec)
+    {
+        free(Ax_vec);
+        free(ATy);
+        free(Px_vec);
+        out->dual_res_abs = out->primal_res_abs = out->gap_abs = NAN;
+        out->dual_res_rel = out->primal_res_rel = out->gap_rel = NAN;
+        out->y_comp_slack = out->z_comp_slack = NAN;
+        out->y_norm = out->z_norm = out->primal_obj = NAN;
+        out->bound_viol = out->x_norm = NAN;
+        out->cone_primal_viol = out->cone_dual_viol = out->cone_comp = NAN;
+        return;
+    }
+
+    for (size_t i = 0; i < m; i++)
+    {
+        double acc = 0.0;
+        for (int k = Ap[i]; k < Ap[i + 1]; k++)
+        {
+            acc += Ax[k] * x[Ai[k]];
+            ATy[Ai[k]] += Ax[k] * y[i];
+        }
+        Ax_vec[i] = acc;
+    }
+
+    // P x (zero for an LP)
+    if (has_P(prob))
+    {
+        for (size_t k = 0; k < n; k++)
+        {
+            for (int p = prob->Pp[k]; p < prob->Pp[k + 1]; p++)
+            {
+                Px_vec[k] += prob->Px[p] * x[prob->Pi[p]];
+            }
+        }
+    }
+
+    // objective, norms of the data, bound violation of x
+    double cx = 0.0, xPx = 0.0, c_norm2 = 0.0, Px_norm2 = 0.0, sides_norm2 = 0.0;
+    double x_norm2 = 0.0, bviol2 = 0.0;
+    for (size_t j = 0; j < n; j++)
+    {
+        cx += c[j] * x[j];
+        xPx += x[j] * Px_vec[j];
+        c_norm2 += c[j] * c[j];
+        Px_norm2 += Px_vec[j] * Px_vec[j];
+        x_norm2 += x[j] * x[j];
+        double proj = clip(x[j], lbs[j], ubs[j]);
+        bviol2 += (x[j] - proj) * (x[j] - proj);
+    }
+    for (size_t i = 0; i < first_cone_row; i++)
+    {
+        if (!isinf(lhs[i])) sides_norm2 += lhs[i] * lhs[i];
+        if (!isinf(rhs[i])) sides_norm2 += rhs[i] * rhs[i];
+    }
+
+    // dual residual, z norm, bound support term, z complementary slackness
+    double dual2 = 0.0, z_norm2 = 0.0, p_z = 0.0, zcs2 = 0.0;
+    for (size_t j = 0; j < n; j++)
+    {
+        double r = ATy[j] + z[j] - c[j] - Px_vec[j];
+        dual2 += r * r;
+        z_norm2 += z[j] * z[j];
+        p_z += support_term(-z[j], lbs[j], ubs[j]);
+        double zj = admissible_multiplier(z[j], x[j], lbs[j], ubs[j]);
+        zcs2 += (z[j] - zj) * (z[j] - zj);
+    }
+
+    // primal residual, y norm, row support term, y complementary slackness
+    double primal2 = 0.0, y_norm2 = 0.0, p_y = 0.0, ycs2 = 0.0;
+    for (size_t i = 0; i < first_cone_row; i++)
+    {
+        double a = Ax_vec[i];
+        double proj = clip(a, lhs[i], rhs[i]);
+        primal2 += (a - proj) * (a - proj);
+        y_norm2 += y[i] * y[i];
+        p_y += support_term(-y[i], lhs[i], rhs[i]);
+        double yi = admissible_multiplier(y[i], a, lhs[i], rhs[i]);
+        ycs2 += (y[i] - yi) * (y[i] - yi);
+    }
+
+    // cone rows: the support term -r_i y_i, and the slack s = A x - r in place
+    for (size_t i = first_cone_row; i < m; i++)
+    {
+        y_norm2 += y[i] * y[i];
+        p_y += support_term(-y[i], rhs[i], rhs[i]);
+        Ax_vec[i] -= rhs[i];
+    }
+
+    // cone blocks: membership of the slack and the multiplier, complementarity
+    double cone_primal = 0.0, cone_dual = 0.0, cone_comp = 0.0;
+    for (size_t ii = 0; ii < prob->n_cones; ii++)
+    {
+        const ConeBlock *block = prob->cones + ii;
+        const double *s = Ax_vec + block->start;
+        const double *yb = y + block->start;
+        double s_inf = 0.0, y_inf = 0.0, s2 = 0.0, y2 = 0.0, sy = 0.0;
+        for (int k = 0; k < block->dim; k++)
+        {
+            s_inf = MAX(s_inf, fabs(s[k]));
+            y_inf = MAX(y_inf, fabs(yb[k]));
+            s2 += s[k] * s[k];
+            y2 += yb[k] * yb[k];
+            sy += s[k] * yb[k];
+        }
+        double primal = cone_violation(block->type, s, block->dim) / (1.0 + s_inf);
+        double dual =
+            cone_dual_violation(block->type, yb, block->dim) / (1.0 + y_inf);
+        double comp = fabs(sy) / (1.0 + sqrt(s2 * y2));
+        cone_primal = MAX(cone_primal, primal);
+        cone_dual = MAX(cone_dual, dual);
+        cone_comp = MAX(cone_comp, comp);
+    }
+
+    // at a KKT point c^T x = -x^T P x + y^T A x + z^T x, so the gap of an LP
+    // generalizes to x^T P x + c^T x + p(-y) + p(-z)
+    double p_total = p_y + p_z;
+    out->primal_obj = 0.5 * xPx + cx + prob->obj_offset;
+    out->dual_res_abs = sqrt(dual2);
+    out->primal_res_abs = sqrt(primal2);
+    out->gap_abs = fabs(xPx + cx + p_total);
+    out->dual_res_rel = out->dual_res_abs / (1.0 + sqrt(c_norm2) + sqrt(Px_norm2));
+    out->primal_res_rel = out->primal_res_abs / (1.0 + sqrt(sides_norm2));
+    out->gap_rel = out->gap_abs / (1.0 + fabs(p_total) + fabs(xPx + cx));
+    out->y_comp_slack = sqrt(ycs2);
+    out->z_comp_slack = sqrt(zcs2);
+    out->y_norm = sqrt(y_norm2);
+    out->z_norm = sqrt(z_norm2);
+    out->bound_viol = sqrt(bviol2);
+    out->x_norm = sqrt(x_norm2);
+    out->cone_primal_viol = cone_primal;
+    out->cone_dual_viol = cone_dual;
+    out->cone_comp = cone_comp;
+
+    free(Ax_vec);
+    free(ATy);
+    free(Px_vec);
+}
+
+bool is_kkt_point(const ProblemData *prob, const double *x, const double *y,
+                  const double *z, double tol)
+{
+    KKTResiduals r;
+    kkt_residuals(prob, x, y, z, &r);
+
+    const char *names[] = {"bound violation",
+                           "primal residual",
+                           "dual residual",
+                           "z complementary slackness",
+                           "y complementary slackness",
+                           "gap",
+                           "cone primal violation",
+                           "cone dual violation",
+                           "cone complementarity"};
+    const double values[] = {r.bound_viol / (1.0 + r.x_norm),
+                             r.primal_res_rel,
+                             r.dual_res_rel,
+                             r.z_comp_slack / (1.0 + r.z_norm),
+                             r.y_comp_slack / (1.0 + r.y_norm),
+                             r.gap_rel,
+                             r.cone_primal_viol,
+                             r.cone_dual_viol,
+                             r.cone_comp};
+
+    for (size_t k = 0; k < sizeof(values) / sizeof(values[0]); ++k)
+    {
+        // written so that a NaN fails instead of passing
+        if (!(values[k] <= tol))
+        {
+            printf("KKT: %s = %.3e > tol %.3e\n", names[k], values[k], tol);
+            return false;
+        }
+    }
+    return true;
+}
+
+bool is_primal_ray_certificate(const ProblemData *prob, const double *y, double tol)
+{
+    const size_t m = prob->m, n = prob->n;
+    double *z = (double *) calloc(n > 0 ? n : 1, sizeof(double));
+    if (!z)
+    {
+        printf("primal ray: allocation failed\n");
+        return false;
+    }
+
+    // z = -A^T y
+    for (size_t i = 0; i < m; ++i)
+    {
+        for (int p = prob->Ap[i]; p < prob->Ap[i + 1]; ++p)
+        {
+            z[prob->Ai[p]] -= prob->Ax[p] * y[i];
+        }
+    }
+
+    double support = 0.0;
+    bool ok = true;
+    for (size_t i = 0; i < m && ok; ++i)
+    {
+        if (y[i] > tol)
+        {
+            if (IS_POS_INF(prob->rhs[i]))
+            {
+                printf("primal ray: y_%zu = %g > 0 but rhs is infinite\n", i, y[i]);
+                ok = false;
+            }
+            else
+                support += prob->rhs[i] * y[i];
+        }
+        else if (y[i] < -tol)
+        {
+            if (IS_NEG_INF(prob->lhs[i]))
+            {
+                printf("primal ray: y_%zu = %g < 0 but lhs is infinite\n", i, y[i]);
+                ok = false;
+            }
+            else
+                support += prob->lhs[i] * y[i];
+        }
+    }
+
+    for (size_t j = 0; j < n && ok; ++j)
+    {
+        if (z[j] > tol)
+        {
+            if (IS_POS_INF(prob->ubs[j]))
+            {
+                printf("primal ray: z_%zu = %g > 0 but ub is infinite\n", j, z[j]);
+                ok = false;
+            }
+            else
+                support += prob->ubs[j] * z[j];
+        }
+        else if (z[j] < -tol)
+        {
+            if (IS_NEG_INF(prob->lbs[j]))
+            {
+                printf("primal ray: z_%zu = %g < 0 but lb is infinite\n", j, z[j]);
+                ok = false;
+            }
+            else
+                support += prob->lbs[j] * z[j];
+        }
+    }
+    free(z);
+
+    if (ok && support >= -tol)
+    {
+        printf("primal ray: support %g is not negative\n", support);
+        ok = false;
+    }
+    return ok;
+}
+
+/* Recession-direction test of a single row or column: the activity a must be
+   zero if both sides are finite, <= 0 if only the upper side is finite and
+   >= 0 if only the lower side is finite. */
+static bool is_recession_component(double a, double l, double u, double tol)
+{
+    if (!IS_NEG_INF(l) && !IS_POS_INF(u)) return fabs(a) <= tol;
+    if (!IS_POS_INF(u)) return a <= tol;
+    if (!IS_NEG_INF(l)) return a >= -tol;
+    return true;
+}
+
+bool is_dual_ray_certificate(const ProblemData *prob, const double *d, double tol)
+{
+    for (size_t i = 0; i < prob->m; ++i)
+    {
+        double ad = 0.0;
+        for (int p = prob->Ap[i]; p < prob->Ap[i + 1]; ++p)
+        {
+            ad += prob->Ax[p] * d[prob->Ai[p]];
+        }
+        if (!is_recession_component(ad, prob->lhs[i], prob->rhs[i], tol))
+        {
+            printf("dual ray: (A d)_%zu = %g is not a recession direction of "
+                   "[%g, %g]\n",
+                   i, ad, prob->lhs[i], prob->rhs[i]);
+            return false;
+        }
+    }
+
+    for (size_t j = 0; j < prob->n; ++j)
+    {
+        if (!is_recession_component(d[j], prob->lbs[j], prob->ubs[j], tol))
+        {
+            printf("dual ray: d_%zu = %g is not a recession direction of "
+                   "[%g, %g]\n",
+                   j, d[j], prob->lbs[j], prob->ubs[j]);
+            return false;
+        }
+    }
+
+    // P d = 0: the objective is linear along the ray
+    if (has_P(prob))
+    {
+        for (size_t k = 0; k < prob->n; ++k)
+        {
+            double pd = 0.0;
+            for (int p = prob->Pp[k]; p < prob->Pp[k + 1]; ++p)
+            {
+                pd += prob->Px[p] * d[prob->Pi[p]];
+            }
+            if (fabs(pd) > tol)
+            {
+                printf("dual ray: (P d)_%zu = %g is not zero\n", k, pd);
+                return false;
+            }
+        }
+    }
+
+    double cd = 0.0;
+    for (size_t j = 0; j < prob->n; ++j)
+    {
+        cd += prob->c[j] * d[j];
+    }
+    if (cd >= -tol)
+    {
+        printf("dual ray: c'd = %g is not negative\n", cd);
+        return false;
+    }
+    return true;
+}

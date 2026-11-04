@@ -32,7 +32,7 @@
 #include "Tags.h"
 #include "Workspace.h"
 
-static inline PresolveStatus process_single_bin(const Problem *prob, const int *bin,
+static inline PresolveStatus process_single_bin(Problem *prob, const int *bin,
                                                 int bin_size, int *rows_to_recompute)
 {
     assert(bin_size > 1);
@@ -57,7 +57,7 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
     {
         j = bin[ii];
 
-        if (HAS_TAG(col_tags[j], C_TAG_INACTIVE))
+        if (HAS_TAG(col_tags[j], C_TAG_INACTIVE) || col_in_P(constraints->state, j))
         {
             continue;
         }
@@ -72,7 +72,8 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
         {
             k = bin[jj];
 
-            if (HAS_TAG(col_tags[k], C_TAG_INACTIVE))
+            if (HAS_TAG(col_tags[k], C_TAG_INACTIVE) ||
+                col_in_P(constraints->state, k))
             {
                 continue;
             }
@@ -83,9 +84,7 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
             assert(ratio != 0);
 
             // if column j and column k are parallel, remove column k
-            // if you run into issues with parallel cols activated, try to
-            // change this
-            if (IS_EQUAL_FEAS_TOL(ck * aj_vals[0], cj * ak0))
+            if (IS_EQUAL_REL(ck * aj_vals[0], cj * ak0))
             {
                 // mark that we must recount n_infs for rows in which column j
                 // appears in
@@ -159,6 +158,7 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
                 //                  mark col k as substituted
                 // ---------------------------------------------------------------------
                 set_col_to_substituted(k, col_tags + k, sub_cols_to_delete);
+                mark_P_row_inactive(prob, k);
                 save_retrieval_parallel_col(postsolve_info, ub_j_old, lb_j_old,
                                             bounds[k].lb, bounds[k].ub, ratio, j, k,
                                             col_tags[j], col_tags[k]);
@@ -216,7 +216,7 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
 
                     assert(!HAS_TAG(col_tags[k], C_TAG_INACTIVE));
                     assert(!IS_ABS_INF(bounds[k].lb));
-                    fix_col(constraints, k, bounds[k].lb, ck);
+                    fix_col(prob, k, bounds[k].lb);
                     continue;
                 }
                 else if (fix_xk_to_upper)
@@ -228,7 +228,7 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
 
                     assert(!HAS_TAG(col_tags[k], C_TAG_INACTIVE));
                     assert(!IS_ABS_INF(bounds[k].ub));
-                    fix_col(constraints, k, bounds[k].ub, ck);
+                    fix_col(prob, k, bounds[k].ub);
                     continue;
                 }
 
@@ -242,7 +242,7 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
 
                     assert(!HAS_TAG(col_tags[j], C_TAG_INACTIVE));
                     assert(!IS_ABS_INF(bounds[j].lb));
-                    fix_col(constraints, j, bounds[j].lb, cj);
+                    fix_col(prob, j, bounds[j].lb);
                     recount_ninfs = false;
                     //  break from checking if xj is parallel to other cols since
                     //  we fix it
@@ -257,7 +257,7 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
 
                     assert(!HAS_TAG(col_tags[j], C_TAG_INACTIVE));
                     assert(!IS_ABS_INF(bounds[j].ub));
-                    fix_col(constraints, j, bounds[j].ub, cj);
+                    fix_col(prob, j, bounds[j].ub);
                     recount_ninfs = false;
                     //  break from checking if xj is parallel to other cols since
                     //  we fix it
@@ -280,7 +280,7 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
     return UNCHANGED;
 }
 
-static PresolveStatus process_all_bins(const Problem *prob, const int *parallel_cols,
+static PresolveStatus process_all_bins(Problem *prob, const int *parallel_cols,
                                        const iVec *groups, int *rows_to_recompute)
 {
     if (groups->len <= 1)
@@ -323,7 +323,7 @@ PresolveStatus remove_parallel_cols(Problem *prob)
 {
     assert(prob->constraints->state->ston_rows->len == 0);
     assert(prob->constraints->state->empty_rows->len == 0);
-    assert(prob->constraints->state->empty_cols->len == 0);
+    assert(empty_cols_drained(prob));
     DEBUG(verify_problem_up_to_date(prob->constraints));
 
     Constraints *constraints = prob->constraints;
@@ -335,7 +335,8 @@ PresolveStatus remove_parallel_cols(Problem *prob)
     // finding parallel rows of AT is the same as finding parallel cols of A
     find_parallel_rows(constraints->AT, constraints->col_tags, group_starts,
                        parallel_cols, sparsity_IDs, coeff_hashes, C_TAG_INACTIVE,
-                       constraints->state->work->radix_aux);
+                       constraints->state->work->radix_aux,
+                       constraints->state->work->pool);
 #ifndef NDEBUG
     // there should be no inactive cols in group_starts here
     for (int i = 0; i < group_starts->len - 1; ++i)

@@ -462,6 +462,82 @@ static char *test_18_simple()
     return 0;
 }
 
+/*  Feasible. The first row is tight at a magnitude where the absolute
+    FEAS_TOL is below the spacing of the doubles.
+    min.   x1 + x2 + x3
+    s.t.   x1 + x2 >= 2e10 + 1
+           x1 + x2 + x3 <= 1e12
+           0 <= x1 <= 2e10, 0 <= x2, x3 <= 1
+*/
+static char *test_19_simple()
+{
+    double Ax[] = {1, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 1, 2};
+    int Ap[] = {0, 2, 5};
+    int nnz = 5;
+    int n_rows = 2;
+    int n_cols = 3;
+
+    double lhs[] = {2e10 + 1, -INF};
+    double rhs[] = {INF, 1e12};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {2e10, 1, 1};
+    double c[] = {1, 1, 1};
+
+    Settings *stgs = default_settings();
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    Problem *prob = presolver->prob;
+    Constraints *constraints = prob->constraints;
+    PresolveStatus status = check_activities(prob);
+    mu_assert("error status", status != INFEASIBLE);
+    problem_clean(prob);
+
+    PS_FREE(stgs);
+    DEBUG(run_debugger(constraints, false));
+    free_presolver(presolver);
+    return 0;
+}
+
+/*  Infeasible. As test_19_simple with the first row above its max activity by
+    more than the relative tolerance.
+    min.   x1 + x2 + x3
+    s.t.   x1 + x2 >= 2e10 + 1e6
+           x1 + x2 + x3 <= 1e12
+           0 <= x1 <= 2e10, 0 <= x2, x3 <= 1
+*/
+static char *test_20_simple()
+{
+    double Ax[] = {1, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 1, 2};
+    int Ap[] = {0, 2, 5};
+    int nnz = 5;
+    int n_rows = 2;
+    int n_cols = 3;
+
+    double lhs[] = {2e10 + 1e6, -INF};
+    double rhs[] = {INF, 1e12};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {2e10, 1, 1};
+    double c[] = {1, 1, 1};
+
+    Settings *stgs = default_settings();
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    Problem *prob = presolver->prob;
+    Constraints *constraints = prob->constraints;
+    PresolveStatus status = check_activities(prob);
+    mu_assert("error status", status == INFEASIBLE);
+    problem_clean(prob);
+
+    PS_FREE(stgs);
+    DEBUG(run_debugger(constraints, false));
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_simple()
 {
     mu_run_test(test_4_simple, counter_simple);
@@ -472,6 +548,8 @@ static const char *all_tests_simple()
     mu_run_test(test_16_simple, counter_simple);
     mu_run_test(test_17_simple, counter_simple);
     mu_run_test(test_18_simple, counter_simple);
+    mu_run_test(test_19_simple, counter_simple);
+    mu_run_test(test_20_simple, counter_simple);
 
     return 0;
 }

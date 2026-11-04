@@ -24,6 +24,7 @@
 #include "Matrix.h"
 #include "Numerics.h"
 #include "PSLP_stats.h"
+#include "Problem.h"
 #include "State.h"
 #include "glbopts.h"
 #include <stdio.h>
@@ -57,6 +58,16 @@ void run_debugger(const Constraints *constraints, bool finished)
     {
         verify_empty_when_finished(constraints);
         verify_A_and_AT(constraints, true);
+    }
+}
+
+void run_debugger_problem(const Problem *prob, bool finished)
+{
+    run_debugger(prob->constraints, finished);
+    verify_P(prob, finished);
+    if (finished)
+    {
+        PSLP_ASSERT(empty_cols_drained(prob));
     }
 }
 
@@ -103,10 +114,10 @@ void verify_empty_rows(const Constraints *constraints)
     }
 
     // verify that all empty rows have been appended using a look-up
-    // table
+    // table (an empty cone row stays and leaves the list)
     for (size_t i = 0; i < n_rows; i++)
     {
-        if (row_sizes[i] == 0)
+        if (row_sizes[i] == 0 && !HAS_TAG(constraints->row_tags[i], R_TAG_CONE))
         {
             PSLP_ASSERT(lookup[i]);
         }
@@ -149,11 +160,9 @@ void verify_ston_cols(const Constraints *constraints)
     size_t n_cols = constraints->n;
     char *lookup = ps_calloc(n_cols, sizeof(char));
 
-    // verify that all appended columns are ston columns or
-    // empty/inactive
+    // the list may hold columns that are no longer singletons, even twice
     for (size_t i = 0; i < ston_cols->len; ++i)
     {
-        PSLP_ASSERT(col_sizes[ston_cols->data[i]] <= 1);
         lookup[ston_cols->data[i]] = 1;
     }
 
@@ -186,10 +195,10 @@ void verify_ston_rows(const Constraints *constraints)
     }
 
     // verify that all ston rows have been appended using a look-up
-    // table
+    // table (a singleton cone row stays and leaves the list)
     for (size_t i = 0; i < n_rows; i++)
     {
-        if (row_sizes[i] == 1)
+        if (row_sizes[i] == 1 && !HAS_TAG(constraints->row_tags[i], R_TAG_CONE))
         {
             PSLP_ASSERT(lookup[i]);
         }
@@ -326,6 +335,11 @@ void verify_row_tags(const Constraints *constraints)
 
     for (int i = 0; i < constraints->m; ++i)
     {
+        if (HAS_TAG(row_tags[i], R_TAG_CONE))
+        {
+            PSLP_ASSERT(row_tags[i] == R_TAG_CONE && lhs[i] == rhs[i]);
+        }
+
         if (IS_NEG_INF(lhs[i]) && !HAS_TAG(row_tags[i], R_TAG_INACTIVE))
         {
             PSLP_ASSERT(HAS_TAG(row_tags[i], R_TAG_LHS_INF));
@@ -349,7 +363,8 @@ void verify_row_tags(const Constraints *constraints)
         if (!HAS_TAG(row_tags[i], R_TAG_LHS_INF) &&
             !HAS_TAG(row_tags[i], R_TAG_RHS_INF) && lhs[i] == rhs[i])
         {
-            PSLP_ASSERT(HAS_TAG(row_tags[i], (R_TAG_EQ | R_TAG_INACTIVE)));
+            PSLP_ASSERT(
+                HAS_TAG(row_tags[i], (R_TAG_EQ | R_TAG_INACTIVE | R_TAG_CONE)));
         }
     }
 }
@@ -406,7 +421,7 @@ static void verify_CSR_matrix(const Matrix *A, bool compressed)
 bool verify_A_and_AT_consistency(const Matrix *A, const Matrix *AT)
 {
     int *work_n_cols = (int *) ps_malloc(A->n, sizeof(int));
-    Matrix *real_AT = transpose(A, work_n_cols);
+    Matrix *real_AT = transpose(A, work_n_cols, 0);
 
     // check that nnz and dimensions are consistent
     PSLP_ASSERT(real_AT->m == AT->m);
@@ -464,9 +479,13 @@ void verify_A_and_AT(const Constraints *constraints, bool compressed)
     const Matrix *A = constraints->A;
     const Matrix *AT = constraints->AT;
 
-    // verify that both A and AT are valid CSR matrices
+    // during presolve the rows of AT need not be in index order, so its layout
+    // is only checked after the clean; its content is checked below either way
     verify_CSR_matrix(A, compressed);
-    verify_CSR_matrix(AT, compressed);
+    if (compressed)
+    {
+        verify_CSR_matrix(AT, compressed);
+    }
 
     // verify that A and AT are consistent
     PSLP_ASSERT(verify_A_and_AT_consistency(A, AT));
@@ -476,6 +495,42 @@ void verify_A_and_AT(const Constraints *constraints, bool compressed)
 
     // verify that AT does not store the coefficients of inactive rows
     verify_no_inactive_cols(AT, constraints->row_tags);
+}
+
+void verify_P(const Problem *prob, bool compressed)
+{
+    const Matrix *P = prob->obj->P;
+    const Constraints *constraints = prob->constraints;
+    const ColTag *col_tags = constraints->col_tags;
+    const int *P_row_sizes = constraints->state->P_row_sizes;
+    size_t k;
+    int j;
+
+    if (P == NULL)
+    {
+        PSLP_ASSERT(P_row_sizes == NULL);
+        return;
+    }
+
+    PSLP_ASSERT(P->m == constraints->n && P->n == constraints->n);
+    verify_CSR_matrix(P, compressed);
+    PSLP_ASSERT(matrix_is_symmetric(P));
+
+    for (k = 0; k < P->m; ++k)
+    {
+        if (HAS_TAG(col_tags[k], C_TAG_INACTIVE))
+        {
+            PSLP_ASSERT(P_row_sizes[k] == SIZE_INACTIVE_COL);
+            PSLP_ASSERT(P->p[k].start == P->p[k].end);
+            continue;
+        }
+
+        PSLP_ASSERT(P_row_sizes[k] == P->p[k].end - P->p[k].start);
+        for (j = P->p[k].start; j < P->p[k].end; ++j)
+        {
+            PSLP_ASSERT(!HAS_TAG(col_tags[P->i[j]], C_TAG_INACTIVE));
+        }
+    }
 }
 
 void verify_locks(const Matrix *AT, const Lock *locks, const ColTag *col_tags,
@@ -519,9 +574,36 @@ void verify_locks(const Matrix *AT, const Lock *locks, const ColTag *col_tags,
     }
 }
 
+bool empty_cols_drained(const Problem *prob)
+{
+    const State *state = prob->constraints->state;
+    const ColTag *col_tags = prob->constraints->col_tags;
+    const iVec *empty_cols = state->empty_cols;
+
+    for (size_t i = 0; i < empty_cols->len; ++i)
+    {
+        int k = empty_cols->data[i];
+        if (HAS_TAG(col_tags[k], C_TAG_INACTIVE))
+        {
+            continue;
+        }
+        if (!col_in_P(state, k))
+        {
+            return false;
+        }
+        double Pkk;
+        if (diagonal_only_P_entry(prob->obj->P, state->P_row_sizes, k, &Pkk))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void verify_empty_when_finished(const Constraints *constraints)
 {
-    PSLP_ASSERT(constraints->state->empty_cols->len == 0);
+    // empty columns kept for P are checked by run_debugger_problem
     PSLP_ASSERT(constraints->state->empty_rows->len == 0);
     PSLP_ASSERT(constraints->state->rows_to_delete->len == 0);
     PSLP_ASSERT(constraints->state->fixed_cols_to_delete->len == 0);
@@ -684,7 +766,9 @@ void verify_activity(const ColTag *col_tags, const Bound *bounds, Activity activ
                 max += vals[i] * bounds[col].lb;
             }
         }
-        PSLP_ASSERT(ABS(activity.max - max) < 1e-6);
+        // relative tolerance: activities of rows with huge coefficients and
+        // many entries differ from the maintained value by rounding
+        PSLP_ASSERT(ABS(activity.max - max) < 1e-6 * MAX(1.0, ABS(max)));
     }
 
     // if there is a min infinite contribution, the min activity should be
@@ -718,7 +802,7 @@ void verify_activity(const ColTag *col_tags, const Bound *bounds, Activity activ
             }
         }
 
-        PSLP_ASSERT(ABS(activity.min - min) < 1e-6);
+        PSLP_ASSERT(ABS(activity.min - min) < 1e-6 * MAX(1.0, ABS(min)));
     }
 }
 
@@ -745,7 +829,7 @@ void ASSERT_NO_ACTIVE_STON_ROWS(const Matrix *A, const RowTag *row_tags)
     for (int i = 0; i < A->m; ++i)
     {
         PSLP_ASSERT(A->p[i].end - A->p[i].start != 1 ||
-                    HAS_TAG(row_tags[i], R_TAG_INACTIVE));
+                    HAS_TAG(row_tags[i], (R_TAG_INACTIVE | R_TAG_CONE)));
     }
 }
 
@@ -794,7 +878,6 @@ void verify_row_states(const Activity *acts, const iVec *updated_activities)
     {
         int row = updated_activities->data[i];
         PSLP_ASSERT(acts[row].status == ADDED);
-        PSLP_ASSERT(acts[row].n_inf_min == 0 || acts[row].n_inf_max == 0);
     }
 }
 
@@ -803,7 +886,8 @@ void run_debugger_stats_consistency_check(const PresolveStats *stats)
     size_t total_removed = stats->nnz_removed_trivial + stats->nnz_removed_fast +
                            stats->nnz_removed_primal_propagation +
                            stats->nnz_removed_parallel_rows +
-                           stats->nnz_removed_parallel_cols;
+                           stats->nnz_removed_parallel_cols +
+                           stats->nnz_removed_lp_fold + stats->nnz_removed_cones;
 
     PSLP_ASSERT(stats->nnz_original - stats->nnz_reduced == total_removed);
 

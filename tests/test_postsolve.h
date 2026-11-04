@@ -7,6 +7,7 @@
 #include "PSLP_sol.h"
 
 #include "SimpleReductions.h"
+#include "kkt.h"
 #include "minunit.h"
 #include <stdio.h>
 
@@ -35,6 +36,8 @@ static char *test_0_postsolve()
     double lbs[] = {-10, -10, -10, -10, -10, -10, -10, -10};
     double ubs[] = {10, 10, 10, 10, 10, 10, 10, 10};
     double c[] = {-1, 1, -1, 1, -1, 2, -0.2, 0.7};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -54,6 +57,11 @@ static char *test_0_postsolve()
     run_presolver(presolver);
     mu_assert("transpose should be released after presolve",
               constraints->AT == NULL);
+    Work *work = prob->constraints->state->work;
+    mu_assert("presolve scratch should be released after presolve",
+              work->iwork_n_cols == NULL && work->int_vec == NULL &&
+                  work->radix_aux == NULL && work->pool == NULL &&
+                  work->mappings != NULL);
     Mapping *maps = prob->constraints->state->work->mappings;
     int *rows_map = maps->rows;
     int *cols_map = maps->cols;
@@ -83,6 +91,9 @@ static char *test_0_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -111,6 +122,8 @@ static char *test_1_postsolve()
     double lbs[] = {-10, -10, -10, -10, -10, -10, -10, -10};
     double ubs[] = {10, 10, 10, 10, 10, 10, 10, 10};
     double c[] = {-1, 1, -1, 1, -1, 2, -0.2, 0.7};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -134,6 +147,8 @@ static char *test_1_postsolve()
     double y[] = {-4.66666667, 0.66666667};
     double z[] = {-0.73333333, 1.6, 0., 0.26666667, 0., 2.03333333};
     double obj = 0.0;
+    mu_assert("reduced point is not optimal",
+              is_kkt_point(presolver->reduced_prob, x, y, z, POSTSOLVE_TOL_FEAS));
     postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
@@ -145,6 +160,9 @@ static char *test_1_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -165,6 +183,8 @@ static char *test_singleton_eq()
     double lbs[] = {-5.0, -5, -5, -5, -5};
     double ubs[] = {5.0, 5, 5, 5, 5};
     double c[] = {1.0, 2, -1, 3, -2};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -188,6 +208,8 @@ static char *test_singleton_eq()
     double y[] = {3.0625, -2.8125, 3.375};
     double z[] = {-3.1875, 0., 0., 0., 0.};
     double obj = 0.0;
+    mu_assert("reduced point is not optimal",
+              is_kkt_point(presolver->reduced_prob, x, y, z, POSTSOLVE_TOL_FEAS));
     postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
@@ -199,6 +221,9 @@ static char *test_singleton_eq()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -227,6 +252,8 @@ static char *test_1_postsolve_implied_bound_active()
     double lbs[] = {-10, -10, -10, -10, -10, -10, -10, -10};
     double ubs[] = {10, 10, 10, 10, 4.0 - 8.0 / 5.0, 10, 10, 10};
     double c[] = {-1, 1, -1, 1, -1, 2, -0.2, 0.7};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -249,6 +276,8 @@ static char *test_1_postsolve_implied_bound_active()
     double y[] = {-2.0, 0.0};
     double z[] = {-0.8, 1.4, 1.0, 1.2, 0.0, 1.3};
     double obj = 0.0;
+    mu_assert("reduced point is not optimal",
+              is_kkt_point(presolver->reduced_prob, x, y, z, POSTSOLVE_TOL_FEAS));
     postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
@@ -260,6 +289,9 @@ static char *test_1_postsolve_implied_bound_active()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -280,6 +312,8 @@ static char *test_singleton_ineq_row()
     double lbs[] = {-1.0, 0, 0};
     double ubs[] = {INF, INF, INF};
     double c[] = {3.0, 1, 2};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -302,6 +336,8 @@ static char *test_singleton_ineq_row()
     double y[] = {1.0};
     double z[] = {2.0, 0.0, 1.0};
     double obj = 0.0;
+    mu_assert("reduced point is not optimal",
+              is_kkt_point(presolver->reduced_prob, x, y, z, POSTSOLVE_TOL_FEAS));
     postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
@@ -313,6 +349,9 @@ static char *test_singleton_ineq_row()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -342,6 +381,8 @@ static char *test_2_postsolve()
     double lbs[] = {-INF, -INF, 0, 0, 0};
     double ubs[] = {INF, INF, INF, INF, INF};
     double c[] = {1, 1, -1, 3, 2};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -360,6 +401,8 @@ static char *test_2_postsolve()
     double y[] = {10.83333333, -7.33333333};
     double z[] = {0.0, 2.5, 0.0};
     double obj = 0.0;
+    mu_assert("reduced point is not optimal",
+              is_kkt_point(presolver->reduced_prob, x, y, z, POSTSOLVE_TOL_FEAS));
     postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
@@ -371,6 +414,9 @@ static char *test_2_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -391,6 +437,8 @@ static char *test_implied_free_col_ston_in_inequality_postsolve()
     double lbs[] = {0.0, 8, 0.0, 0.0};
     double ubs[] = {INF, INF, INF, INF};
     double c[] = {1.0, 2, -4, -3};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -412,6 +460,8 @@ static char *test_implied_free_col_ston_in_inequality_postsolve()
     double z[] = {5.4, 0., 4.6};
     double obj = 0.0;
 
+    mu_assert("reduced point is not optimal",
+              is_kkt_point(presolver->reduced_prob, x, y, z, POSTSOLVE_TOL_FEAS));
     postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
@@ -420,6 +470,108 @@ static char *test_implied_free_col_ston_in_inequality_postsolve()
     double correct_z[] = {5.4, 0., 0., 4.6};
 
     mu_assert("postsolve error",
+              is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
+                                  correct_y, presolver->sol->z, correct_z, n_rows,
+                                  n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/* Column singleton x0 in a one-sided <= row whose upper part is active at an
+   optimal solution ("upper part active" branch of process_colston_ineq):
+       min. -x0 + 2 x1
+       s.t.  x0 + x1 <= 1,   0 <= x0 <= 1,   0 <= x1 <= 1.
+   The upper bound of x0 coincides with the bound implied by the row, which
+   makes the optimal dual degenerate: x = (1, 0) is optimal for every
+   y in [-1, 0]. Postsolve must return a multiplier of the sign that the
+   original <= row admits, i.e. y <= 0. */
+static char *test_colston_ineq_upper_active_dual_sign()
+{
+    double Ax[] = {1.0, 1.0};
+    int Ai[] = {0, 1};
+    int Ap[] = {0, 2};
+    int nnz = 2;
+    int n_rows = 1;
+    int n_cols = 2;
+
+    double lhs[] = {-INF};
+    double rhs[] = {1.0};
+    double lbs[] = {0.0, 0.0};
+    double ubs[] = {1.0, 1.0};
+    double c[] = {-1.0, 2.0};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->ston_cols = true;
+    stgs->verbose = false;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    mu_assert("colston ineq upper active: problem should be solved by presolve",
+              presolver->reduced_prob->m == 0 && presolver->reduced_prob->n == 0);
+
+    // the reduced problem is empty, so the reduced solution is empty
+    double x[1], y[1], z[1];
+    postsolve(presolver, x, y, z);
+
+    double correct_x[] = {1.0, 0.0};
+    double correct_y[] = {-1.0};
+    double correct_z[] = {0.0, 3.0};
+
+    mu_assert("colston ineq upper active: wrong sign on the multiplier of a "
+              "<= row",
+              is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
+                                  correct_y, presolver->sol->z, correct_z, n_rows,
+                                  n_cols, POSTSOLVE_TOL_FEAS));
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/* Mirror of the test above for a >= row ("lower part active" branch):
+       min.  x0 - 2 x1
+       s.t.  x0 + x1 >= 1,   0 <= x0 <= 1,   0 <= x1 <= 1.
+   x = (0, 1) is optimal for every y in [0, 1]; postsolve must return y >= 0. */
+static char *test_colston_ineq_lower_active_dual_sign()
+{
+    double Ax[] = {1.0, 1.0};
+    int Ai[] = {0, 1};
+    int Ap[] = {0, 2};
+    int nnz = 2;
+    int n_rows = 1;
+    int n_cols = 2;
+
+    double lhs[] = {1.0};
+    double rhs[] = {INF};
+    double lbs[] = {0.0, 0.0};
+    double ubs[] = {1.0, 1.0};
+    double c[] = {1.0, -2.0};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->ston_cols = true;
+    stgs->verbose = false;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    mu_assert("colston ineq lower active: problem should be solved by presolve",
+              presolver->reduced_prob->m == 0 && presolver->reduced_prob->n == 0);
+
+    double x[1], y[1], z[1];
+    postsolve(presolver, x, y, z);
+
+    double correct_x[] = {0.0, 1.0};
+    double correct_y[] = {1.0};
+    double correct_z[] = {0.0, -3.0};
+
+    mu_assert("colston ineq lower active: wrong sign on the multiplier of a "
+              ">= row",
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
@@ -443,6 +595,8 @@ static char *test_col_ston_dual_fix()
     double lbs[] = {0.0, 1, 0, 0};
     double ubs[] = {INF, INF, INF, INF};
     double c[] = {4.0, 1, -2, 7};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -464,6 +618,8 @@ static char *test_col_ston_dual_fix()
     double z[] = {6.66666667, 0., 9.66666667};
     double obj = 0.0;
 
+    mu_assert("reduced point is not optimal",
+              is_kkt_point(presolver->reduced_prob, x, y, z, POSTSOLVE_TOL_FEAS));
     postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
@@ -475,6 +631,9 @@ static char *test_col_ston_dual_fix()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -499,6 +658,8 @@ static char *test_3_postsolve()
     double lbs[] = {-INF, -INF, -INF, 0, 0, 0, 0, 0, 0, 0, -INF};
     double ubs[] = {INF, INF, INF, 1, 2, 3, 4, 3, 6, 7, 8};
     double c[] = {1.0, 1, 1.03, -5, 2.3, 3.1, -2, 1.05, -3, 4, 1};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -519,6 +680,8 @@ static char *test_3_postsolve()
     double z[] = {0., 1.3, 2.1, -3., 0.05, -4., 3., 0.};
     double obj = 0.0;
 
+    mu_assert("reduced point is not optimal",
+              is_kkt_point(presolver->reduced_prob, x, y, z, POSTSOLVE_TOL_FEAS));
     postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
@@ -530,6 +693,9 @@ static char *test_3_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -559,6 +725,8 @@ static char *test_4_postsolve()
     double lbs[] = {-10, -10, -10, -INF, -10};
     double ubs[] = {10, 10, 10, 10, 10};
     double c[] = {1, -2, 1, 0, 3};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -578,6 +746,8 @@ static char *test_4_postsolve()
     double z[] = {1.5, -1.25, 0., 3.75};
     double obj = 0.0;
 
+    mu_assert("reduced point is not optimal",
+              is_kkt_point(presolver->reduced_prob, x, y, z, POSTSOLVE_TOL_FEAS));
     postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
@@ -589,6 +759,9 @@ static char *test_4_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -627,6 +800,8 @@ static char *test_6_postsolve()
     double lbs[] = {-1, -2, -3, -4, -5, -6, -7, -8};
     double ubs[] = {1, 2, 3, 4, 5, 6, 7, 8};
     double c[] = {2, 3, -4, -3, -6, 6, 3, 1};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -650,6 +825,8 @@ static char *test_6_postsolve()
     double z[] = {3., -6., 6., 1.};
     double obj = 0.0;
 
+    mu_assert("reduced point is not optimal",
+              is_kkt_point(presolver->reduced_prob, x, y, z, POSTSOLVE_TOL_FEAS));
     postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
@@ -661,6 +838,9 @@ static char *test_6_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
 
     PS_FREE(stgs);
     free_presolver(presolver);
@@ -686,6 +866,8 @@ static char *test_7_postsolve()
     double lbs[] = {-1, -2, -3, -4, -5, -6, -7, -8};
     double ubs[] = {1, 2, 3, 4, 5, 6, 7, 8};
     double c[] = {2, 3, -4, -3, -6, 6, 3, 1};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -707,6 +889,8 @@ static char *test_7_postsolve()
     double z[] = {3., -6., 6., 1.};
     double obj = 0.0;
 
+    mu_assert("reduced point is not optimal",
+              is_kkt_point(presolver->reduced_prob, x, y, z, POSTSOLVE_TOL_FEAS));
     postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
@@ -718,6 +902,9 @@ static char *test_7_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
 
     PS_FREE(stgs);
     free_presolver(presolver);
@@ -745,6 +932,8 @@ static char *test_8_postsolve()
     double lbs[] = {-INF, 0, 0, 0, 0};
     double ubs[] = {INF, INF, INF, INF, INF};
     double c[] = {2, -1, -1, 3, 2};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -765,11 +954,14 @@ static char *test_8_postsolve()
     int *rows_map = maps->rows;
     int *cols_map = maps->cols;
 
-    // construct optimal primal solution to reduced problem (computed offline)
-    double x[] = {0.83333333, 0.16666667, 0., 0.};
+    // optimal solution of the reduced problem (x2 = (x1 + 1)/2 eliminated;
+    // computed offline)
+    double x[] = {0.66666667, 0.16666667, 0., 0.};
     double y[] = {1., -0.33333333};
     double z[] = {0., 0., 1., 0.33333333};
     double obj = 0.0;
+    mu_assert("reduced point is not optimal",
+              is_kkt_point(presolver->reduced_prob, x, y, z, POSTSOLVE_TOL_FEAS));
     postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
@@ -781,6 +973,9 @@ static char *test_8_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -807,6 +1002,8 @@ static char *test_9_postsolve()
     double lbs[] = {0, 0, 0};
     double ubs[] = {INF, INF, INF};
     double c[] = {1.0, 1.1, 1.2};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -830,6 +1027,8 @@ static char *test_9_postsolve()
     double y[] = {0.5};
     double z[] = {0., 0.1, 0.2};
     double obj = 0.0;
+    mu_assert("reduced point is not optimal",
+              is_kkt_point(presolver->reduced_prob, x, y, z, POSTSOLVE_TOL_FEAS));
     postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
@@ -841,6 +1040,9 @@ static char *test_9_postsolve()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -861,6 +1063,8 @@ static char *test_pathological_ston_one()
     double lbs[] = {3.0, -5, -5, -5};
     double ubs[] = {INF, 5, 5, 5};
     double c[] = {1.0, 2, 3, -4};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -884,6 +1088,8 @@ static char *test_pathological_ston_one()
     double y[] = {-0.35294118, 0.58823529};
     double z[] = {0., 4.29411765, 0.};
     double obj = 0.0;
+    mu_assert("reduced point is not optimal",
+              is_kkt_point(presolver->reduced_prob, x, y, z, POSTSOLVE_TOL_FEAS));
     postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
@@ -895,6 +1101,9 @@ static char *test_pathological_ston_one()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -915,6 +1124,8 @@ static char *test_pathological_ston_two()
     double lbs[] = {3.0, -5, -5, -5};
     double ubs[] = {INF, 5, 5, 5};
     double c[] = {-2.0, 2, 3, -4};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -938,6 +1149,8 @@ static char *test_pathological_ston_two()
     double y[] = {-0.35294118, 0.58823529};
     double z[] = {0., 4.29411765, 0.};
     double obj = 0.0;
+    mu_assert("reduced point is not optimal",
+              is_kkt_point(presolver->reduced_prob, x, y, z, POSTSOLVE_TOL_FEAS));
     postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
@@ -949,6 +1162,9 @@ static char *test_pathological_ston_two()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -968,6 +1184,8 @@ static char *test_fix_col_inf()
     double lbs[] = {-1.0, -INF, 0.5};
     double ubs[] = {INF, INF, INF};
     double c[] = {1.0, 0, 2};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
 
     Settings *stgs = default_settings();
     set_settings_true(stgs);
@@ -991,6 +1209,8 @@ static char *test_fix_col_inf()
     double y[] = {0.0, 0.5};
     double z[] = {0.0, 1.5};
     double obj = 0.0;
+    mu_assert("reduced point is not optimal",
+              is_kkt_point(presolver->reduced_prob, x, y, z, POSTSOLVE_TOL_FEAS));
     postsolve(presolver, x, y, z);
 
     // check that the primal solution to the original problem is correct
@@ -1002,6 +1222,9 @@ static char *test_fix_col_inf()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -1036,7 +1259,8 @@ static char *test_parallel_col_dual_identity()
 
     run_presolver(presolver);
 
-    // reduced problem: the merged column (box [0, 13]) and x3
+    // reduced problem: the merged column (box [0, 13]) and x3. The point is
+    // not optimal (it only exercises the identity), so no KKT check here.
     double x[] = {7, 10};
     double y[] = {0.3, 0.1};
     double z[] = {0.4, -0.3};
@@ -1055,6 +1279,300 @@ static char *test_parallel_col_dual_identity()
     return 0;
 }
 
+/*  Checks that every postsolved multiplier has a sign its original bound or
+    side allows: no positive z on an infinite lb, no negative z on an infinite
+    ub, and the same for y with the row sides. */
+static char *check_dual_signs(const ProblemData *orig, const double *y,
+                              const double *z)
+{
+    for (size_t i = 0; i < orig->m; ++i)
+    {
+        mu_assert("positive row dual without a finite lhs",
+                  !(y[i] > POSTSOLVE_TOL_FEAS && IS_NEG_INF(orig->lhs[i])));
+        mu_assert("negative row dual without a finite rhs",
+                  !(y[i] < -POSTSOLVE_TOL_FEAS && IS_POS_INF(orig->rhs[i])));
+    }
+
+    for (size_t j = 0; j < orig->n; ++j)
+    {
+        mu_assert("positive bound dual without a finite lb",
+                  !(z[j] > POSTSOLVE_TOL_FEAS && IS_NEG_INF(orig->lbs[j])));
+        mu_assert("negative bound dual without a finite ub",
+                  !(z[j] < -POSTSOLVE_TOL_FEAS && IS_POS_INF(orig->ubs[j])));
+    }
+
+    return 0;
+}
+
+/*  Singleton inequality row with an approximate reduced solution.
+    min. [2  1] x
+    s.t. [2  0] x >= 1e5
+         [1  1] x >= 6e4
+         x0 free, 0 <= x1 <= 1e5
+    The singleton row becomes the bound x0 >= 5e4 and is deleted. The reduced
+    problem has the unique optimum x = (5e4, 1e4), y = 1, z = (1, 0): the new
+    bound is active with multiplier 1. The reduced point here is scaled by
+    (1 + 2e-10), as a first-order solver's may be, so x0 misses the bound by
+    1e-5: more than FEAS_TOL, though 2e-10 relative. Postsolve must still hand
+    z0 to the deleted row (y0 = 1 / 2), since x0 has no lower bound in the
+    original problem and a positive z0 there is dual infeasible. */
+static char *test_ston_row_bound_dual_approximate_solution()
+{
+    double Ax[] = {2, 1, 1};
+    int Ai[] = {0, 0, 1};
+    int Ap[] = {0, 1, 3};
+    int nnz = 3;
+    int n_rows = 2;
+    int n_cols = 2;
+
+    double lhs[] = {1e5, 6e4};
+    double rhs[] = {INF, INF};
+    double lbs[] = {-INF, 0};
+    double ubs[] = {INF, 1e5};
+    double c[] = {2, 1};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    ProblemData *red = presolver->reduced_prob;
+    mu_assert("expected the singleton row removed", red->m == 1 && red->n == 2);
+    mu_assert("expected the bound x0 >= 5e4", IS_EQUAL_FEAS_TOL(red->lbs[0], 5e4));
+
+    double scale = 1 + 2e-10;
+    double x[] = {5e4 * scale, 1e4 * scale};
+    double y[] = {1};
+    double z[] = {1, 0};
+    postsolve(presolver, x, y, z);
+
+    double *y_orig = presolver->sol->y;
+    double *z_orig = presolver->sol->z;
+    char *msg = check_dual_signs(&orig, y_orig, z_orig);
+    if (msg)
+    {
+        return msg;
+    }
+
+    mu_assert("bound dual not handed to the singleton row",
+              IS_EQUAL_FEAS_TOL(y_orig[0], 0.5));
+
+    KKTResiduals res;
+    kkt_residuals(&orig, presolver->sol->x, y_orig, z_orig, &res);
+    mu_assert("postsolved duals do not satisfy A^T y + z = c",
+              res.dual_res_rel <= 1e-12);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/*  Implied bound from primal propagation with an approximate reduced solution.
+    min. [3  -1] x
+    s.t. [1   1] x >= 1e5
+         x0 <= 1e5, 0 <= x1 <= 5e4
+    Propagation derives x0 >= 1e5 - 5e4 = 5e4 from the row (x0 needs a finite
+    ub for the row to have a finite max activity, which propagation requires;
+    its lb stays infinite in the original problem, which is what the test is
+    about). The reduced
+    problem keeps the row and has the optimum x = (5e4, 5e4) with the duals
+    y = 0, z = (3, -1): the implied bound is active with multiplier 3 and the
+    row is tight with a zero multiplier (an active implied bound makes the row
+    tight at the other columns' bounds, so the point is degenerate by nature).
+    The reduced point is scaled by (1 + 2e-10) as in the singleton-row test.
+    Postsolve must still hand z0 to the row, y0 = 3 and z1 = -1 - 3 = -4, since
+    x0 has no lower bound in the original problem. */
+static char *test_propagation_bound_dual_approximate_solution()
+{
+    double Ax[] = {1, 1};
+    int Ai[] = {0, 1};
+    int Ap[] = {0, 2};
+    int nnz = 2;
+    int n_rows = 1;
+    int n_cols = 2;
+
+    double lhs[] = {1e5};
+    double rhs[] = {INF};
+    double lbs[] = {-INF, 0};
+    double ubs[] = {1e5, 5e4};
+    double c[] = {3, -1};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->primal_propagation = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    ProblemData *red = presolver->reduced_prob;
+    mu_assert("expected the row kept", red->m == 1 && red->n == 2);
+    mu_assert("expected the implied bound x0 >= 5e4",
+              IS_EQUAL_FEAS_TOL(red->lbs[0], 5e4));
+
+    double scale = 1 + 2e-10;
+    double x[] = {5e4 * scale, 5e4 * scale};
+    double y[] = {0};
+    double z[] = {3, -1};
+    postsolve(presolver, x, y, z);
+
+    double *y_orig = presolver->sol->y;
+    double *z_orig = presolver->sol->z;
+    char *msg = check_dual_signs(&orig, y_orig, z_orig);
+    if (msg)
+    {
+        return msg;
+    }
+
+    mu_assert("bound dual not handed to the row that implied it",
+              IS_EQUAL_FEAS_TOL(y_orig[0], 3.0) &&
+                  IS_EQUAL_FEAS_TOL(z_orig[1], -4.0));
+
+    KKTResiduals res;
+    kkt_residuals(&orig, presolver->sol->x, y_orig, z_orig, &res);
+    mu_assert("postsolved duals do not satisfy A^T y + z = c",
+              res.dual_res_rel <= 1e-12);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/*  Parallel rows with an approximate reduced solution.
+    min. [1     2     3]
+    s.t.      [ 1000   1000   1000]  <= 1e5
+              [-2000  -2000  -2000]  <= -1.6e5
+              [    1     -1      0]  <= 30
+              [    0      1     -1]  <= 20
+              [    1      0      1]  <= 70
+                         0 <= x <= 100
+    Rows 0 and 1 are parallel and one of them is removed. In the reduced
+    problem the kept row has both sides, x = (160/3, 70/3, 10/3) and its dual
+    is 2 / a (a = its coefficient), on the side that came from the removed row
+    if row 0 is kept. The reduced point here is scaled by (1 + 2e-10), as a
+    first-order solver's may be, so the kept row misses that side by 1.6e-5:
+    more than FEAS_TOL, though about 2e-10 relative. Postsolve must still
+    leave every row dual with a sign its sides allow: neither row has a
+    finite lhs, so neither may end up with a positive dual.
+*/
+static char *test_parallel_rows_dual_approximate_solution()
+{
+    double Ax[] = {1000, 1000, 1000, -2000, -2000, -2000, 1, -1, 1, -1, 1, 1};
+    int Ai[] = {0, 1, 2, 0, 1, 2, 0, 1, 1, 2, 0, 2};
+    int Ap[] = {0, 3, 6, 8, 10, 12};
+    int nnz = 12;
+    int n_rows = 5;
+    int n_cols = 3;
+
+    double lhs[] = {-INF, -INF, -INF, -INF, -INF};
+    double rhs[] = {1e5, -1.6e5, 30, 20, 70};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {100, 100, 100};
+    double c[] = {1, 2, 3};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->parallel_rows = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    ProblemData *red = presolver->reduced_prob;
+    mu_assert("expected one parallel row removed", red->m == 4 && red->n == 3);
+
+    // optimal reduced point, scaled by (1 + 2e-10); the kept parallel row is
+    // reduced row 0 with coefficient a, the other rows keep their order
+    double a = red->Ax[red->Ap[0]];
+    double scale = 1 + 2e-10;
+    double x[] = {160.0 / 3 * scale, 70.0 / 3 * scale, 10.0 / 3 * scale};
+    double y[] = {2 / a, -1, -1, 0};
+    double z[] = {0, 0, 0};
+    postsolve(presolver, x, y, z);
+
+    double *y_orig = presolver->sol->y;
+    for (int i = 0; i < n_rows; ++i)
+    {
+        mu_assert("positive row dual without a finite lhs",
+                  !(y_orig[i] > POSTSOLVE_TOL_FEAS && IS_NEG_INF(lhs[i])));
+        mu_assert("negative row dual without a finite rhs",
+                  !(y_orig[i] < -POSTSOLVE_TOL_FEAS && IS_POS_INF(rhs[i])));
+    }
+
+    KKTResiduals res;
+    kkt_residuals(&orig, presolver->sol->x, y_orig, presolver->sol->z, &res);
+    mu_assert("postsolved duals do not satisfy A^T y + z = c",
+              res.dual_res_rel <= 1e-12);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/*  Parallel rows where both sides of the kept row come from the removed row.
+    min. [1  1] x
+    s.t.   0 <= [1  1] x <= 100
+          10 <= [1  1] x <= 50
+          0 <= x <= 100
+    The kept row takes both sides of the other one, so the pair has an
+    LHS_CHANGE and an RHS_CHANGE record. At the optimum the lhs 10 is active
+    with y = 1, which must end up on the row the side came from. */
+static char *test_parallel_rows_both_sides_moved()
+{
+    double Ax[] = {1, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 1};
+    int Ap[] = {0, 2, 4};
+    int nnz = 4;
+    int n_rows = 2;
+    int n_cols = 2;
+
+    double lhs[] = {0, 10};
+    double rhs[] = {100, 50};
+    double lbs[] = {0, 0};
+    double ubs[] = {100, 100};
+    double c[] = {1, 1};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->parallel_rows = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    ProblemData *red = presolver->reduced_prob;
+    mu_assert("expected one parallel row removed", red->m == 1 && red->n == 2);
+    mu_assert("expected both sides on the kept row",
+              IS_EQUAL_FEAS_TOL(red->lhs[0], 10) &&
+                  IS_EQUAL_FEAS_TOL(red->rhs[0], 50));
+
+    double x[] = {10, 0};
+    double y[] = {1};
+    double z[] = {0, 0};
+    postsolve(presolver, x, y, z);
+
+    double correct_x[] = {10, 0};
+    double correct_y[] = {0, 1};
+    double correct_z[] = {0, 0};
+    mu_assert("both-sides parallel rows postsolve error",
+              is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
+                                  correct_y, presolver->sol->z, correct_z, n_rows,
+                                  n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_postsolve()
 {
     mu_run_test(test_0_postsolve, counter_postsolve);
@@ -1064,6 +1582,8 @@ static const char *all_tests_postsolve()
     mu_run_test(test_2_postsolve, counter_postsolve);
     mu_run_test(test_implied_free_col_ston_in_inequality_postsolve,
                 counter_postsolve);
+    mu_run_test(test_colston_ineq_upper_active_dual_sign, counter_postsolve);
+    mu_run_test(test_colston_ineq_lower_active_dual_sign, counter_postsolve);
     mu_run_test(test_col_ston_dual_fix, counter_postsolve);
     mu_run_test(test_3_postsolve, counter_postsolve);
     mu_run_test(test_4_postsolve, counter_postsolve);
@@ -1080,6 +1600,10 @@ static const char *all_tests_postsolve()
     mu_run_test(test_pathological_ston_two, counter_postsolve);
     mu_run_test(test_fix_col_inf, counter_postsolve);
     mu_run_test(test_parallel_col_dual_identity, counter_postsolve);
+    mu_run_test(test_ston_row_bound_dual_approximate_solution, counter_postsolve);
+    mu_run_test(test_propagation_bound_dual_approximate_solution, counter_postsolve);
+    mu_run_test(test_parallel_rows_dual_approximate_solution, counter_postsolve);
+    mu_run_test(test_parallel_rows_both_sides_moved, counter_postsolve);
     //        all tests above pass
 
     return 0;

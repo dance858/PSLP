@@ -16,6 +16,9 @@
  * limitations under the License.
  */
 
+#ifndef U16VEC_H
+#define U16VEC_H
+
 #include <stdint.h>
 
 // This macro defines a vector of uint16_t.
@@ -31,3 +34,4 @@ __attribute__((unused)) static void print_u16Vec(const u16Vec *vec)
     printf("\n");
 }
 */
+#endif // U16VEC_H

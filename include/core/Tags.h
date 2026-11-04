@@ -33,7 +33,10 @@ enum RowTag
     R_TAG_RHS_INF = 1 << 1,
     R_TAG_EQ = 1 << 2,
     R_TAG_INACTIVE = 1 << 3,
-    R_TAG_INFEAS = 1 << 4
+    R_TAG_INFEAS = 1 << 4,
+    /* a row of a cone block. Bit 7 is outside the ColTag bits, which the
+       matrix verifier applies to row tags as well. */
+    R_TAG_CONE = 1 << 7
 };
 
 enum ColTag

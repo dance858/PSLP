@@ -26,6 +26,7 @@
 struct Constraints;
 struct Matrix;
 struct iVec;
+struct ThreadPool;
 
 // this is static and inlined in .c file, but we expose it for testing
 #ifdef TESTING
@@ -52,11 +53,12 @@ void compute_supp_and_coeff_hash(const struct Matrix *A, const RowTag *rowtags,
     * 'parallel_rows' must be of size A->m. (It is used as internal workspace)
     * 'sparsity_IDs' must be of size A->m.
     * 'coeff_hashes' must be of size A->m.
+    * 'pool' sorts large inputs in parallel; NULL sorts sequentially.
 */
 void find_parallel_rows(const struct Matrix *A, const RowTag *r_Tags,
                         struct iVec *group_starts, int *parallel_rows,
                         int *sparsity_IDs, int *coeff_hashes, RowTag INACTIVE_TAG,
-                        int *radix_aux);
+                        int *radix_aux, struct ThreadPool *pool);
 
 /* This function finds parallel rows and deletes the redundant ones, or declares
    the problem as infeasible if the parallel rows are not consistent. It returns

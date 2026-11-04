@@ -5,6 +5,7 @@
 #include "Numerics.h"
 #include "PSLP_API.h"
 #include "PSLP_sol.h"
+#include "kkt.h"
 #include "minunit.h"
 #include "test_macros.h"
 #include <assert.h>
@@ -53,6 +54,11 @@ static bool check_round_trip(Presolver *presolver, const double *x, const double
     double x_red[MAP_MAX_DIM], y_red[MAP_MAX_DIM], z_red[MAP_MAX_DIM];
     assert(n <= MAP_MAX_DIM && m <= MAP_MAX_DIM);
     map_original_sol_to_reduced(presolver, x, y, x_red, y_red, z_red);
+    if (!is_kkt_point(presolver->reduced_prob, x_red, y_red, z_red, MAP_TOL))
+    {
+        printf("mapped point is not optimal for the reduced problem\n");
+        return false;
+    }
     postsolve(presolver, x_red, y_red, z_red);
     return is_solution_correct(presolver->sol->x, x, presolver->sol->y, y,
                                presolver->sol->z, z, (int) n_rows, (int) n_cols,
@@ -407,7 +413,8 @@ static char *test_map_dton_free_var()
         new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
     run_presolver(presolver);
 
-    double x_red[] = {0.83333333, 0.16666667, 0., 0.};
+    // x2 = (x1 + 1)/2 is eliminated: the reduced columns are x1, x3, x4, x5
+    double x_red[] = {0.66666667, 0.16666667, 0., 0.};
     double y_red[] = {1., -0.33333333};
     double z_red[] = {0., 0., 1., 0.33333333};
 
@@ -654,7 +661,7 @@ static char *test_map_after_free_reduced_problem()
     run_presolver(presolver);
     free_presolver_reduced_problem(presolver);
 
-    double x_red_correct[] = {0.83333333, 0.16666667, 0., 0.};
+    double x_red_correct[] = {0.66666667, 0.16666667, 0., 0.}; // x2 eliminated
     double y_red_correct[] = {1., -0.33333333};
     double x[] = {0.66666667, 0.83333333, 0.16666667, 0., 0.};
     double y[] = {1., 0.33333333, -0.33333333};
@@ -680,6 +687,64 @@ static char *test_map_after_free_reduced_problem()
     return 0;
 }
 
+/* The forward map is not implemented for QPs yet: it prints an error and
+   leaves its outputs untouched. Same QP as test_3_qp (x0 is fixed by the
+   singleton equality row). */
+static char *test_map_refuses_qp()
+{
+    double Ax[] = {1, 1, 1};
+    int Ai[] = {0, 1, 2};
+    int Ap[] = {0, 1, 3};
+    double lhs[] = {2, -INF};
+    double rhs[] = {2, 3};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {10, 10, 10};
+    double c[] = {1, -3, 1};
+    double Px[] = {2, 1, 1, 2};
+    int Pi[] = {0, 1, 0, 1};
+    int Pp[] = {0, 2, 4, 4};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    ProblemData problem = {.Ax = Ax,
+                           .Ai = Ai,
+                           .Ap = Ap,
+                           .m = 2,
+                           .n = 3,
+                           .nnz = 3,
+                           .lhs = lhs,
+                           .rhs = rhs,
+                           .c = c,
+                           .lbs = lbs,
+                           .ubs = ubs,
+                           .Px = Px,
+                           .Pi = Pi,
+                           .Pp = Pp,
+                           .Pnnz = 4};
+    Presolver *presolver = new_presolver_from_problem(&problem, stgs);
+    mu_assert("init", presolver != NULL);
+    mu_assert("status", run_presolver(presolver) == REDUCED);
+    mu_assert("reduced dims",
+              presolver->reduced_prob->m == 1 && presolver->reduced_prob->n == 2);
+
+    double x[] = {2, 0.5, 0};
+    double y[] = {5.5, 0};
+    double x_red[2] = {DUMMY_VALUE, DUMMY_VALUE};
+    double y_red[1] = {DUMMY_VALUE};
+    double z_red[2] = {DUMMY_VALUE, DUMMY_VALUE};
+    map_original_sol_to_reduced(presolver, x, y, x_red, y_red, z_red);
+    for (int i = 0; i < 2; ++i)
+    {
+        mu_assert("map QP: x_red untouched", x_red[i] == DUMMY_VALUE);
+        mu_assert("map QP: z_red untouched", z_red[i] == DUMMY_VALUE);
+    }
+    mu_assert("map QP: y_red untouched", y_red[0] == DUMMY_VALUE);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_map_to_reduced()
 {
     mu_run_test(test_map_ston_row, counter_map_to_reduced);
@@ -694,6 +759,7 @@ static const char *all_tests_map_to_reduced()
     mu_run_test(test_map_parallel_cols, counter_map_to_reduced);
     mu_run_test(test_map_fix_col_inf, counter_map_to_reduced);
     mu_run_test(test_map_after_free_reduced_problem, counter_map_to_reduced);
+    mu_run_test(test_map_refuses_qp, counter_map_to_reduced);
     return 0;
 }
 

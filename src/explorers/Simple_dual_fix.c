@@ -22,6 +22,8 @@
 #include "CoreTransformations.h"
 #include "Debugger.h"
 #include "Locks.h"
+#include "Matrix.h"
+#include "Numerics.h"
 #include "Problem.h"
 #include "SimpleReductions.h"
 #include "State.h"
@@ -29,12 +31,12 @@
 #include "iVec.h"
 
 // a column that becomes fixed because of dual fix should have zk = ck - ak^T y
-static inline PresolveStatus _simple_dual_fix(Constraints *constraints, double ck,
-                                              double lb, double ub, Lock lock,
-                                              ColTag col_tag, int col,
-                                              iVec *cols_to_inf)
+static inline PresolveStatus _simple_dual_fix(Problem *prob, double ck, double lb,
+                                              double ub, Lock lock, ColTag col_tag,
+                                              int col, iVec *cols_to_inf)
 {
     assert(!HAS_TAG(col_tag, C_TAG_INACTIVE));
+    assert(!col_in_P(prob->constraints->state, col));
 
     // --------------------------------------------------
     // see if we can fix the variable to its lower bound
@@ -47,7 +49,7 @@ static inline PresolveStatus _simple_dual_fix(Constraints *constraints, double c
         }
 
         assert(!IS_ABS_INF(lb));
-        fix_col(constraints, col, lb, ck);
+        fix_col(prob, col, lb);
         return UNCHANGED;
     }
 
@@ -62,7 +64,7 @@ static inline PresolveStatus _simple_dual_fix(Constraints *constraints, double c
         }
 
         assert(!IS_ABS_INF(ub));
-        fix_col(constraints, col, ub, ck);
+        fix_col(prob, col, ub);
         return UNCHANGED;
     }
 
@@ -85,7 +87,7 @@ static inline PresolveStatus _simple_dual_fix(Constraints *constraints, double c
             else
             {
                 assert(!IS_ABS_INF(lb));
-                fix_col(constraints, col, lb, ck);
+                fix_col(prob, col, lb);
             }
             return UNCHANGED;
         }
@@ -99,7 +101,7 @@ static inline PresolveStatus _simple_dual_fix(Constraints *constraints, double c
             else
             {
                 assert(!IS_ABS_INF(ub));
-                fix_col(constraints, col, ub, ck);
+                fix_col(prob, col, ub);
             }
             return UNCHANGED;
         }
@@ -108,9 +110,83 @@ static inline PresolveStatus _simple_dual_fix(Constraints *constraints, double c
     return UNCHANGED;
 }
 
+/* Dual fix for a variable k in P with diagonal Pkk > 0. The derivative of the
+   objective in xk is gk = ck + sum_{l != k} Pkl xl + Pkk xk, and [gmin, gmax]
+   bounds the first two terms over the bounds of the other variables. Without
+   down-locks xk can be decreased freely, so every optimal solution has gk <= 0
+   or xk = lb; when gk > 0 over the whole box (gmin + Pkk lb >= 0), xk is fixed
+   at lb. Symmetrically, without up-locks xk is fixed at ub when
+   gmax + Pkk ub <= 0. A diagonal-only row without locks is fixed at
+   clip(-ck / Pkk, lb, ub). */
+static inline void P_dual_fix(Problem *prob, int col)
+{
+    const Constraints *constraints = prob->constraints;
+    const Bound *bounds = constraints->bounds;
+    const Matrix *P = prob->obj->P;
+    ColTag col_tag = constraints->col_tags[col];
+    Lock lock = constraints->state->col_locks[col];
+    bool lb_inf = HAS_TAG(col_tag, C_TAG_LB_INF);
+    bool ub_inf = HAS_TAG(col_tag, C_TAG_UB_INF);
+    double lb = bounds[col].lb;
+    double ub = bounds[col].ub;
+    assert(!HAS_TAG(col_tag, C_TAG_INACTIVE));
+    assert(lock.down == 0 || lock.up == 0);
+
+    // an infinite bound is stored as +-INF, so gmin / gmax become infinite
+    // when they depend on one and the tests below fail by themselves
+    double Pkk = 0.0, gmin = prob->obj->c[col], gmax = gmin;
+    for (int jj = P->p[col].start; jj < P->p[col].end; ++jj)
+    {
+        int l = P->i[jj];
+        double Pkl = P->x[jj];
+        if (l == col)
+        {
+            Pkk = Pkl;
+            continue;
+        }
+        gmin += MIN(Pkl * bounds[l].lb, Pkl * bounds[l].ub);
+        gmax += MAX(Pkl * bounds[l].lb, Pkl * bounds[l].ub);
+    }
+    if (Pkk <= 0.0)
+    {
+        return;
+    }
+
+    // diagonal-only row without locks: xk = clip(x*, lb, ub). No locks means
+    // every row of the column has two infinite sides, so the value only
+    // reaches the offset and the activities of free rows; its size is immaterial.
+    if (lock.down == 0 && lock.up == 0 && constraints->state->P_row_sizes[col] == 1)
+    {
+        double val = -prob->obj->c[col] / Pkk;
+        if (!lb_inf && val < lb)
+        {
+            val = lb;
+        }
+        else if (!ub_inf && val > ub)
+        {
+            val = ub;
+        }
+        fix_col(prob, col, val);
+        return;
+    }
+
+    // no down-locks and gk > 0 over the box: xk = lb
+    if (lock.down == 0 && !lb_inf && gmin + Pkk * lb >= 0.0)
+    {
+        fix_col(prob, col, lb);
+        return;
+    }
+
+    // no up-locks and gk < 0 over the box: xk = ub
+    if (lock.up == 0 && !ub_inf && gmax + Pkk * ub <= 0.0)
+    {
+        fix_col(prob, col, ub);
+    }
+}
+
 PresolveStatus simple_dual_fix(Problem *prob)
 {
-    assert(prob->constraints->state->empty_cols->len == 0);
+    assert(empty_cols_drained(prob));
     DEBUG(verify_problem_up_to_date(prob->constraints));
 
     Constraints *constraints = prob->constraints;
@@ -133,10 +209,17 @@ PresolveStatus simple_dual_fix(Problem *prob)
             continue;
         }
 
+        /* if column appears in quadratic term */
+        if (col_in_P(constraints->state, (int) k))
+        {
+            P_dual_fix(prob, (int) k);
+            continue;
+        }
+
         // if simple_dual_fix returns UNBNDORINFEAS it will be propagated
         // to run_fast_presolvers where it is detected
-        status |= _simple_dual_fix(constraints, c[k], bounds[k].lb, bounds[k].ub,
-                                   locks[k], col_tags[k], (int) k, cols_to_inf);
+        status |= _simple_dual_fix(prob, c[k], bounds[k].lb, bounds[k].ub, locks[k],
+                                   col_tags[k], (int) k, cols_to_inf);
     }
 
     // now fix the columns that can be fixed to inf
@@ -148,11 +231,11 @@ PresolveStatus simple_dual_fix(Problem *prob)
 
         if (col < 0)
         {
-            fix_col_to_negative_inf(constraints, -col);
+            fix_col_to_negative_inf(prob, -col);
         }
         else if (col > 0)
         {
-            fix_col_to_positive_inf(constraints, col);
+            fix_col_to_positive_inf(prob, col);
         }
         else
         {
@@ -160,11 +243,11 @@ PresolveStatus simple_dual_fix(Problem *prob)
             assert(locks[col].up == 0 || locks[col].down == 0);
             if (locks[col].down == 0)
             {
-                fix_col_to_negative_inf(constraints, col);
+                fix_col_to_negative_inf(prob, col);
             }
             else if (locks[col].up == 0)
             {
-                fix_col_to_positive_inf(constraints, col);
+                fix_col_to_positive_inf(prob, col);
             }
         }
     }

@@ -21,6 +21,7 @@
 #include "Constraints.h"
 #include "Matrix.h"
 #include "Numerics.h"
+#include "Postsolver_cones.h"
 #include "State.h"
 #include "dVec.h"
 #include "debug_macros.h"
@@ -110,19 +111,25 @@ static inline void copy_reduced_sol_to_orginal(Solution *sol, const double *x,
     }
 }
 
-// fixes xk and recovers zk = ck - ak^T y
-static void retrieve_fix_col(Solution *sol, int col, double val, double ck,
-                             const double *ak_vals, const int *ak_rows, int len)
+// fixes xk and recovers zk = ck + sum_l Pkl xl - ak^T y.
+static void retrieve_fix_col(Solution *sol, const FixedColRecord *r)
 {
+    int col = r->col;
     assert(sol->x[col] == COL_NOT_RETRIEVED);
     assert(sol->z[col] == COL_NOT_RETRIEVED);
 
-    sol->x[col] = val;
-    sol->z[col] = ck;
-    for (int i = 0; i < len; ++i)
+    sol->x[col] = r->val;
+    sol->z[col] = r->ck;
+    for (int i = 0; i < r->P_len; ++i)
     {
-        assert(sol->y[ak_rows[i]] != ROW_NOT_RETRIEVED);
-        sol->z[col] -= ak_vals[i] * sol->y[ak_rows[i]];
+        assert(sol->x[r->P_cols[i]] != COL_NOT_RETRIEVED);
+        sol->z[col] += r->P_vals[i] * sol->x[r->P_cols[i]];
+    }
+
+    for (int i = 0; i < r->len; ++i)
+    {
+        assert(sol->y[r->rows[i]] != ROW_NOT_RETRIEVED);
+        sol->z[col] -= r->vals[i] * sol->y[r->rows[i]];
     }
 }
 
@@ -153,47 +160,51 @@ static void retrieve_sub_col(Solution *sol, int k, const int *cols,
     sol->x[k] /= aik;
 }
 
-static void retrieve_fix_col_inf(Solution *sol, const int *indices,
-                                 const double *vals)
+static void retrieve_sub_col_dton(Solution *sol, const SubColDtonRecord *r)
 {
-    int i, j, counter, row_len;
-    const int *cols;
+    assert(sol->x[r->k] == COL_NOT_RETRIEVED);
+    assert(sol->z[r->k] == COL_NOT_RETRIEVED);
+    assert(sol->x[r->s] != COL_NOT_RETRIEVED);
+
+    sol->x[r->k] = r->shift + r->mult * sol->x[r->s];
+    sol->z[r->k] = 0.0;
+}
+
+static void retrieve_fix_col_inf(Solution *sol, const FixedColInfRecord *r)
+{
+    int i, j, pos;
     double coeff = 0;
     double val, side;
-    const double *coeffs;
-    int n_rows = (int) vals[0];
-    double extreme_val = vals[1];
-    bool fix_to_pos_inf = (indices[0] > 0);
-    int col = indices[1];
+    int n_rows = r->n_rows;
+    double extreme_val = r->bound;
+    bool fix_to_pos_inf = r->pos_inf;
+    int col = r->col;
     assert(sol->x[col] == COL_NOT_RETRIEVED);
     assert(sol->z[col] == COL_NOT_RETRIEVED);
 
-    counter = 2;
+    pos = 0;
     for (i = 0; i < n_rows; ++i)
     {
-        side = vals[counter];
-        coeffs = vals + counter + 1;
-        row_len = indices[counter];
-        cols = indices + counter + 1;
-        counter += row_len + 1;
+        FixedColInfRow row = fixed_col_inf_row(r, &pos);
+        side = row.side;
 
-        for (j = 0; j < row_len; ++j)
+        for (j = 0; j < row.len; ++j)
         {
-            if (cols[j] == col)
+            if (row.cols[j] == col)
             {
-                coeff = coeffs[j];
+                coeff = row.coeffs[j];
                 continue;
             }
 
             //  If two columns are fixed to pos inf in the same row, we
             //  pretend one of them is zero while we compute the other one
-            if (sol->x[cols[j]] == COL_NOT_RETRIEVED)
+            if (sol->x[row.cols[j]] == COL_NOT_RETRIEVED)
             {
                 continue;
             }
 
-            assert(sol->x[cols[j]] != COL_NOT_RETRIEVED);
-            side -= coeffs[j] * sol->x[cols[j]];
+            assert(sol->x[row.cols[j]] != COL_NOT_RETRIEVED);
+            side -= row.coeffs[j] * sol->x[row.cols[j]];
         }
 
         val = side / coeff;
@@ -212,19 +223,17 @@ static void retrieve_fix_col_inf(Solution *sol, const int *indices,
     sol->z[col] = 0.0;
 }
 
-static void retrieve_parallel_col(Solution *sol, const int *indices,
-                                  const double *vals)
+static void retrieve_parallel_col(Solution *sol, const ParallelColRecord *r)
 {
-    int j = indices[0];
-    int k = indices[1];
-    ColTag cTag_j = (ColTag) indices[2];
-    ColTag cTag_k = (ColTag) indices[3];
-    assert(indices[4] == DUMMY_VALUE);
-    double lb_j = vals[0];
-    double ub_j = vals[1];
-    double lb_k = vals[2];
-    double ub_k = vals[3];
-    double ratio = vals[4];
+    int j = r->j;
+    int k = r->k;
+    ColTag cTag_j = r->cTag_j;
+    ColTag cTag_k = r->cTag_k;
+    double lb_j = r->lb_j;
+    double ub_j = r->ub_j;
+    double lb_k = r->lb_k;
+    double ub_k = r->ub_k;
+    double ratio = r->ratio;
     assert(sol->x[j] != COL_NOT_RETRIEVED && sol->x[k] == COL_NOT_RETRIEVED);
     assert(sol->z[j] != COL_NOT_RETRIEVED && sol->z[k] == COL_NOT_RETRIEVED);
     double x_new_sol = sol->x[j];
@@ -276,18 +285,27 @@ void retrieve_deleted_row(Solution *sol, int row, double val)
     sol->y[row] = val;
 }
 
+// yi += (zk + Pkk xk) / aik and zk = 0 after the LP records, see
+// save_retrieval_deleted_row_zk
+static void retrieve_deleted_row_zk(Solution *sol, const DeletedRowZkRecord *r)
+{
+    assert(sol->y[r->row] != ROW_NOT_RETRIEVED);
+    assert(sol->x[r->col] != COL_NOT_RETRIEVED);
+    assert(sol->z[r->col] != COL_NOT_RETRIEVED);
+    double grad = sol->z[r->col] + r->Pkk * sol->x[r->col];
+    sol->y[r->row] += grad / r->aik;
+    sol->z[r->col] = 0.0;
+}
+
 // yi = yi - (ajk / aik) yj whenever we make the jth constraint sparser by
 // zeroing out xk using equality row i
-void retrieve_added_row(Solution *sol, const int *rows, const double *vals)
+void retrieve_added_row(Solution *sol, int i, int j, double ratio)
 {
-    int i = rows[0];
-    int j = rows[1];
     assert(sol->y[i] != ROW_NOT_RETRIEVED);
     assert(sol->y[j] != ROW_NOT_RETRIEVED);
-    assert(vals[1] == DUMMY_VALUE);
     // it should be a plus sign because the minus sign is included in
     // save_retrieval_added_row
-    sol->y[i] += sol->y[j] * vals[0];
+    sol->y[i] += sol->y[j] * ratio;
 }
 
 void retrieve_added_rows(Solution *sol, int i, const int *rows, const double *vals,
@@ -306,9 +324,7 @@ void retrieve_added_rows(Solution *sol, int i, const int *rows, const double *va
 }
 
 void retrieve_bound_change(Solution *sol, int i, int j, const int *cols,
-                           const double *vals, int len, double implied_bound,
-                           double original_other_bound,
-                           int is_original_other_bound_lower_bound)
+                           const double *vals, int len, bool implied_bound_is_upper)
 {
     int k, ii;
     double aij = 1.0;
@@ -316,22 +332,9 @@ void retrieve_bound_change(Solution *sol, int i, int j, const int *cols,
     assert(sol->y[i] != ROW_NOT_RETRIEVED);
     assert(sol->z[j] != COL_NOT_RETRIEVED);
 
-    // if the variable is equal to one of its original bounds and
-    // has the right sign on its multiplier we do nothing
-    if (IS_EQUAL_FEAS_TOL(sol->x[j], original_other_bound))
+    if ((implied_bound_is_upper && sol->z[j] >= 0.0) ||
+        (!implied_bound_is_upper && sol->z[j] <= 0.0))
     {
-        if ((is_original_other_bound_lower_bound && sol->z[j] >= 0) ||
-            (!is_original_other_bound_lower_bound && sol->z[j] <= 0))
-        {
-            return;
-        }
-    }
-
-    // if the implied bound is not active we do nothing
-    if (!IS_EQUAL_FEAS_TOL(sol->x[j], implied_bound))
-    {
-        // sol->y[i] does not always have to be zero since we possibly got the
-        // bound from a doubleton equality row assert(sol->y[i] == 0.0);
         return;
     }
 
@@ -371,63 +374,34 @@ void retrieve_bound_change(Solution *sol, int i, int j, const int *cols,
     sol->z[j] = 0.0;
 }
 
-void retrieve_lhs_change(Solution *sol, int i, const double *vals, const int *cols,
-                         int len, double new_side, int j, double ratio)
+void retrieve_lhs_change(Solution *sol, int i, int j, double ratio)
 {
     assert(sol->y[i] != ROW_NOT_RETRIEVED);
-    assert(sol->y[j] == ROW_NOT_RETRIEVED || sol->y[j] == 0.0);
+    assert(sol->y[j] != ROW_NOT_RETRIEVED);
 
-    // compute the residual of constraint i
-    double residual = -new_side;
-    for (int k = 0; k < len; ++k)
-    {
-        assert(sol->x[cols[k]] != COL_NOT_RETRIEVED);
-        residual += vals[k] * sol->x[cols[k]];
-    }
-
-    if (!IS_ZERO_FEAS_TOL(residual))
+    if (sol->y[i] <= 0)
     {
         return;
     }
 
-    double cand_val = ratio * sol->y[i];
-    if (ratio * cand_val < 0)
-    {
-        sol->y[j] = 0.0;
-        return;
-    }
-
-    sol->y[j] = cand_val;
+    assert(sol->y[j] == 0.0);
+    sol->y[j] = ratio * sol->y[i];
     sol->y[i] = 0.0;
 }
 
-void retrieve_rhs_change(Solution *sol, int i, const double *vals, const int *cols,
-                         int len, double new_side, int j, double ratio)
+// as retrieve_lhs_change with the signs reversed
+void retrieve_rhs_change(Solution *sol, int i, int j, double ratio)
 {
     assert(sol->y[i] != ROW_NOT_RETRIEVED);
-    assert(sol->y[j] == ROW_NOT_RETRIEVED || sol->y[j] == 0.0);
+    assert(sol->y[j] != ROW_NOT_RETRIEVED);
 
-    // compute the residual of constraint i
-    double residual = -new_side;
-    for (int k = 0; k < len; ++k)
-    {
-        assert(sol->x[cols[k]] != COL_NOT_RETRIEVED);
-        residual += vals[k] * sol->x[cols[k]];
-    }
-
-    if (!IS_ZERO_FEAS_TOL(residual))
+    if (sol->y[i] >= 0)
     {
         return;
     }
 
-    double cand_val = ratio * sol->y[i];
-    if (ratio * cand_val > 0)
-    {
-        sol->y[j] = 0.0;
-        return;
-    }
-
-    sol->y[j] = cand_val;
+    assert(sol->y[j] == 0.0);
+    sol->y[j] = ratio * sol->y[i];
     sol->y[i] = 0.0;
 }
 
@@ -488,80 +462,98 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
     {
         type = reductions[i];
         start = starts[i];
+        len = starts[i + 1] - start;
 
         if (type == FIXED_COL)
         {
-            len = starts[i + 1] - start - 2;
-            // we might have fixed an empty column so len can be 0
-            assert(len >= 0);
-            retrieve_fix_col(sol, indices[start], vals[start], vals[start + 1],
-                             vals + start + 2, indices + start + 2, len);
+            FixedColRecord r = decode_fixed_col(indices + start, vals + start, len);
+            retrieve_fix_col(sol, &r);
         }
         else if (type == SUB_COL)
         {
-            len = starts[i + 1] - start - 2;
-            assert(len > 1);
-            retrieve_sub_col(sol, indices[start], indices + start + 1,
-                             vals + start + 1, len, vals[start],
-                             indices[start + len + 1], vals[start + len + 1]);
+            SubColRecord r = decode_sub_col(indices + start, vals + start, len);
+            retrieve_sub_col(sol, r.k, r.cols, r.vals, r.len, r.rhs, r.row, r.ck);
+        }
+        else if (type == SUB_COL_DTON)
+        {
+            SubColDtonRecord r =
+                decode_sub_col_dton(indices + start, vals + start, len);
+            retrieve_sub_col_dton(sol, &r);
+        }
+        else if (type == ROTATED_TO_P)
+        {
+            RotatedToPRecord r =
+                decode_rotated_to_p(indices + start, vals + start, len);
+            retrieve_rotated_to_p(sol, &r);
         }
         else if (type == FIXED_COL_INF)
         {
-            retrieve_fix_col_inf(sol, indices + start, vals + start);
+            FixedColInfRecord r =
+                decode_fixed_col_inf(indices + start, vals + start, len);
+            retrieve_fix_col_inf(sol, &r);
         }
         else if (type == PARALLEL_COL)
         {
-            assert(starts[i + 1] - start == 5);
-            retrieve_parallel_col(sol, indices + start, vals + start);
+            ParallelColRecord r =
+                decode_parallel_col(indices + start, vals + start, len);
+            retrieve_parallel_col(sol, &r);
         }
         else if (type == DELETED_ROW)
         {
-            assert(starts[i + 1] - start == 1);
-            retrieve_deleted_row(sol, indices[start], vals[start]);
+            DeletedRowRecord r =
+                decode_deleted_row(indices + start, vals + start, len);
+            retrieve_deleted_row(sol, r.row, r.val);
+        }
+        else if (type == DELETED_ROW_ZK)
+        {
+            DeletedRowZkRecord r =
+                decode_deleted_row_zk(indices + start, vals + start, len);
+            retrieve_deleted_row_zk(sol, &r);
         }
         else if (type == ADDED_ROW)
         {
-            assert(starts[i + 1] - start == 2);
-            retrieve_added_row(sol, indices + start, vals + start);
+            AddedRowRecord r = decode_added_row(indices + start, vals + start, len);
+            retrieve_added_row(sol, r.i, r.j, r.ratio);
         }
         else if (type == ADDED_ROWS)
         {
-            len = starts[i + 1] - start - 1;
-            assert(len >= 1);
-            retrieve_added_rows(sol, indices[start], indices + start + 1,
-                                vals + start + 1, len, vals[start]);
+            AddedRowsRecord r =
+                decode_added_rows(indices + start, vals + start, len);
+            retrieve_added_rows(sol, r.i, r.rows, r.vals, r.len, r.aik);
         }
         else if (type == BOUND_CHANGE_THE_ROW)
         {
-            // get the row that was used to derive the bound changes
-            len = starts[i + 1] - start - 1;
-            assert(len > 0);
-            int num_of_bound_changes = (int) vals[start];
-            int row = indices[start];
-            const int *row_cols = indices + start + 1;
-            const double *row_vals = vals + start + 1;
+            // get the row that was used to derive the bound changes; the
+            // bound changes themselves are the preceding records
+            BoundChangeTheRowRecord row =
+                decode_bound_change_the_row(indices + start, vals + start, len);
             int bound_changes_processed = 0;
             int j = i - 1;
 
-            while (bound_changes_processed < num_of_bound_changes)
+            while (bound_changes_processed < row.num_of_bound_changes)
             {
                 type = reductions[j];
                 start = starts[j];
+                len = starts[j + 1] - start;
                 assert(type == BOUND_CHANGE_NO_ROW || type == FIXED_COL);
 
                 if (type == FIXED_COL)
                 {
-                    retrieve_fix_col(sol, indices[start], vals[start],
-                                     vals[start + 1], vals + start + 2,
-                                     indices + start + 2, starts[j + 1] - start - 2);
+                    FixedColRecord r =
+                        decode_fixed_col(indices + start, vals + start, len);
+                    retrieve_fix_col(sol, &r);
                     assert(reductions[j - 1] == BOUND_CHANGE_NO_ROW);
                 }
                 else
                 {
+                    BoundChangeNoRowRecord r = decode_bound_change_no_row(
+                        indices + start, vals + start, len);
                     bound_changes_processed += 1;
-                    retrieve_bound_change(sol, row, indices[start], row_cols,
-                                          row_vals, len, vals[start],
-                                          vals[start + 1], indices[start + 1]);
+                    // the implied bound is the upper one iff the other bound
+                    // is the lower one
+                    retrieve_bound_change(sol, row.i, r.j, row.cols, row.vals,
+                                          row.len,
+                                          r.is_original_other_bound_lower_bound);
                 }
 
                 j -= 1;
@@ -571,32 +563,32 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
             assert(i >= 0);
             assert(i == 0 || reductions[i - 1] != BOUND_CHANGE_NO_ROW);
         }
-
         else if (type == LHS_CHANGE)
         {
-            len = starts[i + 1] - start - 2;
-            assert(len > 1);
-            retrieve_lhs_change(sol, indices[start], vals + start + 2,
-                                indices + start + 2, len, vals[start],
-                                indices[start + 1], vals[start + 1]);
+            SideChangeRecord r =
+                decode_side_change(indices + start, vals + start, len);
+            retrieve_lhs_change(sol, r.i, r.j, r.ratio);
         }
         else if (type == RHS_CHANGE)
         {
-            len = starts[i + 1] - start - 2;
-            assert(len > 1);
-            retrieve_rhs_change(sol, indices[start], vals + start + 2,
-                                indices + start + 2, len, vals[start],
-                                indices[start + 1], vals[start + 1]);
+            SideChangeRecord r =
+                decode_side_change(indices + start, vals + start, len);
+            retrieve_rhs_change(sol, r.i, r.j, r.ratio);
         }
         else if (type == EQ_TO_INEQ)
         {
-            assert(starts[i + 1] - start == 2);
-            retrieve_eq_to_ineq(sol, indices[start], vals[start]);
+            EqToIneqRecord r = decode_eq_to_ineq(indices + start, vals + start, len);
+            retrieve_eq_to_ineq(sol, r.row, r.val);
         }
-        else if (type == PARALLEL_ROW || type == SIDE_RELAXED)
+        else if (type == PARALLEL_ROW)
         {
-            // only used by postsolver_map_to_reduced
-            assert(starts[i + 1] - start == 2);
+            // only used by postsolver_map_to_reduced; decoded to check the record
+            (void) decode_parallel_row(indices + start, vals + start, len);
+        }
+        else if (type == SIDE_RELAXED)
+        {
+            // only used by postsolver_map_to_reduced; decoded to check the record
+            (void) decode_side_relaxed(indices + start, vals + start, len);
         }
         else
         {
@@ -626,18 +618,22 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
 #endif
 }
 
-// here we should probably store information so zk = ck - ak^T y
-// so must save rows and vals
 void save_retrieval_fixed_col(PostsolveInfo *info, int col, double val, double ck,
-                              const double *vals, const int *rows, size_t len)
+                              const double *vals, const int *rows, size_t len,
+                              const double *Pvals, const int *Pcols, size_t P_len)
 {
     u16Vec_append(info->type, FIXED_COL);
     iVec_append(info->indices, col);
-    iVec_append(info->indices, DUMMY_VALUE);
+    iVec_append(info->indices, (int) P_len);
     iVec_append_array(info->indices, rows, len);
     dVec_append(info->vals, val);
     dVec_append(info->vals, ck);
     dVec_append_array(info->vals, vals, len);
+    if (P_len > 0)
+    {
+        iVec_append_array(info->indices, Pcols, P_len);
+        dVec_append_array(info->vals, Pvals, P_len);
+    }
     iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);
@@ -686,8 +682,9 @@ void save_retrieval_fixed_col_inf(PostsolveInfo *info, int col, int pos_inf,
     assert(info->vals->len == info->indices->len);
 }
 
-void save_retrieval_sub_col(PostsolveInfo *info, int col, int *cols, double *coeffs,
-                            size_t len, double rhs, int i, double ck)
+void save_retrieval_sub_col(PostsolveInfo *info, int col, const int *cols,
+                            const double *coeffs, size_t len, double rhs, int i,
+                            double ck)
 {
     u16Vec_append(info->type, SUB_COL);
     iVec_append(info->indices, col);
@@ -696,6 +693,19 @@ void save_retrieval_sub_col(PostsolveInfo *info, int col, int *cols, double *coe
     dVec_append(info->vals, rhs);
     dVec_append_array(info->vals, coeffs, len);
     dVec_append(info->vals, ck);
+    iVec_append(info->starts, (int) info->indices->len);
+    assert(info->starts->len == info->type->len + 1);
+    assert(info->indices->len == info->vals->len);
+}
+
+void save_retrieval_sub_col_dton(PostsolveInfo *info, int k, int s, double mult,
+                                 double shift)
+{
+    u16Vec_append(info->type, SUB_COL_DTON);
+    iVec_append(info->indices, k);
+    iVec_append(info->indices, s);
+    dVec_append(info->vals, mult);
+    dVec_append(info->vals, shift);
     iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->indices->len == info->vals->len);
@@ -726,6 +736,19 @@ void save_retrieval_deleted_row(PostsolveInfo *info, int row, double val)
     u16Vec_append(info->type, DELETED_ROW);
     iVec_append(info->indices, row);
     dVec_append(info->vals, val);
+    iVec_append(info->starts, (int) info->indices->len);
+    assert(info->starts->len == info->type->len + 1);
+    assert(info->vals->len == info->indices->len);
+}
+
+void save_retrieval_deleted_row_zk(PostsolveInfo *info, int row, int col, double aik,
+                                   double Pkk)
+{
+    u16Vec_append(info->type, DELETED_ROW_ZK);
+    iVec_append(info->indices, row);
+    iVec_append(info->indices, col);
+    dVec_append(info->vals, aik);
+    dVec_append(info->vals, Pkk);
     iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);

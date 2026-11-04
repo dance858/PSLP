@@ -21,6 +21,7 @@
 
 // forward declarations
 struct Constraints;
+struct Problem;
 struct State;
 struct Matrix;
 struct Bound;
@@ -40,8 +41,15 @@ void ASSERT_NO_ACTIVE_STON_ROWS(const struct Matrix *A, const RowTag *row_tags);
 void print_int_array(const int *arr, size_t len);
 void print_double_array(const double *arr, size_t len);
 
-// runs all functions below
+// runs all functions below (except verify_P)
 void run_debugger(const struct Constraints *constraints, bool finished);
+
+// run_debugger plus verify_P
+void run_debugger_problem(const struct Problem *prob, bool finished);
+
+/* verifies P: valid CSR, symmetric, entries only for active columns, and
+   P_row_sizes agrees with it */
+void verify_P(const struct Problem *prob, bool compressed);
 
 void verify_problem_up_to_date(const struct Constraints *constraints);
 
@@ -121,6 +129,11 @@ void verify_row_tags(const struct Constraints *constraints);
 /* verify that there are no empty rows, empty columns, inactive rows, or
    inactive columns when finished */
 void verify_empty_when_finished(const struct Constraints *constraints);
+
+/* True when the empty-column worklist holds only columns that
+   remove_empty_cols keeps: columns in P whose row is not a positive diagonal
+   alone. The explorers assert this on entry. */
+bool empty_cols_drained(const struct Problem *prob);
 
 void run_debugger_stats_consistency_check(const struct PresolveStats *stats);
 

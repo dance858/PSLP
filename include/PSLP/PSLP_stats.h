@@ -36,15 +36,32 @@ extern "C"
         size_t n_cols_reduced;
         size_t nnz_reduced;
 
+        /* dimensions after the fold (the original ones when nothing folded) */
+        size_t n_rows_folded;
+        size_t n_cols_folded;
+
+        /* non-zeros of the quadratic objective matrix P (0 for an LP) */
+        size_t Pnnz_original;
+        size_t Pnnz_reduced;
+
+        /* cone blocks and their rows (0 for a problem without cones) */
+        size_t n_cones_original;
+        size_t n_cone_rows_original;
+        size_t n_cones_reduced;
+        size_t n_cone_rows_reduced;
+
         /* reduction stats */
         size_t nnz_removed_trivial;
         size_t nnz_removed_fast;
         size_t nnz_removed_primal_propagation;
         size_t nnz_removed_parallel_rows;
         size_t nnz_removed_parallel_cols;
+        size_t nnz_removed_lp_fold;
+        size_t nnz_removed_cones;
 
         /* time stats */
         double time_init;
+        double time_lp_fold;
         double time_fast_reductions;
         double time_medium_reductions;
         double time_ston_cols;
@@ -52,6 +69,7 @@ extern "C"
         double time_primal_propagation;
         double time_parallel_rows;
         double time_parallel_cols;
+        double time_cones;
         double time_presolve;
         double time_postsolve;
 
