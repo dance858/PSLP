@@ -224,7 +224,8 @@ PresolveStatus simple_dual_fix(Problem *prob)
 
     // now fix the columns that can be fixed to inf
     // (processing the inf columns after processing the other columns
-    // simplifies the dual postsolve a lot)
+    // simplifies the dual postsolve a lot, and save_retrieval_fixed_col_inf
+    // relies on it to net the finite fixes out of the sides)
     for (size_t i = 0; i < cols_to_inf->len; ++i)
     {
         int col = cols_to_inf->data[i];
