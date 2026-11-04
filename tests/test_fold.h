@@ -1240,6 +1240,7 @@ static Settings *fold_only_settings(void)
     Settings *stgs = default_settings();
     set_settings_false(stgs);
     stgs->lp_fold = true;
+    stgs->fold_orthonormal = false;
     return stgs;
 }
 
@@ -1313,6 +1314,56 @@ static const char *test_fold_presolver_lift(void)
     ProblemData original = lp_problem(&p);
     mu_assert("lifted point is KKT",
               is_kkt_point(&original, sol->x, sol->y, sol->z, 1e-9));
+    free_presolver(presolver);
+    free_settings(stgs);
+    flp_free(&p);
+    return 0;
+}
+
+static const char *test_fold_presolver_orthonormal(void)
+{
+    const double s3 = sqrt(3.0);
+    FoldTestLP p = simplex_copies();
+    Settings *stgs = fold_only_settings();
+    stgs->fold_orthonormal = true;
+    Presolver *presolver = fold_presolver(&p, stgs);
+    mu_assert("presolver", presolver != NULL);
+    mu_assert("maps orthonormal",
+              presolver->prob->constraints->state->work->fold_maps->orthonormal);
+    mu_assert("presolve", run_presolver(presolver) != INFEASIBLE);
+    const ProblemData *reduced = presolver->reduced_prob;
+    mu_assert("reduced 1 x 2",
+              reduced->m == 1 && reduced->n == 2 && reduced->nnz == 2);
+    mu_assert("entries unscaled for equal class sizes",
+              reduced->Ax[0] == 1.0 && reduced->Ax[1] == 1.0);
+    mu_assert("cost scaled by sqrt(3)", fabs(reduced->c[0] + s3) < 1e-15 &&
+                                            fabs(reduced->c[1] + 2 * s3) < 1e-15);
+    mu_assert("rhs scaled by sqrt(3)", fabs(reduced->rhs[0] - s3) < 1e-15);
+    mu_assert("bounds scaled by sqrt(3)",
+              reduced->lbs[0] == 0.0 && fabs(reduced->ubs[1] - s3) < 1e-15);
+    double x_f[2] = {0, s3}, y_f[1] = {-s3}, z_f[2] = {0, -s3};
+    mu_assert("folded point is KKT", is_kkt_point(reduced, x_f, y_f, z_f, 1e-9));
+    postsolve(presolver, x_f, y_f, z_f);
+    const Solution *sol = presolver->sol;
+    for (int j = 0; j < 6; j++)
+    {
+        mu_assert("x divided by sqrt(3)",
+                  fabs(sol->x[j] - (double) (j % 2)) < 1e-15);
+        mu_assert("z divided by sqrt(3)",
+                  fabs(sol->z[j] - (j % 2 ? -1.0 : 0.0)) < 1e-15);
+    }
+    for (int i = 0; i < 3; i++)
+    {
+        mu_assert("y divided by sqrt(3)", fabs(sol->y[i] + 1.0) < 1e-15);
+    }
+    ProblemData original = lp_problem(&p);
+    mu_assert("lifted point is KKT",
+              is_kkt_point(&original, sol->x, sol->y, sol->z, 1e-9));
+    double x_red[2], y_red[1], z_red[2];
+    map_original_sol_to_reduced(presolver, sol->x, sol->y, x_red, y_red, z_red);
+    mu_assert("forward map x",
+              fabs(x_red[0]) < 1e-15 && fabs(x_red[1] - s3) < 1e-15);
+    mu_assert("forward map y", fabs(y_red[0] + s3) < 1e-15);
     free_presolver(presolver);
     free_settings(stgs);
     flp_free(&p);
@@ -1582,6 +1633,7 @@ static const char *all_tests_fold(void)
     mu_run_test(test_fold_postsolve_lift, counter_fold);
     mu_run_test(test_fold_postsolve_class_sizes, counter_fold);
     mu_run_test(test_fold_presolver_lift, counter_fold);
+    mu_run_test(test_fold_presolver_orthonormal, counter_fold);
     mu_run_test(test_fold_map_to_reduced, counter_fold);
     mu_run_test(test_fold_map_asymmetric_primal, counter_fold);
     mu_run_test(test_fold_map_then_parallel_rows, counter_fold);

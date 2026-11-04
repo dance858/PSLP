@@ -19,6 +19,8 @@
 #ifndef FOLD_H
 #define FOLD_H
 
+#include <stdbool.h>
+
 /* LP folding. Rows whose entries agree, class by class of the columns, and
    columns whose entries agree, class by class of the rows, form the coarsest
    equitable partition that refines the partition by line data (lhs, rhs) and
@@ -44,6 +46,7 @@ typedef struct FoldOptions
     double min_reduction; /* Removable-entry bound required, as a share of nnz. */
     double work_budget;   /* Work allowed, in multiples of nnz. */
     int max_rounds;
+    bool orthonormal;
 } FoldOptions;
 
 /*  FoldMaps is used to keep track of the row and column classes.
@@ -68,6 +71,7 @@ typedef struct FoldMaps
     int *col_class_size; /* size: n_cols_folded */
     int n_rows_folded;
     int n_cols_folded;
+    bool orthonormal;
 } FoldMaps;
 
 typedef struct FoldStats
