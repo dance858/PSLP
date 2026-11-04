@@ -1279,6 +1279,65 @@ static char *test_parallel_col_dual_identity()
     return 0;
 }
 
+/*  Parallel columns where only the kept column has a finite bound.
+    min. [1  1  0  0] x
+    s.t. [1  1  1   0] x = 8
+         [1  1  0  -1] x = 2
+    x1 in [5, inf), x2 free, x3, x4 in [0, inf)
+    Columns 1 and 2 merge into a free column, so the kept column's tags turn
+    infinite. Postsolve must still split the merged value against the kept
+    column's own bound: the optimum is x = (5, -3, 6, 0). */
+static char *test_parallel_col_kept_bound()
+{
+    double Ax[] = {1, 1, 1, 1, 1, -1};
+    int Ai[] = {0, 1, 2, 0, 1, 3};
+    int Ap[] = {0, 3, 6};
+    int nnz = 6;
+    int n_rows = 2;
+    int n_cols = 4;
+
+    double lhs[] = {8, 2};
+    double rhs[] = {8, 2};
+    double lbs[] = {5, -INF, 0, 0};
+    double ubs[] = {INF, INF, INF, INF};
+    double c[] = {1, 1, 0, 0};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->parallel_cols = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    ProblemData *red = presolver->reduced_prob;
+    mu_assert("expected one parallel column removed", red->m == 2 && red->n == 3);
+
+    // optimal reduced point: merged column 2, x3 = 6, x4 = 0
+    double x[] = {2, 6, 0};
+    double y[] = {0, 1};
+    double z[] = {0, 0, 1};
+    mu_assert("reduced point is not optimal",
+              is_kkt_point(red, x, y, z, POSTSOLVE_TOL_FEAS));
+    postsolve(presolver, x, y, z);
+
+    double correct_x[] = {5, -3, 6, 0};
+    double correct_y[] = {0, 1};
+    double correct_z[] = {0, 0, 0, 1};
+    mu_assert("parallel col kept bound postsolve error",
+              is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
+                                  correct_y, presolver->sol->z, correct_z, n_rows,
+                                  n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 /*  Checks that every postsolved multiplier has a sign its original bound or
     side allows: no positive z on an infinite lb, no negative z on an infinite
     ub, and the same for y with the row sides. */
@@ -1600,6 +1659,7 @@ static const char *all_tests_postsolve()
     mu_run_test(test_pathological_ston_two, counter_postsolve);
     mu_run_test(test_fix_col_inf, counter_postsolve);
     mu_run_test(test_parallel_col_dual_identity, counter_postsolve);
+    mu_run_test(test_parallel_col_kept_bound, counter_postsolve);
     mu_run_test(test_ston_row_bound_dual_approximate_solution, counter_postsolve);
     mu_run_test(test_propagation_bound_dual_approximate_solution, counter_postsolve);
     mu_run_test(test_parallel_rows_dual_approximate_solution, counter_postsolve);
