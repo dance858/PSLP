@@ -1406,6 +1406,7 @@ static char *presolve_two_parallel_rows(double a0, double l0, double r0, double 
 
     Settings *stgs = default_settings();
     stgs->verbose = false;
+    stgs->lp_fold = false;
     Presolver *presolver =
         new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
     mu_assert("Presolver initialization failed", presolver != NULL);
