@@ -1319,6 +1319,37 @@ static const char *test_fold_presolver_lift(void)
     return 0;
 }
 
+static const char *test_fold_presolver_min_reduction(void)
+{
+    FoldTestLP p = simplex_copies();
+    Settings *stgs = fold_only_settings();
+    mu_assert("default gate", stgs->fold_min_reduction == 0.01);
+
+    stgs->fold_min_reduction = 1.0;
+    Presolver *presolver = fold_presolver(&p, stgs);
+    mu_assert("presolver", presolver != NULL);
+    mu_assert("8 duplicate entries over rows and columns, 6 nnz: folded",
+              presolver->prob->constraints->A->m == 1 &&
+                  presolver->prob->constraints->A->n == 2);
+    free_presolver(presolver);
+
+    stgs->fold_min_reduction = 1.5;
+    presolver = fold_presolver(&p, stgs);
+    mu_assert("presolver", presolver != NULL);
+    const Constraints *constraints = presolver->prob->constraints;
+    mu_assert("not folded above the gate",
+              constraints->A->m == 3 && constraints->A->n == 6 &&
+                  constraints->A->nnz == 6 &&
+                  constraints->state->work->fold_maps == NULL);
+    mu_assert("presolve", run_presolver(presolver) != INFEASIBLE);
+    mu_assert("nothing removed by the fold",
+              presolver->stats->nnz_removed_lp_fold == 0);
+    free_presolver(presolver);
+    free_settings(stgs);
+    flp_free(&p);
+    return 0;
+}
+
 /* The forward map folds the point first, x averaged over each column class
    and y summed over each row class, and then replays the records in the folded
    problem. The symmetric optimum of the simplex copies maps to the folded KKT
@@ -1582,6 +1613,7 @@ static const char *all_tests_fold(void)
     mu_run_test(test_fold_postsolve_lift, counter_fold);
     mu_run_test(test_fold_postsolve_class_sizes, counter_fold);
     mu_run_test(test_fold_presolver_lift, counter_fold);
+    mu_run_test(test_fold_presolver_min_reduction, counter_fold);
     mu_run_test(test_fold_map_to_reduced, counter_fold);
     mu_run_test(test_fold_map_asymmetric_primal, counter_fold);
     mu_run_test(test_fold_map_then_parallel_rows, counter_fold);
