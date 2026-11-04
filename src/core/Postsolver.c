@@ -643,13 +643,15 @@ void save_retrieval_fixed_col_inf(PostsolveInfo *info, int col, int pos_inf,
                                   const Constraints *constraints, double bound)
 {
     assert(pos_inf == 1 || pos_inf == -1);
-    int i, row;
+    int i, ii, k, row;
     const Matrix *AT = constraints->AT;
     const Matrix *A = constraints->A;
     int *row_sizes = constraints->state->row_sizes;
     double *lhs = constraints->lhs;
     double *rhs = constraints->rhs;
     RowTag *row_tags = constraints->row_tags;
+    const ColTag *col_tags = constraints->col_tags;
+    const Bound *bounds = constraints->bounds;
     double side;
 
     int *rows = AT->i + AT->p[col].start;
@@ -665,6 +667,21 @@ void save_retrieval_fixed_col_inf(PostsolveInfo *info, int col, int pos_inf,
     {
         row = rows[i];
         side = (HAS_TAG(row_tags[row], R_TAG_LHS_INF)) ? rhs[row] : lhs[row];
+
+        // Columns fixed to finite values earlier in the same dual-fix pass are
+        // still in the row, and the side still includes them, since
+        // delete_fixed_cols_from_problem runs after the pass. Postsolve undoes
+        // this record before theirs and treats them as zero, so take them
+        // off the side here.
+        for (ii = A->p[row].start; ii < A->p[row].start + row_sizes[row]; ++ii)
+        {
+            k = A->i[ii];
+            if (k != col && HAS_TAG(col_tags[k], C_TAG_FIXED) &&
+                !IS_ABS_INF(bounds[k].ub))
+            {
+                side -= A->x[ii] * bounds[k].ub;
+            }
+        }
         dVec_append(info->vals, side);
         dVec_append_array(info->vals, A->x + A->p[row].start,
                           (size_t) row_sizes[row]);
