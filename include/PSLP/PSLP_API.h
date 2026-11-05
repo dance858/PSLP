@@ -74,6 +74,8 @@ extern "C"
         /* replace rotated cone blocks by diagonal terms of P where possible
            (only for a problem without P) */
         bool rotated_to_P;
+
+        double fold_min_reduction;
     } Settings;
 
     /* A cone block is a range of consecutive rows of A that is constrained as
