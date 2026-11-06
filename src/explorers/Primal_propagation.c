@@ -88,14 +88,15 @@ static PresolveStatus update_lb_within_propagation(double new_lb, double *lb,
         assert(ABS(ub) != -INF);
 
         // check for infeasibility
-        if (IS_INFEAS_GT(new_lb, ub))
+        if (IS_INFEAS_GT(new_lb, ub, constraints->feas_tol))
         {
             return INFEASIBLE;
         }
 
         // check if variable can be fixed
         if (new_lb >= ub ||
-            (ub - new_lb) * get_cached_max_abs(AT, col, max_abs_pos) <= FEAS_TOL)
+            (ub - new_lb) * get_cached_max_abs(AT, col, max_abs_pos) <=
+                constraints->feas_tol)
         {
             save_retrieval_bound_change_no_row(constraints->state->postsolve_info,
                                                col, new_lb, ub, false);
@@ -110,13 +111,14 @@ static PresolveStatus update_lb_within_propagation(double new_lb, double *lb,
     //  We always tighten infinite bounds, and like Gurobi we reject too small
     //  bound changes.
     // -----------------------------------------------------------------------
-    if (is_lb_inf || (*finite_bound_tightening && (new_lb - *lb > FEAS_TOL * 1e4) &&
-                      (new_lb - *lb > 1e-2 * ABS(*lb))))
+    if (is_lb_inf ||
+        (*finite_bound_tightening && (new_lb - *lb > constraints->feas_tol * 1e4) &&
+         (new_lb - *lb > 1e-2 * ABS(*lb))))
     {
         // very important to scale bound marginal with ABS
         if (!IS_INTEGRAL(new_lb))
         {
-            new_lb -= BOUND_MARGINAL * ABS(new_lb);
+            new_lb -= BOUND_MARGINAL(constraints->feas_tol) * ABS(new_lb);
         }
 
         REMOVE_TAG(*cTag, C_TAG_LB_INF);
@@ -165,14 +167,15 @@ static PresolveStatus update_ub_within_propagation(double new_ub, double *ub,
     {
         assert(ABS(lb) != -INF);
 
-        if (IS_INFEAS_LT(new_ub, lb))
+        if (IS_INFEAS_LT(new_ub, lb, constraints->feas_tol))
         {
             return INFEASIBLE;
         }
 
         // check if variable can be fixed
         if (new_ub <= lb ||
-            (new_ub - lb) * get_cached_max_abs(AT, col, max_abs_pos) <= FEAS_TOL)
+            (new_ub - lb) * get_cached_max_abs(AT, col, max_abs_pos) <=
+                constraints->feas_tol)
         {
             save_retrieval_bound_change_no_row(constraints->state->postsolve_info,
                                                col, new_ub, lb, true);
@@ -187,13 +190,14 @@ static PresolveStatus update_ub_within_propagation(double new_ub, double *ub,
     //  We always tighten infinite bounds, and like Gurobi we reject too small
     //  bound changes.
     // -----------------------------------------------------------------------
-    if (is_ub_inf || (*finite_bound_tightening && (*ub - new_ub > FEAS_TOL * 1e4) &&
-                      (*ub - new_ub > 1e-2 * ABS(*ub))))
+    if (is_ub_inf ||
+        (*finite_bound_tightening && (*ub - new_ub > constraints->feas_tol * 1e4) &&
+         (*ub - new_ub > 1e-2 * ABS(*ub))))
     {
         // very important to scale bound marginal with ABS
         if (!IS_INTEGRAL(new_ub))
         {
-            new_ub += BOUND_MARGINAL * ABS(new_ub);
+            new_ub += BOUND_MARGINAL(constraints->feas_tol) * ABS(new_ub);
         }
 
         REMOVE_TAG(*cTag, C_TAG_UB_INF);

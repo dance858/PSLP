@@ -102,6 +102,7 @@ Settings *default_settings(void)
     stgs->fold_min_reduction = LP_FOLD_MIN_REDUCTION;
     stgs->max_time = 60.0;
     stgs->verbose = true;
+    stgs->feas_tol = FEAS_TOL;
     stgs->n_threads = 0;
     stgs->rotated_to_P = true;
     return stgs;
@@ -275,7 +276,8 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
 
     /* very basic validation */
     if (nnz > (size_t) INT_MAX || Pnnz > (size_t) INT_MAX ||
-        (Pnnz > 0 && (Px == NULL || Pi == NULL || Pp == NULL)))
+        (Pnnz > 0 && (Px == NULL || Pi == NULL || Pp == NULL)) ||
+        !(stgs->feas_tol > 0.0 && stgs->feas_tol < INFINITY))
     {
         return NULL;
     }
@@ -454,6 +456,7 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
         memcpy(constraints->cones, problem->cones, n_cones * sizeof(ConeBlock));
         constraints->n_cones = n_cones;
     }
+    constraints->feas_tol = stgs->feas_tol;
 
     // ---------------------------------------------------------------------------
     //             Allocate the actual presolver
@@ -1083,7 +1086,8 @@ void postsolve(Presolver *presolver, const double *x, const double *y,
     clock_gettime(CLOCK_MONOTONIC, &timer.start);
     postsolver_update(postsolve_info, stats->n_cols_reduced, stats->n_rows_reduced,
                       data->work->mappings->cols, data->work->mappings->rows);
-    postsolver_run(postsolve_info, target, x, y, z);
+    postsolver_run(postsolve_info, target, x, y, z,
+                   presolver->prob->constraints->feas_tol);
     if (fold_maps)
     {
         fold_postsolve(fold_maps, (int) sol->dim_y, (int) sol->dim_x, target->x,
@@ -1206,7 +1210,8 @@ void postsolve_dual_infeas_ray(Presolver *presolver, const double *x, double *x_
     clock_gettime(CLOCK_MONOTONIC, &timer.start);
     postsolver_update(postsolve_info, stats->n_cols_reduced, stats->n_rows_reduced,
                       data->work->mappings->cols, data->work->mappings->rows);
-    postsolver_run_dual_infeas_ray(postsolve_info, sol, x);
+    postsolver_run_dual_infeas_ray(postsolve_info, sol, x,
+                                   presolver->prob->constraints->feas_tol);
     for (int i = 0; i < sol->dim_x; ++i)
     {
         x_orig[i] = sol->x[i];

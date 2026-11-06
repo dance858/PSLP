@@ -64,7 +64,7 @@ static int delete_zero_tails(Constraints *constraints, const ConeBlock *block,
         {
             continue;
         }
-        if (row_sizes[t] == 0 && IS_ZERO_FEAS_TOL(rhs[t]))
+        if (row_sizes[t] == 0 && IS_ZERO_TOL(rhs[t], constraints->feas_tol))
         {
             delete_cone_row(constraints, t);
         }
@@ -99,7 +99,8 @@ static PresolveStatus head_to_bound(Constraints *constraints, int h)
     double r_h = constraints->rhs[h];
     if (constraints->state->row_sizes[h] == 0)
     {
-        return IS_INFEAS_GT(r_h, 0.0) ? INFEASIBLE : UNCHANGED;
+        return IS_INFEAS_GT(r_h, 0.0, constraints->feas_tol) ? INFEASIBLE
+                                                             : UNCHANGED;
     }
 
     int j = A->i[A->p[h].start];
@@ -154,7 +155,7 @@ static int get_head_column(const Problem *prob, int w, int h)
     double ratio = prob->obj->c[j] / a;
     double omega = -constraints->rhs[w];
     if (state->col_sizes[j] != 1 || col_in_P(state, j) || ratio <= 0.0 ||
-        omega < FEAS_TOL || ratio / omega > MAX_KAPPA)
+        omega < constraints->feas_tol || ratio / omega > MAX_KAPPA)
     {
         return -1;
     }

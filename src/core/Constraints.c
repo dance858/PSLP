@@ -21,6 +21,7 @@
 #include "Debugger.h"
 #include "Locks.h"
 #include "Matrix.h"
+#include "Numerics.h"
 #include "State.h"
 #include "Workspace.h"
 #include "glbopts.h"
@@ -43,6 +44,7 @@ Constraints *constraints_new(Matrix *A, Matrix *AT, double *lhs, double *rhs,
     constraints->AT = AT;
     constraints->bounds = bounds;
     constraints->state = state;
+    constraints->feas_tol = FEAS_TOL;
     constraints->row_tags = row_tags;
     constraints->col_tags = col_tags;
     constraints->cones = NULL;

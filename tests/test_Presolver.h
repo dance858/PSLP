@@ -310,6 +310,99 @@ static char *test_06_presolver()
     return 0;
 }
 
+/* feas_tol is validated, and it decides whether a gap of 1e-5 between a
+   row's activity and its rhs is infeasible. */
+static char *test_07_presolver()
+{
+    /* x0 + x1 <= 1 with x0 >= 0.5, x1 >= 0.5 + 1e-5 */
+    double Ax[] = {1, 1};
+    int Ai[] = {0, 1};
+    int Ap[] = {0, 2};
+    int nnz = 2;
+    int n_rows = 1;
+    int n_cols = 2;
+    double lhs[] = {-INF};
+    double rhs[] = {1};
+    double lbs[] = {0.5, 0.5 + 1e-5};
+    double ubs[] = {5, 5};
+    double c[] = {1, 1};
+
+    Settings *stgs = default_settings();
+    mu_assert("default feas_tol", stgs->feas_tol == 1e-6);
+
+    double invalid[] = {0.0, -1e-6, INFINITY, NAN};
+    for (size_t t = 0; t < sizeof(invalid) / sizeof(double); t++)
+    {
+        stgs->feas_tol = invalid[t];
+        mu_assert("invalid feas_tol rejected",
+                  new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs,
+                                c, stgs) == NULL);
+    }
+
+    stgs->feas_tol = 1e-6;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver tight", presolver != NULL);
+    mu_assert("infeasible with feas_tol 1e-6",
+              HAS_STATUS(run_presolver(presolver), INFEASIBLE));
+    free_presolver(presolver);
+
+    stgs->feas_tol = 1e-4;
+    presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver loose", presolver != NULL);
+    mu_assert("feasible with feas_tol 1e-4",
+              !HAS_STATUS(run_presolver(presolver), INFEASIBLE));
+    free_presolver(presolver);
+
+    PS_FREE(stgs);
+    return 0;
+}
+
+/* feas_tol changes the objective value. x0 has bounds 1e-5 apart. With
+   feas_tol 1e-4 they count as equal, so x0 is fixed at its integral lower
+   bound. With feas_tol 1e-6 they do not, and dual fixing moves x0 to its upper
+   bound because its cost is negative. */
+static char *test_08_presolver()
+{
+    // min -x0 + x1  s.t.  x0 + x1 >= 0,  1 <= x0 <= 1 + 1e-5,  0 <= x1 <= 5
+    double Ax[] = {1, 1};
+    int Ai[] = {0, 1};
+    int Ap[] = {0, 2};
+    int nnz = 2;
+    int n_rows = 1;
+    int n_cols = 2;
+    double lhs[] = {0};
+    double rhs[] = {INF};
+    double lbs[] = {1, 0};
+    double ubs[] = {1 + 1e-5, 5};
+    double c[] = {-1, 1};
+    double tols[] = {1e-6, 1e-4};
+    double x0_expected[] = {1 + 1e-5, 1};
+
+    Settings *stgs = default_settings();
+    for (size_t t = 0; t < sizeof(tols) / sizeof(double); t++)
+    {
+        stgs->feas_tol = tols[t];
+        Presolver *presolver = new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs,
+                                             rhs, lbs, ubs, c, stgs);
+        mu_assert("Presolver initialization failed", presolver != NULL);
+        mu_assert("not infeasible",
+                  !HAS_STATUS(run_presolver(presolver), INFEASIBLE));
+        mu_assert("fully reduced", presolver->reduced_prob->n == 0);
+        mu_assert("objective is -x0", fabs(presolver->reduced_prob->obj_offset +
+                                           x0_expected[t]) < 1e-12);
+
+        postsolve(presolver, NULL, NULL, NULL);
+        mu_assert("x0 value", presolver->sol->x[0] == x0_expected[t]);
+        mu_assert("x1 value", presolver->sol->x[1] == 0.0);
+        free_presolver(presolver);
+    }
+
+    PS_FREE(stgs);
+    return 0;
+}
+
 static const char *all_tests_presolver()
 {
     mu_run_test(test_00_presolver, counter_presolver);
@@ -319,6 +412,8 @@ static const char *all_tests_presolver()
     mu_run_test(test_04_presolver, counter_presolver);
     mu_run_test(test_05_presolver, counter_presolver);
     mu_run_test(test_06_presolver, counter_presolver);
+    mu_run_test(test_07_presolver, counter_presolver);
+    mu_run_test(test_08_presolver, counter_presolver);
     return 0;
 }
 

@@ -114,7 +114,7 @@ void delete_fixed_cols_from_problem(Problem *prob)
             assert(HAS_TAG(row_tags[row], R_TAG_LHS_INF) ||
                    HAS_TAG(row_tags[row], R_TAG_RHS_INF) ||
                    HAS_TAG(row_tags[row], (R_TAG_EQ | R_TAG_CONE)) ||
-                   !IS_EQUAL_FEAS_TOL(lhs[row], rhs[row]));
+                   !IS_EQUAL_TOL(lhs[row], rhs[row], prob->constraints->feas_tol));
         }
     }
 }
@@ -301,7 +301,7 @@ PresolveStatus remove_ston_rows(Problem *prob)
 // If HAS_TAG(return_tag, R_TAG_RHS_INF), then the rhs is finite and redundant.
 // If HAS_TAG(return_tag, R_TAG_LHS_INF), then the lhs is finite and redundant.
 static inline RowTag check_activity(const Activity *act, double lhs, double rhs,
-                                    RowTag row_tag)
+                                    RowTag row_tag, double tol)
 {
     assert(!HAS_TAG(row_tag, R_TAG_EQ));
     RowTag return_tag = R_TAG_NONE;
@@ -312,11 +312,11 @@ static inline RowTag check_activity(const Activity *act, double lhs, double rhs,
     // -------------------------------------------------------------------------
     if (!HAS_TAG(row_tag, R_TAG_RHS_INF))
     {
-        if (act->n_inf_min == 0 && IS_INFEAS_GT(act->min, rhs))
+        if (act->n_inf_min == 0 && IS_INFEAS_GT(act->min, rhs, tol))
         {
             return R_TAG_INFEAS;
         }
-        else if (act->n_inf_max == 0 && act->max <= rhs + FEAS_TOL)
+        else if (act->n_inf_max == 0 && act->max <= rhs + tol)
         {
             UPDATE_TAG(return_tag, R_TAG_RHS_INF);
         }
@@ -328,11 +328,11 @@ static inline RowTag check_activity(const Activity *act, double lhs, double rhs,
     // -------------------------------------------------------------------------
     if (!HAS_TAG(row_tag, R_TAG_LHS_INF))
     {
-        if (act->n_inf_max == 0 && IS_INFEAS_LT(act->max, lhs))
+        if (act->n_inf_max == 0 && IS_INFEAS_LT(act->max, lhs, tol))
         {
             return R_TAG_INFEAS;
         }
-        else if (act->n_inf_min == 0 && act->min >= lhs - FEAS_TOL)
+        else if (act->n_inf_min == 0 && act->min >= lhs - tol)
         {
             UPDATE_TAG(return_tag, R_TAG_LHS_INF);
         }
@@ -389,7 +389,8 @@ PresolveStatus check_activities(Problem *prob)
         assert(activities[row].n_inf_min == 0 || activities[row].n_inf_max == 0);
 
         RowTag status_tag =
-            check_activity(activities + row, lhs[row], rhs[row], row_tags[row]);
+            check_activity(activities + row, lhs[row], rhs[row], row_tags[row],
+                           prob->constraints->feas_tol);
 
         // ----------------------------------------------------------------
         //              if the constraint is redundant
@@ -506,9 +507,10 @@ PresolveStatus remove_empty_rows(const Constraints *constraints)
             continue;
         }
 
-        bool infeasible =
-            (!HAS_TAG(rtags[row], R_TAG_LHS_INF) && IS_INFEAS_GT(lhs[row], 0.0)) ||
-            (!HAS_TAG(rtags[row], R_TAG_RHS_INF) && IS_INFEAS_LT(rhs[row], 0.0));
+        bool infeasible = (!HAS_TAG(rtags[row], R_TAG_LHS_INF) &&
+                           IS_INFEAS_GT(lhs[row], 0.0, constraints->feas_tol)) ||
+                          (!HAS_TAG(rtags[row], R_TAG_RHS_INF) &&
+                           IS_INFEAS_LT(rhs[row], 0.0, constraints->feas_tol));
 
         if (infeasible)
         {
@@ -676,7 +678,8 @@ PresolveStatus remove_empty_cols(Problem *prob)
 }
 
 void clean_small_coeff_A(Matrix *A, const Bound *bounds, const RowTag *row_tags,
-                         const ColTag *col_tags, double *rhs, double *lhs)
+                         const ColTag *col_tags, double *rhs, double *lhs,
+                         double tol)
 {
     int ii, col, len, *cols;
     double Aik_abs, cum_changes, diff, *vals;
@@ -712,11 +715,11 @@ void clean_small_coeff_A(Matrix *A, const Bound *bounds, const RowTag *row_tags,
                     continue;
                 }
 
-                if (Aik_abs < CLEAN1 && Aik_abs * diff * len < 1e-2 * FEAS_TOL)
+                if (Aik_abs < CLEAN1 && Aik_abs * diff * len < 1e-2 * tol)
                 {
                     set_coeff_to_zero = true;
                 }
-                else if (cum_changes + Aik_abs * diff < 1e-1 * FEAS_TOL)
+                else if (cum_changes + Aik_abs * diff < 1e-1 * tol)
                 {
                     cum_changes += Aik_abs * diff;
                     set_coeff_to_zero = true;
@@ -768,7 +771,7 @@ PresolveStatus remove_variables_with_close_bounds(Problem *prob)
 
         assert(!HAS_TAG(col_tags[ii], C_TAG_INACTIVE));
 
-        if (IS_INFEAS_GT(bounds[ii].lb, bounds[ii].ub))
+        if (IS_INFEAS_GT(bounds[ii].lb, bounds[ii].ub, constraints->feas_tol))
         {
             return INFEASIBLE;
         }
@@ -776,7 +779,8 @@ PresolveStatus remove_variables_with_close_bounds(Problem *prob)
         // Empty columns are fixed by remove_empty_cols (fix_col requires a
         // non-empty column); fixing them here as well would add their
         // objective contribution to the offset twice.
-        if (col_sizes[ii] > 0 && IS_EQUAL_FEAS_TOL(bounds[ii].lb, bounds[ii].ub))
+        if (col_sizes[ii] > 0 &&
+            IS_EQUAL_TOL(bounds[ii].lb, bounds[ii].ub, constraints->feas_tol))
         {
             // fix at integral bound or at midpoint
             double lb = bounds[ii].lb, ub = bounds[ii].ub;

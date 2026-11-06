@@ -21,8 +21,9 @@
 
 #include <math.h>
 
+/* default of Settings::feas_tol */
 #define FEAS_TOL 1e-6
-#define BOUND_MARGINAL 0.5 * FEAS_TOL
+#define BOUND_MARGINAL(tol) (0.5 * (tol))
 #define ZERO_TOL 1e-10
 #define CANCEL_TOL_REL 1e-12
 /* relative tolerance under which an updated diagonal entry of P counts as zero
@@ -49,10 +50,11 @@
 
 #define IS_INTEGRAL(x) ((x) == (int) (x))
 
-#define IS_EQUAL_FEAS_TOL(x, y) (ABS((x) - (y)) <= FEAS_TOL)
-#define IS_ZERO_FEAS_TOL(x) (ABS(x) <= FEAS_TOL)
-#define IS_GT_FEAS_TOL(x, y) ((x) - (y) >= FEAS_TOL)
-#define IS_LT_FEAS_TOL(x, y) ((y) - (x) >= FEAS_TOL)
+#define IS_EQUAL_TOL(x, y, tol) (ABS((x) - (y)) <= (tol))
+#define IS_ZERO_TOL(x, tol) (ABS(x) <= (tol))
+
+#define IS_EQUAL_FEAS_TOL(x, y) IS_EQUAL_TOL(x, y, FEAS_TOL)
+#define IS_ZERO_FEAS_TOL(x) IS_ZERO_TOL(x, FEAS_TOL)
 #define IS_HUGE(x) (ABS(x) >= HUGE_VAL_PS)
 
 /* Equal up to rounding noise relative to the larger magnitude. For decisions
@@ -60,11 +62,11 @@
    columns, which keeps only one of the two costs. */
 #define IS_EQUAL_REL(x, y) (ABS((x) - (y)) <= CANCEL_TOL_REL * MAX(ABS(x), ABS(y)))
 
-/* Tolerance of an infeasibility verdict: FEAS_TOL near zero, relative to the
+/* Tolerance of an infeasibility verdict: 'tol' near zero, relative to the
    larger magnitude beyond one. */
-#define INFEAS_TOL(x, y) (FEAS_TOL * MAX(1.0, MAX(ABS(x), ABS(y))))
-#define IS_INFEAS_GT(x, y) ((x) - (y) > INFEAS_TOL(x, y))
-#define IS_INFEAS_LT(x, y) ((y) - (x) > INFEAS_TOL(x, y))
+#define INFEAS_TOL(x, y, tol) ((tol) * MAX(1.0, MAX(ABS(x), ABS(y))))
+#define IS_INFEAS_GT(x, y, tol) ((x) - (y) > INFEAS_TOL(x, y, tol))
+#define IS_INFEAS_LT(x, y, tol) ((y) - (x) > INFEAS_TOL(x, y, tol))
 
 #define SET_ZERO_IF_SMALL_DUAL_POSTSOLVE(x)                                         \
     do                                                                              \

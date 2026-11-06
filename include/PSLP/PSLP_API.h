@@ -64,6 +64,14 @@ extern "C"
         double max_time;
         bool verbose;
 
+        /* Primal feasibility tolerance (default 1e-6). It decides when two
+           values (e.g. a row's lhs and rhs, or a variable's bounds) count as
+           equal, when a bound change is too small to apply, and when the
+           problem is declared infeasible (relative to the magnitude of the
+           compared values beyond one). It is also used in postsolve. It must
+           be positive and finite. */
+        double feas_tol;
+
         /* Some parts of PSLP are multi-threaded. This setting controls the
            number of threads PSLP may use. The value 0 means that PSLP chooses
            the number of threads automatically, which is the smaller of 8 and
@@ -185,8 +193,8 @@ extern "C"
        The CSR structure of A and P is assumed to be valid (sorted column
        indices, no duplicates, consistent row pointers). The function returns
        NULL if the allocation fails, nnz or Pnnz is too large, an array of P is
-       missing although Pnnz > 0, P is not exactly symmetric, or the cone
-       blocks are not well formed. */
+       missing although Pnnz > 0, P is not exactly symmetric, the cone blocks
+       are not well formed, or stgs->feas_tol is not positive and finite. */
     Presolver *new_presolver_from_problem(const ProblemData *problem,
                                           const Settings *stgs);
 

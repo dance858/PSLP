@@ -105,7 +105,7 @@ static char *test_3_parallel_rows()
     int radix_aux[5];
 
     find_parallel_rows(A, row_tags, group_start, parallel_rows, sparsity_IDs,
-                       coeff_hashes, R_TAG_INACTIVE, radix_aux, NULL);
+                       coeff_hashes, R_TAG_INACTIVE, radix_aux, NULL, FEAS_TOL);
 
     int parallel_rows_correct[] = {0, 4, 1, 3};
     int group_start_correct[] = {0, 2, 4};
@@ -205,7 +205,7 @@ static char *test_4_parallel_rows()
     int radix_aux[1000];
 
     find_parallel_rows(A, row_tags, group_start, parallel_rows, sparsity_IDs,
-                       coeff_hashes, R_TAG_INACTIVE, radix_aux, NULL);
+                       coeff_hashes, R_TAG_INACTIVE, radix_aux, NULL, FEAS_TOL);
 
     mu_assert("error group_starts len", group_start->len == 4);
     int group_start_correct[] = {0, 8, 16, 24};
@@ -377,7 +377,7 @@ static char *test_5_parallel_rows()
     row_tags[310] = R_TAG_INACTIVE;
 
     find_parallel_rows(A, row_tags, group_start, parallel_rows, sparsity_IDs,
-                       coeff_hashes, R_TAG_INACTIVE, radix_aux, NULL);
+                       coeff_hashes, R_TAG_INACTIVE, radix_aux, NULL, FEAS_TOL);
 
     mu_assert("error group_starts len", group_start->len == 4);
     // int group_start_correct[] = {0, 8, 14, 20};
@@ -1342,7 +1342,7 @@ static char *test_18_parallel_rows()
 
     iVec *reference_starts = iVec_new(10);
     find_parallel_rows(A, row_tags, reference_starts, reference, sparsity_IDs,
-                       coeff_hashes, R_TAG_INACTIVE, radix_aux, NULL);
+                       coeff_hashes, R_TAG_INACTIVE, radix_aux, NULL, FEAS_TOL);
     mu_assert("groups found", reference_starts->len > 1);
     size_t n_sorted = (size_t) reference_starts->data[reference_starts->len - 1];
     mu_assert("sorted rows in range", n_sorted <= (size_t) m);
@@ -1353,7 +1353,7 @@ static char *test_18_parallel_rows()
         ThreadPool *pool = thread_pool_new(workers[w]);
         iVec *starts = iVec_new(10);
         find_parallel_rows(A, row_tags, starts, parallel_rows, sparsity_IDs,
-                           coeff_hashes, R_TAG_INACTIVE, radix_aux, pool);
+                           coeff_hashes, R_TAG_INACTIVE, radix_aux, pool, FEAS_TOL);
         mu_assert("same number of groups", starts->len == reference_starts->len);
         mu_assert("same group starts", memcmp(starts->data, reference_starts->data,
                                               starts->len * sizeof(int)) == 0);

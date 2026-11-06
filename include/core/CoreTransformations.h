@@ -75,12 +75,12 @@ PresolveStatus update_ub_with_row(struct Constraints *constraints, int col,
 PresolveStatus change_rhs_of_ineq(struct RowView *row, double new_rhs,
                                   struct Lock *locks, iVec *dton_rows,
                                   struct PostsolveInfo *postsolve_info,
-                                  int other_row_idx, double ratio);
+                                  int other_row_idx, double ratio, double tol);
 
 PresolveStatus change_lhs_of_ineq(struct RowView *row, double new_lhs,
                                   struct Lock *locks, iVec *dton_rows,
                                   struct PostsolveInfo *postsolve_info,
-                                  int other_row_idx, double ratio);
+                                  int other_row_idx, double ratio, double tol);
 
 /* Uses activities of a row to deduce if a variable is implied free. */
 bool implied_free_from_above_by_row(double Aik, const struct ConstRowView *row,
