@@ -24,6 +24,7 @@
 #include "Memory_wrapper.h"
 #include "Numerics.h"
 #include "thread_pool.h"
+#include <math.h>
 #include <stdlib.h>
 
 /* Sums the entries of one row by folded column. stamp[col] is the folded row
@@ -155,6 +156,29 @@ static void fold_bounds(const FoldMaps *maps, int n_cols, Bound *bounds,
     }
 }
 
+static void fold_scale_orthonormal(Matrix *A_new, const FoldMaps *maps, double *lhs,
+                                   double *rhs, Bound *bounds, double *c)
+{
+    for (int row = 0; row < maps->n_rows_folded; row++)
+    {
+        double row_scale = sqrt((double) maps->row_class_size[row]);
+        for (int p = A_new->p[row].start; p < A_new->p[row].end; p++)
+        {
+            A_new->x[p] *=
+                row_scale / sqrt((double) maps->col_class_size[A_new->i[p]]);
+        }
+        lhs[row] *= row_scale;
+        rhs[row] *= row_scale;
+    }
+    for (int col = 0; col < maps->n_cols_folded; col++)
+    {
+        double col_scale = sqrt((double) maps->col_class_size[col]);
+        c[col] = c[col] / (double) maps->col_class_size[col] * col_scale;
+        bounds[col].lb *= col_scale;
+        bounds[col].ub *= col_scale;
+    }
+}
+
 /* Cost of the column representing each column class. */
 static void fold_objective(const FoldMaps *maps, int n_cols, double *c)
 {
@@ -231,6 +255,10 @@ FoldReason fold_apply(const Matrix *A, double *lhs, double *rhs, RowTag *row_tag
     fold_row_sides(maps, n_rows, lhs, rhs, row_tags);
     fold_bounds(maps, n_cols, bounds, col_tags);
     fold_objective(maps, n_cols, c);
+    if (maps->orthonormal)
+    {
+        fold_scale_orthonormal(A_new, maps, lhs, rhs, bounds, c);
+    }
     *folded = A_new;
     return FOLD_FOLDABLE;
 }
@@ -250,6 +278,7 @@ bool fold_problem(Matrix **A, const Matrix *AT, double *lhs, double *rhs,
         fold_detect(*A, AT, lhs, rhs, bounds, c, options, pool, maps, stats);
     if (reason == FOLD_FOLDABLE)
     {
+        (*maps)->orthonormal = options->orthonormal;
         reason =
             fold_apply(*A, lhs, rhs, row_tags, bounds, col_tags, c, *maps, &folded);
     }

@@ -99,6 +99,7 @@ Settings *default_settings(void)
     stgs->finite_bound_tightening = true;
     stgs->relax_bounds = false;
     stgs->lp_fold = true;
+    stgs->fold_orthonormal = true;
     stgs->fold_min_reduction = LP_FOLD_MIN_REDUCTION;
     stgs->max_time = 60.0;
     stgs->verbose = true;
@@ -414,6 +415,7 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
         fold_options.min_reduction = stgs->fold_min_reduction;
         fold_options.work_budget = LP_FOLD_WORK_BUDGET;
         fold_options.max_rounds = LP_FOLD_MAX_ROUNDS;
+        fold_options.orthonormal = stgs->fold_orthonormal;
         clock_gettime(CLOCK_MONOTONIC, &fold_timer.start);
         if (fold_problem(&A, AT, lhs_copy, rhs_copy, row_tags, bounds, col_tags,
                          c_copy, &fold_options, work->pool, &work->fold_maps, NULL))

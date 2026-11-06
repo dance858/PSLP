@@ -61,6 +61,7 @@ extern "C"
         bool dual_fix;
         bool relax_bounds;
         bool lp_fold;
+        bool fold_orthonormal;
         double max_time;
         bool verbose;
 

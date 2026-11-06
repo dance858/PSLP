@@ -17,6 +17,7 @@
  */
 
 #include "fold_postsolve.h"
+#include <math.h>
 #include <string.h>
 
 void fold_postsolve(const FoldMaps *maps, int n_rows, int n_cols,
@@ -26,13 +27,24 @@ void fold_postsolve(const FoldMaps *maps, int n_rows, int n_cols,
     for (int col = 0; col < n_cols; ++col)
     {
         int folded_col = maps->folded_col[col];
-        x[col] = x_folded[folded_col];
-        z[col] = z_folded[folded_col] / maps->col_class_size[folded_col];
+        double size = (double) maps->col_class_size[folded_col];
+        if (maps->orthonormal)
+        {
+            double scale = sqrt(size);
+            x[col] = x_folded[folded_col] / scale;
+            z[col] = z_folded[folded_col] / scale;
+        }
+        else
+        {
+            x[col] = x_folded[folded_col];
+            z[col] = z_folded[folded_col] / size;
+        }
     }
     for (int row = 0; row < n_rows; ++row)
     {
         int folded_row = maps->folded_row[row];
-        y[row] = y_folded[folded_row] / maps->row_class_size[folded_row];
+        double size = (double) maps->row_class_size[folded_row];
+        y[row] = y_folded[folded_row] / (maps->orthonormal ? sqrt(size) : size);
     }
 }
 
@@ -49,7 +61,8 @@ void fold_map_to_folded(const FoldMaps *maps, int n_rows, int n_cols,
         }
         for (int folded_col = 0; folded_col < maps->n_cols_folded; ++folded_col)
         {
-            x_folded[folded_col] /= maps->col_class_size[folded_col];
+            double size = (double) maps->col_class_size[folded_col];
+            x_folded[folded_col] /= maps->orthonormal ? sqrt(size) : size;
         }
     }
     if (y_folded)
@@ -58,6 +71,14 @@ void fold_map_to_folded(const FoldMaps *maps, int n_rows, int n_cols,
         for (int row = 0; row < n_rows; ++row)
         {
             y_folded[maps->folded_row[row]] += y[row];
+        }
+        if (maps->orthonormal)
+        {
+            for (int folded_row = 0; folded_row < maps->n_rows_folded; ++folded_row)
+            {
+                y_folded[folded_row] /=
+                    sqrt((double) maps->row_class_size[folded_row]);
+            }
         }
     }
 }
