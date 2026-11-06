@@ -302,7 +302,8 @@ static void retrieve_fix_col_inf_dual_ray(Solution *sol, const FixedColInfRecord
     sol->x[col] = extreme_val;
 }
 
-static void retrieve_parallel_col_dual_ray(Solution *sol, const ParallelColRecord *r)
+static void retrieve_parallel_col_dual_ray(Solution *sol, const ParallelColRecord *r,
+                                           double tol)
 {
     int j = r->j;
     int k = r->k;
@@ -315,9 +316,9 @@ static void retrieve_parallel_col_dual_ray(Solution *sol, const ParallelColRecor
     double x_new_sol = sol->x[j];
     double xk_val;
 
-    if ((x_new_sol >= -FEAS_TOL && x_new_sol <= FEAS_TOL) ||
-        (x_new_sol < -FEAS_TOL && IS_NEG_INF(lb_j)) ||
-        (x_new_sol > FEAS_TOL && IS_POS_INF(ub_j)))
+    if ((x_new_sol >= -tol && x_new_sol <= tol) ||
+        (x_new_sol < -tol && IS_NEG_INF(lb_j)) ||
+        (x_new_sol > tol && IS_POS_INF(ub_j)))
     {
         sol->x[j] = x_new_sol;
         sol->x[k] = 0.0;
@@ -325,9 +326,8 @@ static void retrieve_parallel_col_dual_ray(Solution *sol, const ParallelColRecor
     }
 
     xk_val = x_new_sol / ratio;
-    if ((xk_val >= -FEAS_TOL && xk_val <= FEAS_TOL) ||
-        (xk_val < -FEAS_TOL && IS_NEG_INF(lb_k)) ||
-        (xk_val > FEAS_TOL && IS_POS_INF(ub_k)))
+    if ((xk_val >= -tol && xk_val <= tol) || (xk_val < -tol && IS_NEG_INF(lb_k)) ||
+        (xk_val > tol && IS_POS_INF(ub_k)))
     {
         sol->x[j] = 0.0;
         sol->x[k] = xk_val;
@@ -508,7 +508,7 @@ void postsolver_run_primal_infeas_ray(const PostsolveInfo *info, Solution *sol,
 }
 
 void postsolver_run_dual_infeas_ray(const PostsolveInfo *info, Solution *sol,
-                                    const double *x)
+                                    const double *x, double tol)
 {
     const int *col_map = info->col_map;
     int n_reductions = (int) info->type->len;
@@ -557,7 +557,7 @@ void postsolver_run_dual_infeas_ray(const PostsolveInfo *info, Solution *sol,
         {
             ParallelColRecord r =
                 decode_parallel_col(indices + start, vals + start, len);
-            retrieve_parallel_col_dual_ray(sol, &r);
+            retrieve_parallel_col_dual_ray(sol, &r, tol);
         }
         else if (type == DELETED_ROW)
         {

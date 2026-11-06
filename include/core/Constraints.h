@@ -55,6 +55,9 @@ typedef struct Constraints
     // cone blocks on the last rows (owned)
     ConeBlock *cones;
     size_t n_cones;
+
+    // primal feasibility tolerance (Settings::feas_tol)
+    double feas_tol;
 } Constraints;
 
 /* Constructor and destructor */

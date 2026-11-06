@@ -98,11 +98,11 @@ void postsolver_update(PostsolveInfo *info, size_t n_cols_reduced,
                        size_t n_rows_reduced, const int *col_map,
                        const int *row_map);
 void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
-                    const double *y, const double *z);
+                    const double *y, const double *z, double tol);
 void postsolver_run_primal_infeas_ray(const PostsolveInfo *info, Solution *sol,
                                       const double *y, const double *z);
 void postsolver_run_dual_infeas_ray(const PostsolveInfo *info, Solution *sol,
-                                    const double *x);
+                                    const double *x, double tol);
 
 /* Maps a primal-dual point (x, y) of the original problem to the reduced
    problem by replaying the recorded reductions in forward order (the inverse of

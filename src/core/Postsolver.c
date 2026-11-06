@@ -223,7 +223,8 @@ static void retrieve_fix_col_inf(Solution *sol, const FixedColInfRecord *r)
     sol->z[col] = 0.0;
 }
 
-static void retrieve_parallel_col(Solution *sol, const ParallelColRecord *r)
+static void retrieve_parallel_col(Solution *sol, const ParallelColRecord *r,
+                                  double tol)
 {
     int j = r->j;
     int k = r->k;
@@ -260,12 +261,12 @@ static void retrieve_parallel_col(Solution *sol, const ParallelColRecord *r)
     // ----------------------------------------------------------------
     xk_val = (x_new_sol - xj_val) / ratio;
 
-    if (!HAS_TAG(cTag_k, C_TAG_LB_INF) && lb_k >= xk_val + FEAS_TOL)
+    if (!HAS_TAG(cTag_k, C_TAG_LB_INF) && lb_k >= xk_val + tol)
     {
         xk_val = lb_k;
         xj_val = x_new_sol - ratio * xk_val;
     }
-    else if (!HAS_TAG(cTag_k, C_TAG_UB_INF) && xk_val >= ub_k + FEAS_TOL)
+    else if (!HAS_TAG(cTag_k, C_TAG_UB_INF) && xk_val >= ub_k + tol)
     {
         xk_val = ub_k;
         xj_val = x_new_sol - ratio * xk_val;
@@ -420,15 +421,15 @@ void postsolver_update(PostsolveInfo *info, size_t n_cols_reduced,
     info->row_map = row_map;
 }
 
-void polish_z(Solution *sol, const double *lbs, const double *ubs)
+void polish_z(Solution *sol, const double *lbs, const double *ubs, double tol)
 {
     size_t n_cols = sol->dim_x;
     double *x = sol->x;
     double *z = sol->z;
     for (size_t k = 0; k < n_cols; ++k)
     {
-        bool is_xk_equal_to_lb = IS_EQUAL_FEAS_TOL(x[k], lbs[k]);
-        bool is_xk_equal_to_ub = IS_EQUAL_FEAS_TOL(x[k], ubs[k]);
+        bool is_xk_equal_to_lb = IS_EQUAL_TOL(x[k], lbs[k], tol);
+        bool is_xk_equal_to_ub = IS_EQUAL_TOL(x[k], ubs[k], tol);
 
         // if wrong sign we set it to zero
         if (is_xk_equal_to_lb && !is_xk_equal_to_ub && z[k] < 0)
@@ -443,7 +444,7 @@ void polish_z(Solution *sol, const double *lbs, const double *ubs)
 }
 
 void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
-                    const double *y, const double *z)
+                    const double *y, const double *z, double tol)
 {
     const int *col_map = info->col_map;
     const int *row_map = info->row_map;
@@ -496,7 +497,7 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
         {
             ParallelColRecord r =
                 decode_parallel_col(indices + start, vals + start, len);
-            retrieve_parallel_col(sol, &r);
+            retrieve_parallel_col(sol, &r, tol);
         }
         else if (type == DELETED_ROW)
         {
@@ -597,7 +598,7 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
         }
     }
 
-    // polish_z(sol, lbs, ubs);
+    // polish_z(sol, lbs, ubs, tol);
 
 #ifndef NDEBUG
     for (int i = 0; i < sol->dim_x; ++i)

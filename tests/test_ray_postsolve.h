@@ -269,7 +269,7 @@ static char *test_bound_change_dual_ray_postsolve()
     double sol_x[2];
     Solution sol = {sol_x, NULL, NULL, 2, 0};
 
-    postsolver_run_dual_infeas_ray(info, &sol, x);
+    postsolver_run_dual_infeas_ray(info, &sol, x, FEAS_TOL);
 
     mu_assert("bound change dual ray x0", IS_EQUAL_FEAS_TOL(sol.x[0], 4.0));
     mu_assert("bound change dual ray x1", IS_EQUAL_FEAS_TOL(sol.x[1], 0.0));
@@ -402,7 +402,7 @@ static char *test_fix_col_dual_ray_postsolve()
     double sol_x[2];
     Solution sol = {sol_x, NULL, NULL, 2, 0};
 
-    postsolver_run_dual_infeas_ray(info, &sol, x);
+    postsolver_run_dual_infeas_ray(info, &sol, x, FEAS_TOL);
 
     mu_assert("fix col dual ray x0", IS_EQUAL_FEAS_TOL(sol.x[0], 0.0));
     mu_assert("fix col dual ray x1", IS_EQUAL_FEAS_TOL(sol.x[1], 2.0));
@@ -456,7 +456,7 @@ static char *test_sub_col_dual_ray_postsolve()
     double sol_x[2];
     Solution sol = {sol_x, NULL, NULL, 2, 0};
 
-    postsolver_run_dual_infeas_ray(info, &sol, x);
+    postsolver_run_dual_infeas_ray(info, &sol, x, FEAS_TOL);
 
     mu_assert("sub col dual ray x0", IS_EQUAL_FEAS_TOL(sol.x[0], -10.0));
     mu_assert("sub col dual ray x1", IS_EQUAL_FEAS_TOL(sol.x[1], 4.0));
@@ -503,7 +503,7 @@ static char *test_parallel_col_dual_ray_postsolve()
     double sol_x[2];
     Solution sol = {sol_x, NULL, NULL, 2, 0};
 
-    postsolver_run_dual_infeas_ray(info, &sol, x);
+    postsolver_run_dual_infeas_ray(info, &sol, x, FEAS_TOL);
 
     mu_assert("parallel col dual ray x0", IS_EQUAL_FEAS_TOL(sol.x[0], 0.0));
     mu_assert("parallel col dual ray x1", IS_EQUAL_FEAS_TOL(sol.x[1], 2.0));
