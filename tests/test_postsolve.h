@@ -1230,6 +1230,120 @@ static char *test_fix_col_inf()
     return 0;
 }
 
+/*  Dual fix to -inf in the same pass as finite fixes.
+    min. [0  1  1] x
+    s.t. [1  1  0] x <= 10
+         [1  0  1] x <= 4
+    x1 free, x2 in [3, 5], x3 in [1, 2]
+    The dual fix puts x2 and x3 at their lower bounds and x1 at -inf, all
+    in one pass. Postsolve must take the finite fixes into account when it
+    picks x1: the optimum it should give is x = (3, 3, 1). */
+static char *test_fix_col_inf_same_pass_finite_fix()
+{
+    double Ax[] = {1, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 2};
+    int Ap[] = {0, 2, 4};
+    int nnz = 4;
+    int n_rows = 2;
+    int n_cols = 3;
+
+    double lhs[] = {-INF, -INF};
+    double rhs[] = {10, 4};
+    double lbs[] = {-INF, 3, 1};
+    double ubs[] = {INF, 5, 2};
+    double c[] = {0, 1, 1};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dual_fix = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    ProblemData *red = presolver->reduced_prob;
+    mu_assert("expected everything removed", red->m == 0 && red->n == 0);
+
+    double x[1] = {0};
+    double y[1] = {0};
+    double z[1] = {0};
+    postsolve(presolver, x, y, z);
+
+    double correct_x[] = {3, 3, 1};
+    double correct_y[] = {0, 0};
+    double correct_z[] = {0, 1, 1};
+    mu_assert("fix col inf with same-pass finite fixes postsolve error",
+              is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
+                                  correct_y, presolver->sol->z, correct_z, n_rows,
+                                  n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/*  Dual fix with two columns to -inf in a shared row, in the same pass as
+    finite fixes, one of them to zero.
+    min. [0  0  1  1  -1] x
+    s.t. [1  1  1  1  -1] x <= 10
+         [1  0  1  0  -1] x <= 4
+         [0  1  2  1   0] x <= 3
+    x1, x2 free, x3 in [1, 2], x4 in [0, 1], x5 in [2, 3]
+    The dual fix puts x3 = 1, x4 = 0, x5 = 3 and x1, x2 at -inf. Postsolve
+    undoes x2 first (treating x1 as zero), x2 = min(12, 1) = 1, then
+    x1 = min(12 - 1, 6) = 6. */
+static char *test_fix_col_inf_same_pass_two_inf()
+{
+    double Ax[] = {1, 1, 1, 1, -1, 1, 1, -1, 1, 2, 1};
+    int Ai[] = {0, 1, 2, 3, 4, 0, 2, 4, 1, 2, 3};
+    int Ap[] = {0, 5, 8, 11};
+    int nnz = 11;
+    int n_rows = 3;
+    int n_cols = 5;
+
+    double lhs[] = {-INF, -INF, -INF};
+    double rhs[] = {10, 4, 3};
+    double lbs[] = {-INF, -INF, 1, 0, 2};
+    double ubs[] = {INF, INF, 2, 1, 3};
+    double c[] = {0, 0, 1, 1, -1};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dual_fix = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    ProblemData *red = presolver->reduced_prob;
+    mu_assert("expected everything removed", red->m == 0 && red->n == 0);
+
+    double x[1] = {0};
+    double y[1] = {0};
+    double z[1] = {0};
+    postsolve(presolver, x, y, z);
+
+    double correct_x[] = {6, 1, 1, 0, 3};
+    double correct_y[] = {0, 0, 0};
+    double correct_z[] = {0, 0, 1, 1, -1};
+    mu_assert("fix col inf with two inf columns postsolve error",
+              is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
+                                  correct_y, presolver->sol->z, correct_z, n_rows,
+                                  n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 /*  Parallel-column dual postsolve: z_k = ratio * z_j is an exact identity.
 
     min. [1  2  0.1] x
@@ -1274,6 +1388,65 @@ static char *test_parallel_col_dual_identity()
               is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
                                   correct_y, presolver->sol->z, correct_z, n_rows,
                                   n_cols, POSTSOLVE_TOL_FEAS));
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/*  Parallel columns where only the kept column has a finite bound.
+    min. [1  1  0  0] x
+    s.t. [1  1  1   0] x = 8
+         [1  1  0  -1] x = 2
+    x1 in [5, inf), x2 free, x3, x4 in [0, inf)
+    Columns 1 and 2 merge into a free column, so the kept column's tags turn
+    infinite. Postsolve must still split the merged value against the kept
+    column's own bound: the optimum is x = (5, -3, 6, 0). */
+static char *test_parallel_col_kept_bound()
+{
+    double Ax[] = {1, 1, 1, 1, 1, -1};
+    int Ai[] = {0, 1, 2, 0, 1, 3};
+    int Ap[] = {0, 3, 6};
+    int nnz = 6;
+    int n_rows = 2;
+    int n_cols = 4;
+
+    double lhs[] = {8, 2};
+    double rhs[] = {8, 2};
+    double lbs[] = {5, -INF, 0, 0};
+    double ubs[] = {INF, INF, INF, INF};
+    double c[] = {1, 1, 0, 0};
+    ProblemData orig =
+        problem_from_csr(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c);
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->parallel_cols = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    ProblemData *red = presolver->reduced_prob;
+    mu_assert("expected one parallel column removed", red->m == 2 && red->n == 3);
+
+    // optimal reduced point: merged column 2, x3 = 6, x4 = 0
+    double x[] = {2, 6, 0};
+    double y[] = {0, 1};
+    double z[] = {0, 0, 1};
+    mu_assert("reduced point is not optimal",
+              is_kkt_point(red, x, y, z, POSTSOLVE_TOL_FEAS));
+    postsolve(presolver, x, y, z);
+
+    double correct_x[] = {5, -3, 6, 0};
+    double correct_y[] = {0, 1};
+    double correct_z[] = {0, 0, 0, 1};
+    mu_assert("parallel col kept bound postsolve error",
+              is_solution_correct(presolver->sol->x, correct_x, presolver->sol->y,
+                                  correct_y, presolver->sol->z, correct_z, n_rows,
+                                  n_cols, POSTSOLVE_TOL_FEAS));
+    mu_assert("postsolved point is not optimal",
+              is_kkt_point(&orig, presolver->sol->x, presolver->sol->y,
+                           presolver->sol->z, POSTSOLVE_TOL_FEAS));
+
     PS_FREE(stgs);
     free_presolver(presolver);
     return 0;
@@ -1599,7 +1772,10 @@ static const char *all_tests_postsolve()
     mu_run_test(test_pathological_ston_one, counter_postsolve);
     mu_run_test(test_pathological_ston_two, counter_postsolve);
     mu_run_test(test_fix_col_inf, counter_postsolve);
+    mu_run_test(test_fix_col_inf_same_pass_finite_fix, counter_postsolve);
+    mu_run_test(test_fix_col_inf_same_pass_two_inf, counter_postsolve);
     mu_run_test(test_parallel_col_dual_identity, counter_postsolve);
+    mu_run_test(test_parallel_col_kept_bound, counter_postsolve);
     mu_run_test(test_ston_row_bound_dual_approximate_solution, counter_postsolve);
     mu_run_test(test_propagation_bound_dual_approximate_solution, counter_postsolve);
     mu_run_test(test_parallel_rows_dual_approximate_solution, counter_postsolve);

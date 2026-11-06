@@ -51,6 +51,7 @@ static inline PresolveStatus process_single_bin(Problem *prob, const int *bin,
     int ii, jj, j, k, len_j;
     const int *aj_cols;
     double ratio, cj, ck, ak0, lb_j_old, ub_j_old;
+    ColTag tag_j_old;
     const double *aj_vals;
 
     for (ii = 0; ii < bin_size - 1; ++ii)
@@ -93,8 +94,11 @@ static inline PresolveStatus process_single_bin(Problem *prob, const int *bin,
                 // ---------------------------------------------------------------------
                 //                    Update the bounds of column j
                 // ---------------------------------------------------------------------
+                // postsolve splits x_j back out against j's own bounds, so
+                // it needs j's tags from before the merge as well
                 lb_j_old = bounds[j].lb;
                 ub_j_old = bounds[j].ub;
+                tag_j_old = col_tags[j];
                 if (ratio > 0)
                 {
                     // update lb
@@ -161,7 +165,7 @@ static inline PresolveStatus process_single_bin(Problem *prob, const int *bin,
                 mark_P_row_inactive(prob, k);
                 save_retrieval_parallel_col(postsolve_info, ub_j_old, lb_j_old,
                                             bounds[k].lb, bounds[k].ub, ratio, j, k,
-                                            col_tags[j], col_tags[k]);
+                                            tag_j_old, col_tags[k]);
             }
             else
             {
