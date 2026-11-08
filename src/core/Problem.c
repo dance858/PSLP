@@ -244,7 +244,7 @@ void sub_var_in_obj(Problem *prob, const double *vals, const int *cols, int len,
 void sub_var_in_obj_dton(Objective *obj, int subst, int stay, double mult,
                          double shift)
 {
-    obj->c[stay] += mult * obj->c[subst];
+    obj->c[stay] = add_cancelling(obj->c[stay], mult * obj->c[subst]);
     obj->offset += shift * obj->c[subst];
     obj->c[subst] = 0.0;
 }
@@ -258,7 +258,7 @@ void sub_diag_var_in_obj_dton(Problem *prob, int k, int t, double mult, double s
     double Pkk = P->x[P->p[k].start];
 
     /* (1/2) P_kk x_k^2 + c_k x_k with x_k = shift + mult x_t */
-    obj->c[t] += mult * (obj->c[k] + Pkk * shift);
+    obj->c[t] = add_cancelling(obj->c[t], mult * (obj->c[k] + Pkk * shift));
     obj->offset += shift * (obj->c[k] + 0.5 * Pkk * shift);
     obj->c[k] = 0.0;
 
