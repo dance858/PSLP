@@ -528,6 +528,52 @@ static char *test_dton_cancellation()
     return 0;
 }
 
+/* The two cost terms of a doubleton equality cancel on the row, and the
+   residue of the floating-point update must be snapped to zero.
+       min 0.7 x0 - 0.07 x1 + x2 + x3
+       10 x0 - x1 = 0,  x0 + x2 >= 1,  x1 + x3 >= 0
+   x0 and x1 free, x2 and x3 nonnegative. The objective equals x2 + x3 on
+   the feasible set and the optimal value is 0. Substituting x0 = 0.1 x1
+   leaves c1 = -1.4e-17, which the dual fix used to read as a descent
+   direction of the free x1 and return UNBNDORINFEAS. */
+static char *test_dton_cost_cancellation()
+{
+    double Ax[] = {10, -1, 1, 1, 1, 1};
+    int Ai[] = {0, 1, 0, 2, 1, 3};
+    int Ap[] = {0, 2, 4, 6};
+    double lhs[] = {0, 1, 0};
+    double rhs[] = {0, INF, INF};
+    double lbs[] = {-INF, -INF, 0, 0};
+    double ubs[] = {INF, INF, INF, INF};
+    double c[] = {0.7, -0.07, 1, 1};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    stgs->dton_eq = true;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 3, 4, 6, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+
+    Problem *prob = presolver->prob;
+    remove_dton_eq_rows(prob);
+    mu_assert("x0 inactive",
+              HAS_TAG(prob->constraints->col_tags[0], C_TAG_INACTIVE));
+    mu_assert("c1 snapped to zero", prob->obj->c[1] == 0.0);
+
+    free_presolver(presolver);
+    PS_FREE(stgs);
+
+    stgs = default_settings();
+    presolver = new_presolver(Ax, Ai, Ap, 3, 4, 6, lhs, rhs, lbs, ubs, c, stgs);
+    mu_assert("presolver allocation failed", presolver != NULL);
+    PresolveStatus status = run_presolver(presolver);
+    mu_assert("bounded LP declared unbounded or infeasible", status == REDUCED);
+
+    free_presolver(presolver);
+    PS_FREE(stgs);
+    return 0;
+}
+
 /* A chain that eliminates the entire matrix: three doubletons claim
    x0 -> x1, x2 -> x1,
    x3 -> x2, every row is an owner row, and the survivor column x1 ends
@@ -2450,6 +2496,7 @@ static const char *all_tests_dton()
     mu_run_test(test_dton_eliminate_isolated, counter_dton);
     mu_run_test(test_dton_apply_substitution, counter_dton);
     mu_run_test(test_dton_cancellation, counter_dton);
+    mu_run_test(test_dton_cost_cancellation, counter_dton);
     mu_run_test(test_dton_chain_empties_matrix, counter_dton);
     mu_run_test(test_dton_chain_bounds_live, counter_dton);
     mu_run_test(test_dton_chain_bounds_live_tags, counter_dton);
