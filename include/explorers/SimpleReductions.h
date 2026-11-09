@@ -74,7 +74,7 @@ PresolveStatus remove_empty_rows(const struct Constraints *constraints);
 */
 void clean_small_coeff_A(struct Matrix *A, const struct Bound *bounds,
                          const RowTag *row_tags, const ColTag *col_tags, double *rhs,
-                         double *lhs);
+                         double *lhs, double tol);
 
 /* Checks for redundant and infeasible constraints. Note that this
    function does *not* check for forcing constraints. We use

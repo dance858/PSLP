@@ -340,7 +340,7 @@ PresolveStatus remove_parallel_cols(Problem *prob)
     find_parallel_rows(constraints->AT, constraints->col_tags, group_starts,
                        parallel_cols, sparsity_IDs, coeff_hashes, C_TAG_INACTIVE,
                        constraints->state->work->radix_aux,
-                       constraints->state->work->pool);
+                       constraints->state->work->pool, constraints->feas_tol);
 #ifndef NDEBUG
     // there should be no inactive cols in group_starts here
     for (int i = 0; i < group_starts->len - 1; ++i)

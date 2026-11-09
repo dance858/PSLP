@@ -42,8 +42,8 @@ PresolveStatus fix_col(Problem *prob, int col, double val)
     assert(data->col_sizes[col] > 0 || col_in_P(data, col));
     assert(!HAS_TAG(*col_tag, C_TAG_INACTIVE));
 
-    if ((!is_ub_inf && IS_INFEAS_GT(val, old_ub)) ||
-        (!is_lb_inf && IS_INFEAS_LT(val, old_lb)))
+    if ((!is_ub_inf && IS_INFEAS_GT(val, old_ub, constraints->feas_tol)) ||
+        (!is_lb_inf && IS_INFEAS_LT(val, old_lb, constraints->feas_tol)))
     {
         return INFEASIBLE;
     }
@@ -186,7 +186,8 @@ PresolveStatus update_lb_with_row(Constraints *constraints, int col, double new_
     double lb = bounds[col].lb;
     assert(!HAS_TAG(constraints->col_tags[col], C_TAG_INACTIVE));
 
-    if (!HAS_TAG(*col_tag, C_TAG_UB_INF) && IS_INFEAS_GT(new_lb, ub))
+    if (!HAS_TAG(*col_tag, C_TAG_UB_INF) &&
+        IS_INFEAS_GT(new_lb, ub, constraints->feas_tol))
     {
         return INFEASIBLE;
     }
@@ -194,7 +195,7 @@ PresolveStatus update_lb_with_row(Constraints *constraints, int col, double new_
     bool is_lb_inf = HAS_TAG(*col_tag, C_TAG_LB_INF);
 
     // update the lower bound if it is tighter
-    if (is_lb_inf || new_lb >= lb + FEAS_TOL)
+    if (is_lb_inf || new_lb >= lb + constraints->feas_tol)
     {
         const Matrix *AT = constraints->AT;
         const double *vals = AT->x + AT->p[col].start;
@@ -246,7 +247,8 @@ PresolveStatus update_ub_with_row(Constraints *constraints, int col, double new_
 
     assert(!HAS_TAG(constraints->col_tags[col], C_TAG_INACTIVE));
 
-    if (!HAS_TAG(*col_tag, C_TAG_LB_INF) && IS_INFEAS_LT(new_ub, lb))
+    if (!HAS_TAG(*col_tag, C_TAG_LB_INF) &&
+        IS_INFEAS_LT(new_ub, lb, constraints->feas_tol))
     {
         return INFEASIBLE;
     }
@@ -254,7 +256,7 @@ PresolveStatus update_ub_with_row(Constraints *constraints, int col, double new_
     bool is_ub_inf = HAS_TAG(*col_tag, C_TAG_UB_INF);
 
     // update the upper bound if it is tighter
-    if (is_ub_inf || new_ub <= ub - FEAS_TOL)
+    if (is_ub_inf || new_ub <= ub - constraints->feas_tol)
     {
         const Matrix *AT = constraints->AT;
         const double *vals = AT->x + AT->p[col].start;
@@ -401,13 +403,13 @@ bool implied_free_from_below_by_row(double Aik, const ConstRowView *row, double 
 
 PresolveStatus change_rhs_of_ineq(RowView *row, double new_rhs, Lock *locks,
                                   iVec *dton_rows, PostsolveInfo *postsolve_info,
-                                  int other_row_idx, double ratio)
+                                  int other_row_idx, double ratio, double tol)
 {
     assert(!HAS_TAG(*row->tag, (R_TAG_EQ | R_TAG_INACTIVE)));
     assert(!IS_ABS_INF(new_rhs));
     assert(other_row_idx >= 0);
 
-    if (!HAS_TAG(*row->tag, R_TAG_LHS_INF) && IS_INFEAS_GT(*row->lhs, new_rhs))
+    if (!HAS_TAG(*row->tag, R_TAG_LHS_INF) && IS_INFEAS_GT(*row->lhs, new_rhs, tol))
     {
         return INFEASIBLE;
     }
@@ -440,7 +442,7 @@ PresolveStatus change_rhs_of_ineq(RowView *row, double new_rhs, Lock *locks,
 
     // check if the row becomes an equality constraint
     if (!HAS_TAG(*row->tag, R_TAG_LHS_INF) &&
-        IS_EQUAL_FEAS_TOL(*row->lhs, *row->rhs))
+        IS_EQUAL_TOL(*row->lhs, *row->rhs, tol))
     {
         *row->rhs = *row->lhs;
         UPDATE_TAG(*row->tag, R_TAG_EQ);
@@ -460,13 +462,13 @@ PresolveStatus change_rhs_of_ineq(RowView *row, double new_rhs, Lock *locks,
 
 PresolveStatus change_lhs_of_ineq(RowView *row, double new_lhs, Lock *locks,
                                   iVec *dton_rows, PostsolveInfo *postsolve_info,
-                                  int other_row_idx, double ratio)
+                                  int other_row_idx, double ratio, double tol)
 {
     assert(!HAS_TAG(*row->tag, (R_TAG_EQ | R_TAG_INACTIVE)));
     assert(!IS_ABS_INF(new_lhs));
     assert(other_row_idx >= 0);
 
-    if (!HAS_TAG(*row->tag, R_TAG_RHS_INF) && IS_INFEAS_LT(*row->rhs, new_lhs))
+    if (!HAS_TAG(*row->tag, R_TAG_RHS_INF) && IS_INFEAS_LT(*row->rhs, new_lhs, tol))
     {
         return INFEASIBLE;
     }
@@ -499,7 +501,7 @@ PresolveStatus change_lhs_of_ineq(RowView *row, double new_lhs, Lock *locks,
 
     // check if the row becomes an equality constraint
     if (!HAS_TAG(*row->tag, R_TAG_RHS_INF) &&
-        IS_EQUAL_FEAS_TOL(*row->rhs, *row->lhs))
+        IS_EQUAL_TOL(*row->rhs, *row->lhs, tol))
     {
         *row->lhs = *row->rhs;
         UPDATE_TAG(*row->tag, R_TAG_EQ);

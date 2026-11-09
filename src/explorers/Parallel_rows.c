@@ -153,7 +153,8 @@ void ASSERT_BIN_CORRECT(const int *coeff_hashes, const int *sparsity_IDs,
 }
 
 void VERIFY_PARALLEL_ROWS(const Matrix *A, const RowTag *rows_tags,
-                          const int *parallel_rows, const iVec *group_starts)
+                          const int *parallel_rows, const iVec *group_starts,
+                          double tol)
 {
     int j, k, start, end, n_rows_this_group, len1;
     size_t i;
@@ -195,7 +196,7 @@ void VERIFY_PARALLEL_ROWS(const Matrix *A, const RowTag *rows_tags,
                 // relative tolerance: rows with large coefficients are
                 // detected through hashes of normalized values
                 assert(ABS(vals1[k] - ratio * vals2[k]) <=
-                       FEAS_TOL * MAX(1.0, ABS(vals1[k])));
+                       tol * MAX(1.0, ABS(vals1[k])));
             }
         }
     }
@@ -217,7 +218,7 @@ void VERIFY_PARALLEL_ROWS(const Matrix *A, const RowTag *rows_tags,
 */
 static inline int find_parallel_rows_in_bin(const Matrix *A, const int *bin,
                                             int bin_size, int *parallel_rows,
-                                            iVec *group_starts)
+                                            iVec *group_starts, double tol)
 {
     assert(bin_size > 1);
     int i, j, first_row_in_bin = bin[0];
@@ -248,7 +249,7 @@ static inline int find_parallel_rows_in_bin(const Matrix *A, const int *bin,
             // diff = vals1[j] / vals2[j] - ratio
             double diff = vals1[j] - ratio * vals2[j];
 
-            if (!IS_ZERO_FEAS_TOL(diff) || cols1[j] != cols2[j])
+            if (!IS_ZERO_TOL(diff, tol) || cols1[j] != cols2[j])
             {
                 break;
             }
@@ -332,7 +333,8 @@ static int remove_rows_with_unique_key(int *rows, int n, const int *sparsity_IDs
 // replaced rows with parallel_rows for less memory usage
 void find_parallel_rows(const Matrix *A, const RowTag *r_Tags, iVec *group_starts,
                         int *parallel_rows, int *sparsity_IDs, int *coeff_hashes,
-                        RowTag INACTIVE_TAG, int *radix_aux, ThreadPool *pool)
+                        RowTag INACTIVE_TAG, int *radix_aux, ThreadPool *pool,
+                        double tol)
 {
     int i, bin_size;
     int n_p_rows_total = 0;
@@ -392,13 +394,13 @@ void find_parallel_rows(const Matrix *A, const RowTag *r_Tags, iVec *group_start
 
             n_p_rows_total += find_parallel_rows_in_bin(
                 A, parallel_rows + i, bin_size, parallel_rows + n_p_rows_total,
-                group_starts);
+                group_starts, tol);
 
             i += bin_size - 1;
         }
     }
     assert(n_p_rows_total == group_starts->data[group_starts->len - 1]);
-    DEBUG(VERIFY_PARALLEL_ROWS(A, r_Tags, parallel_rows, group_starts););
+    DEBUG(VERIFY_PARALLEL_ROWS(A, r_Tags, parallel_rows, group_starts, tol););
 }
 
 static inline PresolveStatus process_single_bin(const Constraints *constraints,
@@ -473,7 +475,8 @@ static inline PresolveStatus process_single_bin(const Constraints *constraints,
         // -----------------------------------------------------------------------
         if (is_remaining_row_eq && is_other_row_eq)
         {
-            if (!IS_EQUAL_FEAS_TOL(remaining_row_new_rhs, other_row_rhs_scaled))
+            if (!IS_EQUAL_TOL(remaining_row_new_rhs, other_row_rhs_scaled,
+                              constraints->feas_tol))
             {
                 return INFEASIBLE;
             }
@@ -579,8 +582,8 @@ static inline PresolveStatus process_single_bin(const Constraints *constraints,
             if (change_rhs_of_ineq(&remaining_row, remaining_row_new_rhs,
                                    constraints->state->col_locks,
                                    constraints->state->dton_rows, postsolve_info,
-                                   other_row_rhs_index,
-                                   other_row_rhs_scale_factor) == INFEASIBLE)
+                                   other_row_rhs_index, other_row_rhs_scale_factor,
+                                   constraints->feas_tol) == INFEASIBLE)
             {
                 return INFEASIBLE;
             }
@@ -595,8 +598,8 @@ static inline PresolveStatus process_single_bin(const Constraints *constraints,
             if (change_lhs_of_ineq(&remaining_row, remaining_row_new_lhs,
                                    constraints->state->col_locks,
                                    constraints->state->dton_rows, postsolve_info,
-                                   other_row_lhs_index,
-                                   other_row_lhs_scale_factor) == INFEASIBLE)
+                                   other_row_lhs_index, other_row_lhs_scale_factor,
+                                   constraints->feas_tol) == INFEASIBLE)
             {
                 return INFEASIBLE;
             }
@@ -657,10 +660,11 @@ PresolveStatus remove_parallel_rows(Constraints *constraints)
     int *coeff_hashes = constraints->state->work->iwork2_max_nrows_ncols;
     iVec *group_starts = constraints->state->work->int_vec;
 
-    find_parallel_rows(
-        constraints->A, constraints->row_tags, group_starts, parallel_rows,
-        sparsity_IDs, coeff_hashes, (RowTag) (R_TAG_INACTIVE | R_TAG_CONE),
-        constraints->state->work->radix_aux, constraints->state->work->pool);
+    find_parallel_rows(constraints->A, constraints->row_tags, group_starts,
+                       parallel_rows, sparsity_IDs, coeff_hashes,
+                       (RowTag) (R_TAG_INACTIVE | R_TAG_CONE),
+                       constraints->state->work->radix_aux,
+                       constraints->state->work->pool, constraints->feas_tol);
 
     PresolveStatus status =
         process_all_bins(constraints, parallel_rows, group_starts);
