@@ -1377,6 +1377,61 @@ static char *test_18_parallel_rows()
     return 0;
 }
 
+/* An equality parallel to an inequality whose scaled side differs only by
+   rounding:
+       x + y + z >= 0.1
+       3x + 3y + 3z = 0.3        x, y, z >= 0
+   0.3 * (1/3) is 0.09999999999999999 < 0.1 and 0.1 * 3 is 0.30000000000000004
+   > 0.3, so an exact comparison of the sides declares the pair infeasible.
+   The costs differ so that the fold does not merge the columns first. The
+   inequality comes first: the check before the swap is exercised. */
+static char *test_19_parallel_rows_eq_ineq_rounding()
+{
+    double Ax[] = {1, 1, 1, 3, 3, 3};
+    int Ai[] = {0, 1, 2, 0, 1, 2};
+    int Ap[] = {0, 3, 6};
+    double lhs[] = {0.1, 0.3};
+    double rhs[] = {INF, 0.3};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {INF, INF, INF};
+    double c[] = {1, 2, 3}; /* distinct, or the fold merges the three columns */
+
+    Settings *stgs = default_settings();
+    stgs->verbose = false;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 2, 3, 6, lhs, rhs, lbs, ubs, c, stgs);
+    PresolveStatus status = run_presolver(presolver);
+    mu_assert("feasible", (status & INFEASIBLE) == 0);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/* The same pair with the equality first: the main comparison is exercised. */
+static char *test_20_parallel_rows_eq_ineq_rounding_swapped()
+{
+    double Ax[] = {3, 3, 3, 1, 1, 1};
+    int Ai[] = {0, 1, 2, 0, 1, 2};
+    int Ap[] = {0, 3, 6};
+    double lhs[] = {0.3, 0.1};
+    double rhs[] = {0.3, INF};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {INF, INF, INF};
+    double c[] = {1, 2, 3}; /* distinct, or the fold merges the three columns */
+
+    Settings *stgs = default_settings();
+    stgs->verbose = false;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 2, 3, 6, lhs, rhs, lbs, ubs, c, stgs);
+    PresolveStatus status = run_presolver(presolver);
+    mu_assert("feasible", (status & INFEASIBLE) == 0);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_parallel_rows()
 {
     mu_run_test(test_1_parallel_rows, counter_parallel_rows);
@@ -1397,6 +1452,9 @@ static const char *all_tests_parallel_rows()
     mu_run_test(test_16_parallel_rows, counter_parallel_rows);
     mu_run_test(test_17_parallel_rows, counter_parallel_rows);
     mu_run_test(test_18_parallel_rows, counter_parallel_rows);
+    mu_run_test(test_19_parallel_rows_eq_ineq_rounding, counter_parallel_rows);
+    mu_run_test(test_20_parallel_rows_eq_ineq_rounding_swapped,
+                counter_parallel_rows);
 
     return 0;
 }
