@@ -324,7 +324,8 @@ void retrieve_added_rows(Solution *sol, int i, const int *rows, const double *va
 }
 
 void retrieve_bound_change(Solution *sol, int i, int j, const int *cols,
-                           const double *vals, int len, bool implied_bound_is_upper)
+                           const double *vals, int len, bool implied_bound_is_upper,
+                           double implied_bound)
 {
     int k, ii;
     double aij = 1.0;
@@ -334,6 +335,14 @@ void retrieve_bound_change(Solution *sol, int i, int j, const int *cols,
 
     if ((implied_bound_is_upper && sol->z[j] >= 0.0) ||
         (!implied_bound_is_upper && sol->z[j] <= 0.0))
+    {
+        return;
+    }
+
+    // only transfer z_j to the row if the implied bound is (nearly) active
+    double dist = implied_bound_is_upper ? implied_bound - sol->x[j]
+                                         : sol->x[j] - implied_bound;
+    if (dist > ACTIVE_BOUND_TOL_REL * (1.0 + ABS(implied_bound)))
     {
         return;
     }
@@ -551,9 +560,9 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
                     bound_changes_processed += 1;
                     // the implied bound is the upper one iff the other bound
                     // is the lower one
-                    retrieve_bound_change(sol, row.i, r.j, row.cols, row.vals,
-                                          row.len,
-                                          r.is_original_other_bound_lower_bound);
+                    retrieve_bound_change(
+                        sol, row.i, r.j, row.cols, row.vals, row.len,
+                        r.is_original_other_bound_lower_bound, r.implied_bound);
                 }
 
                 j -= 1;

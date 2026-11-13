@@ -1543,6 +1543,101 @@ static char *test_ston_row_bound_dual_approximate_solution()
     return 0;
 }
 
+/*  Singleton inequality row whose implied bound is inactive, with an
+    approximate reduced dual.
+    min. [2  1] x
+    s.t. [2  0] x <= 1e5
+         [1  1] x >= 6e4
+         x0 free, 0 <= x1 <= 1e5
+    The singleton row becomes the bound x0 <= 5e4 and is deleted. The reduced
+    point has x0 = 1e4, far from that bound, and z0 = -1e-3: noise of a
+    first-order solver, not a multiplier of the bound. Postsolve must not hand
+    z0 to the deleted row: y0 = -5e-4 on a row with slack 8e4 would add 40 to
+    the duality gap. z0 stays as a dual residual of the size it had on the
+    reduced problem. */
+static char *test_ston_row_bound_dual_inactive_bound()
+{
+    double Ax[] = {2, 1, 1};
+    int Ai[] = {0, 0, 1};
+    int Ap[] = {0, 1, 3};
+    int nnz = 3;
+    int n_rows = 2;
+    int n_cols = 2;
+
+    double lhs[] = {-INF, 6e4};
+    double rhs[] = {1e5, INF};
+    double lbs[] = {-INF, 0};
+    double ubs[] = {INF, 1e5};
+    double c[] = {2, 1};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    ProblemData *red = presolver->reduced_prob;
+    mu_assert("expected the singleton row removed", red->m == 1 && red->n == 2);
+    mu_assert("expected the bound x0 <= 5e4", IS_EQUAL_FEAS_TOL(red->ubs[0], 5e4));
+
+    double x[] = {1e4, 5e4};
+    double y[] = {1};
+    double z[] = {-1e-3, 0};
+    postsolve(presolver, x, y, z);
+
+    mu_assert("inactive bound dual handed to the singleton row",
+              presolver->sol->y[0] == 0.0);
+    mu_assert("bound dual of an inactive bound not kept",
+              presolver->sol->z[0] == -1e-3);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/*  Same problem as test_ston_row_bound_dual_inactive_bound, but the reduced
+    point misses the active bound x0 <= 5e4 by 2e-5 relative and z0 = -100 is a
+    real multiplier, as from a first-order solver at a loose tolerance. z0 must
+    be handed to the deleted row: y0 = -50 and z0 = 0. */
+static char *test_ston_row_bound_dual_near_active_bound()
+{
+    double Ax[] = {2, 1, 1};
+    int Ai[] = {0, 0, 1};
+    int Ap[] = {0, 1, 3};
+    int nnz = 3;
+    int n_rows = 2;
+    int n_cols = 2;
+
+    double lhs[] = {-INF, 6e4};
+    double rhs[] = {1e5, INF};
+    double lbs[] = {-INF, 0};
+    double ubs[] = {INF, 1e5};
+    double c[] = {2, 1};
+
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    run_presolver(presolver);
+    ProblemData *red = presolver->reduced_prob;
+    mu_assert("expected the singleton row removed", red->m == 1 && red->n == 2);
+    mu_assert("expected the bound x0 <= 5e4", IS_EQUAL_FEAS_TOL(red->ubs[0], 5e4));
+
+    double x[] = {5e4 - 1.0, 1e4};
+    double y[] = {1};
+    double z[] = {-100, 0};
+    postsolve(presolver, x, y, z);
+
+    mu_assert("active bound dual not handed to the singleton row",
+              IS_EQUAL_FEAS_TOL(presolver->sol->y[0], -50.0));
+    mu_assert("bound dual kept after the transfer", presolver->sol->z[0] == 0.0);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 /*  Implied bound from primal propagation with an approximate reduced solution.
     min. [3  -1] x
     s.t. [1   1] x >= 1e5
@@ -1777,6 +1872,8 @@ static const char *all_tests_postsolve()
     mu_run_test(test_parallel_col_dual_identity, counter_postsolve);
     mu_run_test(test_parallel_col_kept_bound, counter_postsolve);
     mu_run_test(test_ston_row_bound_dual_approximate_solution, counter_postsolve);
+    mu_run_test(test_ston_row_bound_dual_inactive_bound, counter_postsolve);
+    mu_run_test(test_ston_row_bound_dual_near_active_bound, counter_postsolve);
     mu_run_test(test_propagation_bound_dual_approximate_solution, counter_postsolve);
     mu_run_test(test_parallel_rows_dual_approximate_solution, counter_postsolve);
     mu_run_test(test_parallel_rows_both_sides_moved, counter_postsolve);
