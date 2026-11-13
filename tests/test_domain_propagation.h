@@ -715,6 +715,41 @@ static char *test_11_domain_rounding_cancellation()
     return 0;
 }
 
+/* A huge upper bound that propagation tightens twice leaves a rounding residue
+   in the cached minimum activity of row 0.
+       r0:  x1 + x2 - 24 y <= 0
+       r1:  y - w <= 0
+       r2:  y - v <= 0
+       r3:  v + u <= 5
+       r4:  x1 + 2 x2 <= 10
+   x1, x2, v >= 0, y in [0, 1e9], w in [0, 0.3], u in [5, 6], min -x1 - x2.
+   Feasible with optimal value 0 (everything 0 except u = 5). The upper bound
+   of y goes 1e9 -> 0.3 -> 0; with incremental updates the cached minimum
+   activity of r0 goes -2.4e10 -> -7.1999988555908203 -> 1.14e-06 instead of
+   -7.2 -> 0, and x1 <= -1.14e-06 is derived against x1 >= 0. */
+static char *test_12_domain_huge_bound_drift()
+{
+    double Ax[] = {1, 1, -24, 1, -1, 1, -1, 1, 1, 1, 2};
+    int Ai[] = {0, 1, 2, 2, 3, 2, 4, 4, 5, 0, 1};
+    int Ap[] = {0, 3, 5, 7, 9, 11};
+    double lhs[] = {-INF, -INF, -INF, -INF, -INF};
+    double rhs[] = {0, 0, 0, 5, 10};
+    double lbs[] = {0, 0, 0, 0, 0, 5};
+    double ubs[] = {INF, INF, 1e9, 0.3, INF, 6};
+    double c[] = {-1, -1, 0, 0, 0, 0};
+
+    Settings *stgs = default_settings();
+    stgs->verbose = false;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 5, 6, 11, lhs, rhs, lbs, ubs, c, stgs);
+    PresolveStatus status = run_presolver(presolver);
+    mu_assert("feasible", (status & INFEASIBLE) == 0);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_domain()
 {
     mu_run_test(test_1_domain, counter_domain);
@@ -729,6 +764,7 @@ static const char *all_tests_domain()
     mu_run_test(test_9_domain_decimal, counter_domain);
     mu_run_test(test_10_domain_rounding_large_terms, counter_domain);
     mu_run_test(test_11_domain_rounding_cancellation, counter_domain);
+    mu_run_test(test_12_domain_huge_bound_drift, counter_domain);
     return 0;
 }
 

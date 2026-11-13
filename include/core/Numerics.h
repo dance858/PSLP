@@ -29,6 +29,7 @@
 #define P_DIAG_CANCEL_TOL_REL 1e-9
 #define ZERO_TOL_DUAL_POSTSOLVE 1e-6
 #define HUGE_VAL_PS 1e7
+#define ACT_RECOMPUTE_RATIO 100.0
 
 // used for model clean up according to Gurobi paper
 #define CLEAN1 1e-3

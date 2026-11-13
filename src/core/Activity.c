@@ -388,6 +388,21 @@ double compute_max_act_one_tag(const double *vals, const int *cols, int len,
     return max_act;
 }
 
+/* Adds delta to an activity. If the update is much larger than the new
+   activity, the activity is recomputed from scratch to avoid rounding errors. */
+static inline void add_to_activity(double *act, double delta, bool is_min,
+                                   const double *vals, const int *cols, int len,
+                                   const Bound *bounds)
+{
+    *act += delta;
+
+    if (ABS(delta) > ACT_RECOMPUTE_RATIO * ABS(*act))
+    {
+        *act = is_min ? compute_min_act_no_tags(vals, cols, len, bounds)
+                      : compute_max_act_no_tags(vals, cols, len, bounds);
+    }
+}
+
 Altered_Activity update_act_bound_change(Activity *act, double coeff,
                                          double old_bound, double new_bound,
                                          bool finite_bound, bool lower,
@@ -404,7 +419,8 @@ Altered_Activity update_act_bound_change(Activity *act, double coeff,
             if (act->n_inf_max == 0)
             {
                 assert(finite_bound);
-                act->max += (new_bound - old_bound) * coeff;
+                add_to_activity(&act->max, (new_bound - old_bound) * coeff, false,
+                                vals, cols, len, bounds);
             }
             else if (!finite_bound)
             {
@@ -423,7 +439,8 @@ Altered_Activity update_act_bound_change(Activity *act, double coeff,
             if (act->n_inf_min == 0)
             {
                 assert(finite_bound);
-                act->min += (new_bound - old_bound) * coeff;
+                add_to_activity(&act->min, (new_bound - old_bound) * coeff, true,
+                                vals, cols, len, bounds);
             }
             else if (!finite_bound)
             {
@@ -447,7 +464,8 @@ Altered_Activity update_act_bound_change(Activity *act, double coeff,
             if (act->n_inf_min == 0)
             {
                 assert(finite_bound);
-                act->min += (new_bound - old_bound) * coeff;
+                add_to_activity(&act->min, (new_bound - old_bound) * coeff, true,
+                                vals, cols, len, bounds);
             }
             else if (!finite_bound)
             {
@@ -465,7 +483,8 @@ Altered_Activity update_act_bound_change(Activity *act, double coeff,
             if (act->n_inf_max == 0)
             {
                 assert(finite_bound);
-                act->max += (new_bound - old_bound) * coeff;
+                add_to_activity(&act->max, (new_bound - old_bound) * coeff, false,
+                                vals, cols, len, bounds);
             }
             else if (!finite_bound)
             {
