@@ -22,7 +22,6 @@
 #include <math.h>
 
 #define FEAS_TOL 1e-6
-#define BOUND_MARGINAL 0.5 * FEAS_TOL
 #define ZERO_TOL 1e-10
 #define CANCEL_TOL_REL 1e-12
 /* relative tolerance under which an updated diagonal entry of P counts as zero

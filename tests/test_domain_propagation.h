@@ -651,6 +651,70 @@ static char *test_9_domain_decimal()
     return 0;
 }
 
+/* Rounding of large terms. The row
+       1000 (y1 + y2 + y3 + y4) + 1e-4 x <= 7169425.2401
+   with y_i >= (1421.21481, 2107.28224, 1892.50675, 1748.42144), y_i <= 1e4 and
+   x in [1, 100] implies x <= 1 (plus 2e-7). The four products are about 1e6
+   and their rounding, about 1e-9, is divided by the coefficient 1e-4 of x: the
+   computed implied bound is 1 - 9.3e-6, below the lower bound by more than
+   the verdict tolerance. Without a margin sized to the terms, propagation
+   returns INFEASIBLE on a feasible LP (x = 1, y = y0). */
+static char *test_10_domain_rounding_large_terms()
+{
+    double Ax[] = {1e3, 1e3, 1e3, 1e3, 1e-4};
+    int Ai[] = {0, 1, 2, 3, 4};
+    int Ap[] = {0, 5};
+    double lhs[] = {-INF};
+    double rhs[] = {7169425.2401};
+    double lbs[] = {1421.21481, 2107.28224, 1892.50675, 1748.42144, 1.0};
+    double ubs[] = {1e4, 1e4, 1e4, 1e4, 100.0};
+    double c[] = {-1, -1, -1, -1, -1};
+
+    Settings *stgs = default_settings();
+    stgs->verbose = false;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 1, 5, 5, lhs, rhs, lbs, ubs, c, stgs);
+    PresolveStatus status = propagate_primal(presolver->prob, true);
+    mu_assert("feasible", status != INFEASIBLE);
+    mu_assert("x <= 1 not cut off",
+              presolver->prob->constraints->bounds[4].ub >= 1.0 - 1e-9);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
+/* Rounding under cancellation. The row
+       1000 y - 1000 z + 1e-4 x <= 11.1001
+   with y in [5000.0372, 1e4], z in [0, 5000.0261] and x in [1, 100] implies
+   x <= 1 (plus 3e-6). The two terms are about 5e6 while the activity is 11.1,
+   so a margin relative to the activity or to the bound misses the rounding of
+   the terms (1e-9, divided by 1e-4). Feasible with x = 1. */
+static char *test_11_domain_rounding_cancellation()
+{
+    double Ax[] = {1e3, -1e3, 1e-4};
+    int Ai[] = {0, 1, 2};
+    int Ap[] = {0, 3};
+    double lhs[] = {-INF};
+    double rhs[] = {11.1001};
+    double lbs[] = {5000.0372, 0.0, 1.0};
+    double ubs[] = {1e4, 5000.0261, 100.0};
+    double c[] = {-1, 1, -1};
+
+    Settings *stgs = default_settings();
+    stgs->verbose = false;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 1, 3, 3, lhs, rhs, lbs, ubs, c, stgs);
+    PresolveStatus status = propagate_primal(presolver->prob, true);
+    mu_assert("feasible", status != INFEASIBLE);
+    mu_assert("x <= 1 not cut off",
+              presolver->prob->constraints->bounds[2].ub >= 1.0 - 1e-9);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_domain()
 {
     mu_run_test(test_1_domain, counter_domain);
@@ -663,6 +727,8 @@ static const char *all_tests_domain()
     mu_run_test(test_8_domain, counter_domain);
     mu_run_test(test_9_domain_integer, counter_domain);
     mu_run_test(test_9_domain_decimal, counter_domain);
+    mu_run_test(test_10_domain_rounding_large_terms, counter_domain);
+    mu_run_test(test_11_domain_rounding_cancellation, counter_domain);
     return 0;
 }
 
