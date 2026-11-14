@@ -48,13 +48,12 @@ bool is_fixing_negligible(const Constraints *constraints, int col, double width)
     for (int ii = AT->p[col].start; ii < AT->p[col].end; ++ii)
     {
         int row = AT->i[ii];
-        double shift = ABS(AT->x[ii]) * width;
-
         if (HAS_TAG(row_tags[row], R_TAG_INACTIVE))
         {
             continue;
         }
 
+        double shift = ABS(AT->x[ii]) * width;
         if (shift > FEAS_TOL)
         {
             return false;
