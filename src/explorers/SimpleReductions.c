@@ -750,6 +750,23 @@ void clean_small_coeff_A(Matrix *A, const Bound *bounds, const RowTag *row_tags,
     }
 }
 
+/* The value a column with close bounds is fixed at: an integral bound if
+   there is one, else the midpoint. */
+static inline double value_between_bounds(Bound bound)
+{
+    if (IS_INTEGRAL(bound.lb))
+    {
+        return bound.lb;
+    }
+
+    if (IS_INTEGRAL(bound.ub))
+    {
+        return bound.ub;
+    }
+
+    return 0.5 * (bound.lb + bound.ub);
+}
+
 PresolveStatus remove_variables_with_close_bounds(Problem *prob)
 {
     Constraints *constraints = prob->constraints;
@@ -785,18 +802,7 @@ PresolveStatus remove_variables_with_close_bounds(Problem *prob)
             (IS_EQUAL_REL(bounds[ii].lb, bounds[ii].ub) ||
              is_fixing_negligible(constraints, (int) ii, width)))
         {
-            // fix at integral bound or at midpoint
-            double lb = bounds[ii].lb, ub = bounds[ii].ub;
-            double val = 0.5 * (lb + ub);
-            if (IS_INTEGRAL(lb))
-            {
-                val = lb;
-            }
-            else if (IS_INTEGRAL(ub))
-            {
-                val = ub;
-            }
-            fix_col(prob, (int) ii, val);
+            fix_col(prob, (int) ii, value_between_bounds(bounds[ii]));
         }
     }
 
@@ -804,4 +810,35 @@ PresolveStatus remove_variables_with_close_bounds(Problem *prob)
     delete_fixed_cols_from_problem(prob);
     delete_inactive_cols_from_A_and_AT(constraints);
     return UNCHANGED;
+}
+
+void fix_cols_with_equal_bounds(Problem *prob)
+{
+    Constraints *constraints = prob->constraints;
+    const Bound *bounds = constraints->bounds;
+    const ColTag *col_tags = constraints->col_tags;
+    const int *col_sizes = constraints->state->col_sizes;
+    iVec *queue = constraints->state->equal_bound_cols;
+
+    for (size_t ii = 0; ii < queue->len; ++ii)
+    {
+        int col = queue->data[ii];
+        double lb = bounds[col].lb, ub = bounds[col].ub;
+
+        // Since it was queued the column can have been fixed, substituted or
+        // emptied (an empty column is left to remove_empty_cols), or merged
+        // with a parallel column, which widens its bounds.
+        if (col_sizes[col] <= 0 ||
+            HAS_TAG(col_tags[col], (C_TAG_INACTIVE | C_TAG_LB_INF | C_TAG_UB_INF)) ||
+            !(lb >= ub || IS_EQUAL_REL(lb, ub)))
+        {
+            continue;
+        }
+
+        fix_col(prob, col, value_between_bounds(bounds[col]));
+    }
+
+    iVec_clear_no_resize(queue);
+    delete_fixed_cols_from_problem(prob);
+    delete_inactive_cols_from_A_and_AT(constraints);
 }

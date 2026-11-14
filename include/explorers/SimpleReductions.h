@@ -111,9 +111,12 @@ PresolveStatus check_activities(struct Problem *prob);
 */
 PresolveStatus remove_empty_cols(struct Problem *prob);
 
+/* Fixes every column whose bounds are equal, or within FEAS_TOL when
+   is_fixing_negligible holds. Run once, on the input bounds. */
 PresolveStatus remove_variables_with_close_bounds(struct Problem *prob);
 
-// only used for debugging purposes
-// void fix_cols_with_equal_bounds(struct Constraints *constraints);
+/* Fixes the columns that update_lb and update_ub queued in
+   State.equal_bound_cols because their bounds met (lb >= ub or IS_EQUAL_REL). */
+void fix_cols_with_equal_bounds(struct Problem *prob);
 
 #endif // SIMPLEREDUCTIONS_H

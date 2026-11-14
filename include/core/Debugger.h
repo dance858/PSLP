@@ -130,6 +130,11 @@ void verify_row_tags(const struct Constraints *constraints);
    inactive columns when finished */
 void verify_empty_when_finished(const struct Constraints *constraints);
 
+/* An active, non-empty column whose bounds have met must be waiting in
+   State.equal_bound_cols, so that fix_cols_with_equal_bounds finds every column
+   that a sweep over all columns would find. */
+void verify_equal_bounds_queued(const struct Constraints *constraints);
+
 /* True when the empty-column worklist holds only columns that
    remove_empty_cols keeps: columns in P whose row is not a positive diagonal
    alone. The explorers assert this on entry. */

@@ -474,7 +474,8 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
     presolver->stats->n_cones_original = n_cones;
     presolver->stats->n_cone_rows_original = n_rows - first_cone_row;
     presolver->reduced_prob = (ProblemData *) ps_calloc(1, sizeof(ProblemData));
-    DEBUG(run_debugger_problem(presolver->prob, false));
+    DEBUG(run_debugger(presolver->prob->constraints, false));
+    DEBUG(verify_P(presolver->prob, false));
 
     clock_gettime(CLOCK_MONOTONIC, &timer.end);
     presolver->stats->time_lp_fold = fold_time;
@@ -582,10 +583,7 @@ static inline PresolveStatus run_trivial_explorers(Problem *prob,
 {
     PresolveStatus status = UNCHANGED;
 
-    // TODO: should we just run this once in the beginning of presolve?
-    // Very important question.
-    status = remove_variables_with_close_bounds(prob);
-    RETURN_IF_INFEASIBLE(status);
+    fix_cols_with_equal_bounds(prob);
 
     if (stgs->dual_fix)
     {
@@ -896,7 +894,11 @@ PresolveStatus run_presolver(Presolver *presolver)
         print_start_message(stats);
     }
 
-    DEBUG(run_debugger_problem(prob, false));
+    // initial check for variables with closed bounds
+    nnz_before_reduction = A->nnz;
+    status = remove_variables_with_close_bounds(prob);
+    stats->nnz_removed_trivial += nnz_before_reduction - A->nnz;
+    terminate = (status != UNCHANGED);
 
     // ------------------------------------------------------------------------
     // Main loop for the presolver. The logic is organized into phases and

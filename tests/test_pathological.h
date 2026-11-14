@@ -250,6 +250,88 @@ static const char *test_unbounded_Zedongs_example()
     return 0;
 }
 
+/* A feasible LP that used to be declared infeasible. With cap = 1 (row 0) and
+   v = 9e-7:
+       -v cap + x_k + y_k = 0  (k = 1, 2, 3),   -(y_1 + y_2 + y_3) >= 0,
+   and x, y >= 0, so y = 0 and x_k = v. The doubleton rows give x_k in [0, v],
+   an interval below the feasibility tolerance. Fixing x_k anywhere but at v
+   leaves y_k > 0, and the three shifts add up to 2.7e-6 on the last row. */
+static const char *test_derived_narrow_intervals_are_not_fixed()
+{
+    double v = 9e-7;
+    double Ax[] = {1, -v, 1, 1, -v, 1, 1, -v, 1, 1, -1, -1, -1, 1, 1, 1, 1, 1, 1, 1};
+    int Ai[] = {0, 0, 1, 4, 0, 2, 5, 0, 3, 6, 4, 5, 6, 1, 2, 3, 0, 1, 2, 3};
+    int Ap[] = {0, 1, 4, 7, 10, 13, 16, 20};
+    int nnz = 20;
+    int n_rows = 7;
+    int n_cols = 7;
+
+    double lhs[] = {1, 0, 0, 0, 0, -INF, -5};
+    double rhs[] = {1, 0, 0, 0, INF, 10, INF};
+    double lbs[] = {0, 0, 0, 0, 0, 0, 0};
+    double ubs[] = {INF, INF, INF, INF, INF, INF, INF};
+    double c[] = {0, 1, 1, 1, 0, 0, 0};
+
+    Settings *stgs = default_settings();
+    set_settings_true(stgs);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    PresolveStatus status = run_presolver(presolver);
+    mu_assert("derived narrow intervals: feasible LP declared infeasible",
+              status == REDUCED);
+    mu_assert("derived narrow intervals: reduced problem not empty",
+              presolver->reduced_prob->n == 0 && presolver->reduced_prob->m == 0);
+
+    postsolve(presolver, NULL, NULL, NULL);
+    const double *x = presolver->sol->x;
+    mu_assert("derived narrow intervals: cap", x[0] == 1.0);
+    for (int k = 1; k <= 3; ++k)
+    {
+        mu_assert("derived narrow intervals: x_k = v", ABS(x[k] - v) <= 1e-15);
+        mu_assert("derived narrow intervals: y_k = 0", ABS(x[k + 3]) <= 1e-15);
+    }
+
+    free_presolver(presolver);
+    free_settings(stgs);
+    return 0;
+}
+
+/* The close-bound fixings that must survive: x0 has the input bounds
+   [0, 1e-8] and is fixed by the sweep over the input, and the singleton row
+   x1 >= 1 makes the bounds of x1 equal, which fixes it through the queue of
+   the bound updates. */
+static const char *test_close_input_bounds_and_equal_bounds_are_fixed()
+{
+    double Ax[] = {1, 1, 1, 1, 1, 1, -1};
+    int Ai[] = {0, 2, 3, 1, 1, 2, 3};
+    int Ap[] = {0, 3, 4, 7};
+    int nnz = 7;
+    int n_rows = 3;
+    int n_cols = 4;
+
+    double lhs[] = {-INF, 1, -INF};
+    double rhs[] = {4, INF, 3};
+    double lbs[] = {0, 0, 0, 0};
+    double ubs[] = {1e-8, 1, 5, 5};
+    double c[] = {1, 1, -1, -2};
+
+    // only the trivial explorers
+    Settings *stgs = default_settings();
+    set_settings_false(stgs);
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    PresolveStatus status = run_presolver(presolver);
+    mu_assert("close bounds: status", status == REDUCED);
+    mu_assert("close bounds: x0 and x1 not removed",
+              presolver->reduced_prob->n == 2 && presolver->reduced_prob->m == 2);
+
+    free_presolver(presolver);
+    free_settings(stgs);
+    return 0;
+}
+
 /* A feasible LP in which x2 lies in an interval of width 1e-8:
        -1e-8 x0 + 1e-8 x1 + x2 = 1,   -x0 + x1 >= 0.25,   0 <= x <= 1,
    with x2 >= lb2. Fixing x2 inside the interval leaves a first row of the
@@ -304,6 +386,9 @@ static const char *test_close_bounds_are_not_fixed()
 
 static const char *all_tests_pathological()
 {
+    mu_run_test(test_derived_narrow_intervals_are_not_fixed, counter_pathological);
+    mu_run_test(test_close_input_bounds_and_equal_bounds_are_fixed,
+                counter_pathological);
     mu_run_test(test_narrow_interval_is_not_fixed, counter_pathological);
     mu_run_test(test_close_bounds_are_not_fixed, counter_pathological);
     mu_run_test(test_zedongs_example, counter_pathological);
