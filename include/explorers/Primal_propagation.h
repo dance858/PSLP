@@ -36,9 +36,10 @@ typedef PresolveStatus (*BoundUpdater)(double, double *, double, int, ColTag *,
 /* This function tries to tighten bounds of variables appearing in rows
    listed in data->updated_activities. We always tight infinite bounds, and
    if finite_bound_tightening is true we also tight finite bounds. We reject too
-   small bound changes. When an implied bound is not an integer, we loosen
-   the bound by the derived bound by 'BOUND_MARGINAL'. Note that this
-   function implicitly takes care of forced rows.
+   small bound changes. An implied bound is stored widened by the rounding
+   error of its computation: a few eps times the magnitudes of the row's
+   terms, divided by the coefficient. An integral implied bound is stored
+   exactly. Note that this function implicitly takes care of forced rows.
 
    The function returns INFEASIBLE if infeasibility was discovered and
    otherwise UNCHANGED, even if the problem was reduced. This is a design
