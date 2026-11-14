@@ -92,6 +92,7 @@
 #define fix_col pslp_fix_col
 #define fix_col_to_negative_inf pslp_fix_col_to_negative_inf
 #define fix_col_to_positive_inf pslp_fix_col_to_positive_inf
+#define fix_cols_with_equal_bounds pslp_fix_cols_with_equal_bounds
 #define fix_var_in_obj pslp_fix_var_in_obj
 #define fold_apply pslp_fold_apply
 #define fold_check pslp_fold_check
@@ -243,6 +244,7 @@
 #define verify_empty_cols pslp_verify_empty_cols
 #define verify_empty_rows pslp_verify_empty_rows
 #define verify_empty_when_finished pslp_verify_empty_when_finished
+#define verify_equal_bounds_queued pslp_verify_equal_bounds_queued
 #define verify_locks pslp_verify_locks
 #define verify_no_duplicates pslp_verify_no_duplicates
 #define verify_no_duplicates_lists pslp_verify_no_duplicates_lists

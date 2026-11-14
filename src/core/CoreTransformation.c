@@ -260,10 +260,12 @@ PresolveStatus update_lb_with_row(Constraints *constraints, int col, double new_
         save_retrieval_bound_change_the_row(data->postsolve_info, row, row_cols,
                                             row_vals, row_len, 1);
 
-        // TODO: should we check for variable fixing here? And we could potentially
-        // get rid of remove_variables_with_close_bounds from trivial presolve
-        // and just run it once in the beginning? But we don't have access to ck
-        // here.
+        // check for fixed variable
+        if (!HAS_TAG(*col_tag, C_TAG_UB_INF) &&
+            (new_lb >= ub || IS_EQUAL_REL(new_lb, ub)))
+        {
+            iVec_append(data->equal_bound_cols, col);
+        }
     }
 
     return UNCHANGED;
@@ -321,9 +323,12 @@ PresolveStatus update_ub_with_row(Constraints *constraints, int col, double new_
         save_retrieval_bound_change_the_row(data->postsolve_info, row, row_cols,
                                             row_vals, row_len, 1);
 
-        // TODO: should we check for variable fixing here? And we could potentially
-        // get rid of remove_variables_with_close_bounds from trivial presolve
-        // and just run it once in the beginning?
+        // check for fixed variable
+        if (!HAS_TAG(*col_tag, C_TAG_LB_INF) &&
+            (new_ub <= lb || IS_EQUAL_REL(new_ub, lb)))
+        {
+            iVec_append(data->equal_bound_cols, col);
+        }
     }
 
     return UNCHANGED;

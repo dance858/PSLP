@@ -50,6 +50,7 @@ typedef struct State
     /* row sizes of P, SIZE_INACTIVE_COL for removed variables, NULL for an LP */
     int *P_row_sizes;
 
+    iVec *equal_bound_cols;
     iVec *fixed_cols_to_delete;
     iVec *sub_cols_to_delete;
     iVec *rows_to_delete;

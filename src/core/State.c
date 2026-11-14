@@ -34,6 +34,7 @@
 #define MIN_INIT_EMPTY_COLS 50
 #define INIT_EMPTY_COLS_FRACTION 0.001
 #define MIN_INIT_FIXED_COLS 1000
+#define MIN_INIT_EQUAL_BOUND_COLS 100
 #define INIT_FIXED_COLS_FRACTION 0.01
 #define MIN_INIT_SUB_COLS 1000
 #define INIT_SUB_COLS_FRACTION 0.01
@@ -83,14 +84,16 @@ State *new_state(int *row_sizes, int *col_sizes, int *P_row_sizes, Lock *col_loc
     data->empty_cols = iVec_new(MAX(MIN_INIT_EMPTY_COLS, len_empty_cols));
     data->empty_rows = iVec_new(MAX(MIN_INIT_EMPTY_ROWS, len_empty_rows));
     data->updated_activities = iVec_new(MAX(MIN_INIT_UPDATED_ACTS, len_updated_act));
+    data->equal_bound_cols = iVec_new(MIN_INIT_EQUAL_BOUND_COLS);
     data->fixed_cols_to_delete = iVec_new(MAX(MIN_INIT_FIXED_COLS, len_fixed_cols));
     data->sub_cols_to_delete = iVec_new(MAX(MIN_INIT_SUB_COLS, len_sub_cols));
     data->rows_to_delete = iVec_new(MAX(MIN_INIT_ROWS_TO_DELETE, len_rows_delete));
     data->postsolve_info = postsolve_info_new(n_rows, n_cols);
 
     if (!data->ston_rows || !data->ston_cols || !data->dton_rows ||
-        !data->empty_cols || !data->empty_rows || !data->fixed_cols_to_delete ||
-        !data->sub_cols_to_delete || !data->rows_to_delete || !data->postsolve_info)
+        !data->empty_cols || !data->empty_rows || !data->equal_bound_cols ||
+        !data->fixed_cols_to_delete || !data->sub_cols_to_delete ||
+        !data->rows_to_delete || !data->postsolve_info)
     {
         free_state(data);
         return NULL;
@@ -165,6 +168,7 @@ void free_state(State *data)
     iVec_free(data->empty_cols);
     iVec_free(data->empty_rows);
     iVec_free(data->updated_activities);
+    iVec_free(data->equal_bound_cols);
     iVec_free(data->fixed_cols_to_delete);
     iVec_free(data->sub_cols_to_delete);
     iVec_free(data->rows_to_delete);

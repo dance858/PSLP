@@ -61,10 +61,36 @@ void run_debugger(const Constraints *constraints, bool finished)
     }
 }
 
+void verify_equal_bounds_queued(const Constraints *constraints)
+{
+    const State *data = constraints->state;
+
+    for (int k = 0; k < (int) constraints->n; ++k)
+    {
+        if (data->col_sizes[k] <= 0 ||
+            HAS_TAG(constraints->col_tags[k],
+                    (C_TAG_INACTIVE | C_TAG_LB_INF | C_TAG_UB_INF)))
+        {
+            continue;
+        }
+
+        double lb = constraints->bounds[k].lb, ub = constraints->bounds[k].ub;
+        if (lb >= ub || IS_EQUAL_REL(lb, ub))
+        {
+            PSLP_ASSERT(iVec_contains(data->equal_bound_cols, k));
+        }
+    }
+}
+
 void run_debugger_problem(const Problem *prob, bool finished)
 {
     run_debugger(prob->constraints, finished);
     verify_P(prob, finished);
+    if (!finished)
+    {
+        verify_equal_bounds_queued(prob->constraints);
+    }
+
     if (finished)
     {
         PSLP_ASSERT(empty_cols_drained(prob));
