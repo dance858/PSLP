@@ -79,7 +79,7 @@ static char *test_0_postsolve()
     double y[] = {-2.57142857, 0.14285714};
     double z[] = {-0.78571429, 1.44285714, 0.78571429, 0., 1., 0., 1.45714286};
     double obj = 0.0;
-    postsolve(presolver, x, y, z);
+    mu_assert("postsolve should succeed", postsolve(presolver, x, y, z));
 
     // check that the primal solution to the original problem is correct
     double correct_x[] = {10., -10., 3., -10., 2.71428571, -10., -6.85714286, -10.};

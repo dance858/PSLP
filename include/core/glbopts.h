@@ -20,6 +20,7 @@
 #define GLB_H_GUARD
 
 #include <math.h>
+#include <stdio.h>
 #define INF (INFINITY)
 #define IS_POS_INF(x) (isinf(x) && (x) > 0)
 #define IS_NEG_INF(x) (isinf(x) && (x) < 0)
@@ -31,6 +32,13 @@
     if ((x) == UNBNDORINFEAS) return UNBNDORINFEAS
 #define RETURN_IF_NOT_UNCHANGED(x)                                                  \
     if ((x) != UNCHANGED) return x
+
+/* Reports why a public call failed. Silent unless 'verbose' is set. */
+#define PSLP_FAIL_MSG(stgs, msg)                                                    \
+    do                                                                              \
+    {                                                                               \
+        if ((stgs)->verbose) printf("PSLP error: " msg "\n");                       \
+    } while (0)
 
 #define SIZE_INACTIVE_ROW -1
 #define SIZE_INACTIVE_COL -1

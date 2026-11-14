@@ -1456,7 +1456,7 @@ static const char *test_fold_map_then_parallel_rows(void)
     return 0;
 }
 
-/* The ray postsolves are not supported with a fold: they print an error and
+/* The ray postsolves are not supported with a fold: they return false and
    leave their outputs untouched. */
 static const char *test_fold_refuses_primal_ray(void)
 {
@@ -1466,7 +1466,8 @@ static const char *test_fold_refuses_primal_ray(void)
     mu_assert("presolver", presolver && run_presolver(presolver) != INFEASIBLE);
     double y_f[1] = {1};
     double y_orig[3] = {DUMMY_VALUE, DUMMY_VALUE, DUMMY_VALUE};
-    postsolve_primal_infeas_ray(presolver, y_f, y_orig);
+    mu_assert("primal ray refused",
+              !postsolve_primal_infeas_ray(presolver, y_f, y_orig));
     mu_assert("y_orig untouched", all_equal(y_orig, 3, DUMMY_VALUE));
     free_presolver(presolver);
     free_settings(stgs);
@@ -1483,7 +1484,8 @@ static const char *test_fold_refuses_dual_ray(void)
     double x_f[2] = {1, 1};
     double x_orig[6] = {DUMMY_VALUE, DUMMY_VALUE, DUMMY_VALUE,
                         DUMMY_VALUE, DUMMY_VALUE, DUMMY_VALUE};
-    postsolve_dual_infeas_ray(presolver, x_f, x_orig);
+    mu_assert("dual ray refused",
+              !postsolve_dual_infeas_ray(presolver, x_f, x_orig));
     mu_assert("x_orig untouched", all_equal(x_orig, 6, DUMMY_VALUE));
     free_presolver(presolver);
     free_settings(stgs);

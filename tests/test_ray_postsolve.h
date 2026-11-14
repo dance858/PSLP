@@ -75,7 +75,8 @@ static char *test_0_primal_ray_postsolve()
 
     double y[] = {1.0, -2.0};
     double y_orig[] = {0.0, 0.0};
-    postsolve_primal_infeas_ray(presolver, y, y_orig);
+    mu_assert("primal ray postsolve should succeed",
+              postsolve_primal_infeas_ray(presolver, y, y_orig));
 
     mu_assert("primal ray postsolve y0", IS_EQUAL_FEAS_TOL(y_orig[0], y[0]));
     mu_assert("primal ray postsolve y1", IS_EQUAL_FEAS_TOL(y_orig[1], y[1]));
@@ -114,10 +115,19 @@ static char *test_0_dual_ray_postsolve()
 
     double x[] = {0.0, 0.0};
     double x_orig[] = {0.0, 0.0};
-    postsolve_dual_infeas_ray(presolver, x, x_orig);
+    mu_assert("dual ray postsolve should succeed",
+              postsolve_dual_infeas_ray(presolver, x, x_orig));
 
     mu_assert("dual ray postsolve x0", IS_EQUAL_FEAS_TOL(x_orig[0], x[0]));
     mu_assert("dual ray postsolve x1", IS_EQUAL_FEAS_TOL(x_orig[1], x[1]));
+
+    // the primal ray needs the reduced problem, which was freed above
+    double y[] = {1.0, -2.0};
+    double y_orig[] = {7.0, 7.0};
+    mu_assert("primal ray after free should fail",
+              !postsolve_primal_infeas_ray(presolver, y, y_orig));
+    mu_assert("primal ray after free: y_orig untouched",
+              y_orig[0] == 7.0 && y_orig[1] == 7.0);
 
     free_settings(stgs);
     free_presolver(presolver);
