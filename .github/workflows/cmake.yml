@@ -24,5 +24,10 @@ jobs:
     - name: Build
       run: cmake --build build --config ${{ matrix.build_type }}
       
+    # Every exported symbol must be public or carry the pslp_ prefix
+    - name: Check exported symbols
+      if: runner.os != 'Windows'
+      run: sh cmake/pslp_symbols.sh check build/libPSLP.*
+
     - name: Run tests
       run: cd build && ctest -C ${{ matrix.build_type }} --verbose
