@@ -62,9 +62,11 @@ static inline double get_cached_max_abs(const Matrix *AT, int col, int *max_abs_
 }
 
 /* Bound on the rounding error of side - activity, where the activity is the
-   min activity (min_side) or the max activity, excluding col_to_avoid. */
+   min activity (min_side) or the max activity over the finite bounds. The
+   factor counts len rounding steps for the sum plus a few for the subtraction,
+   the division and the shift by the bound. */
 static double row_err(const ConstRowView *row, const Bound *bounds, bool min_side,
-                      int col_to_avoid, double side)
+                      double side)
 {
     double s = 0.0;
 
@@ -73,7 +75,7 @@ static double row_err(const ConstRowView *row, const Bound *bounds, bool min_sid
         const Bound *b = bounds + row->cols[j];
         double used = ((row->vals[j] > 0) == min_side) ? b->lb : b->ub;
 
-        if (row->cols[j] != col_to_avoid && isfinite(used))
+        if (isfinite(used))
         {
             s += ABS(row->vals[j] * used);
         }
@@ -89,11 +91,11 @@ static double row_err(const ConstRowView *row, const Bound *bounds, bool min_sid
 static inline double widen_implied_bound(double implied, double Aik, double *err,
                                          const ConstRowView *row,
                                          const Bound *bounds, bool min_side,
-                                         int col_to_avoid, double side)
+                                         double side)
 {
     if (*err < 0)
     {
-        *err = row_err(row, bounds, min_side, col_to_avoid, side);
+        *err = row_err(row, bounds, min_side, side);
     }
 
     if (IS_INTEGRAL(implied))
@@ -322,7 +324,7 @@ bound_tightening_single_row_rhs(const ConstRowView *row, const Activity *act,
                 if ((is_ub_inf || implied_ub < bounds[k].ub) && !IS_HUGE(implied_ub))
                 {
                     implied_ub = widen_implied_bound(implied_ub, Aik, &err, row,
-                                                     bounds, true, -1, *row->rhs);
+                                                     bounds, true, *row->rhs);
                 }
 
                 if ((is_ub_inf || implied_ub < bounds[k].ub) && !IS_HUGE(implied_ub))
@@ -354,7 +356,7 @@ bound_tightening_single_row_rhs(const ConstRowView *row, const Activity *act,
                 if ((is_lb_inf || implied_lb > bounds[k].lb) && !IS_HUGE(implied_lb))
                 {
                     implied_lb = widen_implied_bound(implied_lb, Aik, &err, row,
-                                                     bounds, true, -1, *row->rhs);
+                                                     bounds, true, *row->rhs);
                 }
 
                 if ((is_lb_inf || implied_lb > bounds[k].lb) && !IS_HUGE(implied_lb))
@@ -427,7 +429,7 @@ bound_tightening_single_row_rhs(const ConstRowView *row, const Activity *act,
         if (!IS_HUGE(implied_bound))
         {
             implied_bound = widen_implied_bound(implied_bound, Aik, &err, row,
-                                                bounds, true, k, side);
+                                                bounds, true, side);
         }
 
         if (Aik > 0)
@@ -540,7 +542,7 @@ bound_tightening_single_row_lhs(const ConstRowView *row, const Activity *act,
                 if ((is_lb_inf || implied_lb > bounds[k].lb) && !IS_HUGE(implied_lb))
                 {
                     implied_lb = widen_implied_bound(implied_lb, Aik, &err, row,
-                                                     bounds, false, -1, *row->lhs);
+                                                     bounds, false, *row->lhs);
                 }
 
                 if ((is_lb_inf || implied_lb > bounds[k].lb) && !IS_HUGE(implied_lb))
@@ -572,7 +574,7 @@ bound_tightening_single_row_lhs(const ConstRowView *row, const Activity *act,
                 if ((is_ub_inf || implied_ub < bounds[k].ub) && !IS_HUGE(implied_ub))
                 {
                     implied_ub = widen_implied_bound(implied_ub, Aik, &err, row,
-                                                     bounds, false, -1, *row->lhs);
+                                                     bounds, false, *row->lhs);
                 }
 
                 if ((is_ub_inf || implied_ub < bounds[k].ub) && !IS_HUGE(implied_ub))
@@ -647,7 +649,7 @@ bound_tightening_single_row_lhs(const ConstRowView *row, const Activity *act,
         if (!IS_HUGE(implied_bound))
         {
             implied_bound = widen_implied_bound(implied_bound, Aik, &err, row,
-                                                bounds, false, k, side);
+                                                bounds, false, side);
         }
 
         if (Aik > 0)
