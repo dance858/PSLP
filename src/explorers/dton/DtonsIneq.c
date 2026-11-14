@@ -92,7 +92,9 @@ static int dton_dominated_entry(const Problem *prob, const ConstRowView *row,
     return -1;
 }
 
-bool dton_tighten_dominated_row(Problem *prob, int i)
+/* Applied to one one-sided two-entry row. The pushed column loses its bound on
+   the side the row implies. False when the row stays an inequality. */
+static bool dton_tighten_dominated_row(Problem *prob, int i)
 {
     Constraints *constraints = prob->constraints;
     const Matrix *A = constraints->A;

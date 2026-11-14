@@ -70,7 +70,7 @@ enum Complexity
     MEDIUM = 1 << 0
 };
 
-PresolveStats *init_stats(size_t n_rows, size_t n_cols, size_t nnz)
+static PresolveStats *init_stats(size_t n_rows, size_t n_cols, size_t nnz)
 {
     PresolveStats *stats = (PresolveStats *) ps_calloc(1, sizeof(PresolveStats));
     stats->n_rows_original = n_rows;
@@ -210,7 +210,7 @@ typedef struct clean_up_scope
     Work *work;
 } clean_up_scope;
 
-void presolver_clean_up(clean_up_scope scope)
+static void presolver_clean_up(clean_up_scope scope)
 {
     free_matrix(scope.A);
     free_matrix(scope.AT);
@@ -748,7 +748,7 @@ run_medium_explorers(Problem *prob, const Settings *stgs, PresolveStats *stats)
     return status;
 }
 
-void populate_presolved_problem(Presolver *presolver)
+static void populate_presolved_problem(Presolver *presolver)
 {
     ProblemData *reduced_prob = presolver->reduced_prob;
     Constraints *constraints = presolver->prob->constraints;

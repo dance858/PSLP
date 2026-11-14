@@ -136,9 +136,9 @@ static inline int get_bin_size(int start, size_t n_rows, const int *rows,
 #ifndef NDEBUG
 // make sure that the rows in the same bin have the same coefficient
 // hash value and the same sparsity ID
-void ASSERT_BIN_CORRECT(const int *coeff_hashes, const int *sparsity_IDs,
-                        const int *rows, int bin_start, int bin_size,
-                        const RowTag *row_tags, RowTag INACTIVE_TAG)
+static void ASSERT_BIN_CORRECT(const int *coeff_hashes, const int *sparsity_IDs,
+                               const int *rows, int bin_start, int bin_size,
+                               const RowTag *row_tags, RowTag INACTIVE_TAG)
 {
     const int *bin_temp = rows + bin_start;
     int coeff_hash_start = coeff_hashes[bin_temp[0]];
@@ -152,8 +152,8 @@ void ASSERT_BIN_CORRECT(const int *coeff_hashes, const int *sparsity_IDs,
     }
 }
 
-void VERIFY_PARALLEL_ROWS(const Matrix *A, const RowTag *rows_tags,
-                          const int *parallel_rows, const iVec *group_starts)
+static void VERIFY_PARALLEL_ROWS(const Matrix *A, const RowTag *rows_tags,
+                                 const int *parallel_rows, const iVec *group_starts)
 {
     int j, k, start, end, n_rows_this_group, len1;
     size_t i;

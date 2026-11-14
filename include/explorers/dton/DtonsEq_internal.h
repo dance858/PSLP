@@ -165,10 +165,6 @@ void dton_tighten_columns(struct Problem *prob);
 /* Same as dton_tighten_columns, but no full rescan */
 void dton_tighten_changed_columns(struct Problem *prob, const DtonTargets *targets);
 
-/* Applied to one one-sided two-entry row. The pushed column loses its bound on
-   the side the row implies. False when the row stays an inequality. */
-bool dton_tighten_dominated_row(struct Problem *prob, int i);
-
 /* Reserves the round's per-record arrays for n_records records. False if an
    allocation fails. */
 bool dton_reserve_records(DtonWorkspace *dton_work, size_t n_records);

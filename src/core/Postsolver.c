@@ -323,9 +323,9 @@ void retrieve_added_rows(Solution *sol, int i, const int *rows, const double *va
     }
 }
 
-void retrieve_bound_change(Solution *sol, int i, int j, const int *cols,
-                           const double *vals, int len, bool implied_bound_is_upper,
-                           double implied_bound)
+static void retrieve_bound_change(Solution *sol, int i, int j, const int *cols,
+                                  const double *vals, int len,
+                                  bool implied_bound_is_upper, double implied_bound)
 {
     int k, ii;
     double aij = 1.0;
@@ -383,7 +383,7 @@ void retrieve_bound_change(Solution *sol, int i, int j, const int *cols,
     sol->z[j] = 0.0;
 }
 
-void retrieve_lhs_change(Solution *sol, int i, int j, double ratio)
+static void retrieve_lhs_change(Solution *sol, int i, int j, double ratio)
 {
     assert(sol->y[i] != ROW_NOT_RETRIEVED);
     assert(sol->y[j] != ROW_NOT_RETRIEVED);
@@ -399,7 +399,7 @@ void retrieve_lhs_change(Solution *sol, int i, int j, double ratio)
 }
 
 // as retrieve_lhs_change with the signs reversed
-void retrieve_rhs_change(Solution *sol, int i, int j, double ratio)
+static void retrieve_rhs_change(Solution *sol, int i, int j, double ratio)
 {
     assert(sol->y[i] != ROW_NOT_RETRIEVED);
     assert(sol->y[j] != ROW_NOT_RETRIEVED);
@@ -414,7 +414,7 @@ void retrieve_rhs_change(Solution *sol, int i, int j, double ratio)
     sol->y[i] = 0.0;
 }
 
-void retrieve_eq_to_ineq(Solution *sol, int row, double val)
+static void retrieve_eq_to_ineq(Solution *sol, int row, double val)
 {
     assert(sol->y[row] != ROW_NOT_RETRIEVED);
     sol->y[row] += val;
