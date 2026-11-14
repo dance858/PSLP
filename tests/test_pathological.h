@@ -250,8 +250,62 @@ static const char *test_unbounded_Zedongs_example()
     return 0;
 }
 
+/* A feasible LP in which x2 lies in an interval of width 1e-8:
+       -1e-8 x0 + 1e-8 x1 + x2 = 1,   -x0 + x1 >= 0.25,   0 <= x <= 1,
+   with x2 >= lb2. Fixing x2 inside the interval leaves a first row of the
+   form 1e-8 (x1 - x0) = shift, which contradicts the second row, although
+   x = (0, 0.25, 1 - 2.5e-9) is feasible. */
+static PresolveStatus presolve_narrow_interval_lp(double lb2, bool propagation)
+{
+    double Ax[] = {-1e-8, 1e-8, 1, -1, 1};
+    int Ai[] = {0, 1, 2, 0, 1};
+    int Ap[] = {0, 3, 5};
+    int nnz = 5;
+    int n_rows = 2;
+    int n_cols = 3;
+
+    double lhs[] = {1, 0.25};
+    double rhs[] = {1, INF};
+    double lbs[] = {0, 0, lb2};
+    double ubs[] = {1, 1, 1};
+    double c[] = {1, 2, 0};
+
+    Settings *stgs = default_settings();
+    set_settings_true(stgs);
+    stgs->primal_propagation = propagation;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    PresolveStatus status = run_presolver(presolver);
+    free_presolver(presolver);
+    free_settings(stgs);
+    return status;
+}
+
+/* The interval is implied by the first row (x2 >= 1 - 1e-8); propagation must
+   not fix x2 at its upper bound. */
+static const char *test_narrow_interval_is_not_fixed()
+{
+    PresolveStatus status = presolve_narrow_interval_lp(0, true);
+    mu_assert("feasible LP declared infeasible or unbounded",
+              status == REDUCED || status == UNCHANGED);
+    return 0;
+}
+
+/* The interval is given by the bounds; the close-bounds rule must not fix x2
+   at the midpoint. */
+static const char *test_close_bounds_are_not_fixed()
+{
+    PresolveStatus status = presolve_narrow_interval_lp(1 - 1e-8, false);
+    mu_assert("feasible LP declared infeasible or unbounded",
+              status == REDUCED || status == UNCHANGED);
+    return 0;
+}
+
 static const char *all_tests_pathological()
 {
+    mu_run_test(test_narrow_interval_is_not_fixed, counter_pathological);
+    mu_run_test(test_close_bounds_are_not_fixed, counter_pathological);
     mu_run_test(test_zedongs_example, counter_pathological);
     mu_run_test(test_unbounded_Zedongs_example, counter_pathological);
     mu_run_test(test_no_linear_constraints_feasible, counter_pathological);

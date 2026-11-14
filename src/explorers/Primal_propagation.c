@@ -32,35 +32,6 @@
 #include "utils.h"
 #include <float.h>
 
-/* Returns the largest absolute value in column col of AT. The position of the
-   largest entry is stored in max_abs_pos[col], where -1 means not computed. */
-static inline double get_cached_max_abs(const Matrix *AT, int col, int *max_abs_pos)
-{
-    const double *vals = AT->x + AT->p[col].start;
-
-    if (max_abs_pos[col] == -1)
-    {
-        int len = AT->p[col].end - AT->p[col].start;
-        int best = 0;
-        double best_abs = ABS(vals[0]);
-        assert(len > 0);
-
-        for (int idx = 1; idx < len; ++idx)
-        {
-            if (ABS(vals[idx]) > best_abs)
-            {
-                best_abs = ABS(vals[idx]);
-                best = idx;
-            }
-        }
-
-        max_abs_pos[col] = best;
-        return best_abs;
-    }
-
-    return ABS(vals[max_abs_pos[col]]);
-}
-
 /* Bound on the rounding error of side - activity, where the activity is the
    min activity (min_side) or the max activity over the finite bounds. The
    factor counts len rounding steps for the sum plus a few for the subtraction,
@@ -87,11 +58,17 @@ static double row_err(const ConstRowView *row, const Bound *bounds, bool min_sid
 /* Loosens an implied bound by the rounding error of the row, so that rounding
    never makes it tighter than the exact bound. The error is computed once per
    row and cached in *err (negative means not computed yet). Integral bounds
-   are kept as they are. */
+   are kept as they are.
+
+   'other' is the opposite bound of the column (INF when there is none). When
+   it lies within the rounding error of the implied bound, the two cannot be
+   told apart and 'other' is returned, so that the column gets fixed. This is
+   the only case in which propagation fixes a column whose implied bound does
+   not reach the opposite bound. */
 static inline double widen_implied_bound(double implied, double Aik, double *err,
                                          const ConstRowView *row,
                                          const Bound *bounds, bool min_side,
-                                         double side)
+                                         double side, double other)
 {
     if (*err < 0)
     {
@@ -101,6 +78,12 @@ static inline double widen_implied_bound(double implied, double Aik, double *err
     if (IS_INTEGRAL(implied))
     {
         return implied;
+    }
+
+    double margin = *err / ABS(Aik);
+    if (implied - margin <= other && other <= implied + margin)
+    {
+        return other;
     }
 
     return implied + (min_side ? *err : -*err) / Aik;
@@ -122,7 +105,6 @@ static PresolveStatus update_lb_within_propagation(double new_lb, double *lb,
     const double *vals = AT->x + AT->p[col].start;
     const int *rows = AT->i + AT->p[col].start;
     size_t len = (size_t) (AT->p[col].end - AT->p[col].start);
-    int *max_abs_pos = constraints->state->work->iwork_n_cols;
 
     // -----------------------------------------------------------------------
     // If ub is finite we compare it to the new lower bound (we check for
@@ -139,9 +121,11 @@ static PresolveStatus update_lb_within_propagation(double new_lb, double *lb,
             return INFEASIBLE;
         }
 
-        // check if variable can be fixed
-        if (new_lb >= ub ||
-            (ub - new_lb) * get_cached_max_abs(AT, col, max_abs_pos) <= FEAS_TOL)
+        // The variable is fixed when its bounds meet up to rounding (see also
+        // widen_implied_bound), or when fixing it inside the remaining interval
+        // is negligible for every row it appears in.
+        if (new_lb >= ub || IS_EQUAL_REL(new_lb, ub) ||
+            is_fixing_negligible(constraints, col, ub - new_lb))
         {
             save_retrieval_bound_change_no_row(constraints->state->postsolve_info,
                                                col, new_lb, ub, false);
@@ -194,7 +178,6 @@ static PresolveStatus update_ub_within_propagation(double new_ub, double *ub,
     const double *vals = AT->x + AT->p[col].start;
     const int *rows = AT->i + AT->p[col].start;
     size_t len = (size_t) (AT->p[col].end - AT->p[col].start);
-    int *max_abs_pos = constraints->state->work->iwork_n_cols;
 
     // -----------------------------------------------------------------------
     // If lb is finite we compare it to the new upper bound (we check for
@@ -210,9 +193,9 @@ static PresolveStatus update_ub_within_propagation(double new_ub, double *ub,
             return INFEASIBLE;
         }
 
-        // check if variable can be fixed
-        if (new_ub <= lb ||
-            (new_ub - lb) * get_cached_max_abs(AT, col, max_abs_pos) <= FEAS_TOL)
+        // same conditions as for the lower bound
+        if (new_ub <= lb || IS_EQUAL_REL(new_ub, lb) ||
+            is_fixing_negligible(constraints, col, new_ub - lb))
         {
             save_retrieval_bound_change_no_row(constraints->state->postsolve_info,
                                                col, new_ub, lb, true);
@@ -323,8 +306,9 @@ bound_tightening_single_row_rhs(const ConstRowView *row, const Activity *act,
 
                 if ((is_ub_inf || implied_ub < bounds[k].ub) && !IS_HUGE(implied_ub))
                 {
-                    implied_ub = widen_implied_bound(implied_ub, Aik, &err, row,
-                                                     bounds, true, *row->rhs);
+                    implied_ub =
+                        widen_implied_bound(implied_ub, Aik, &err, row, bounds, true,
+                                            *row->rhs, bounds[k].lb);
                 }
 
                 if ((is_ub_inf || implied_ub < bounds[k].ub) && !IS_HUGE(implied_ub))
@@ -355,8 +339,9 @@ bound_tightening_single_row_rhs(const ConstRowView *row, const Activity *act,
 
                 if ((is_lb_inf || implied_lb > bounds[k].lb) && !IS_HUGE(implied_lb))
                 {
-                    implied_lb = widen_implied_bound(implied_lb, Aik, &err, row,
-                                                     bounds, true, *row->rhs);
+                    implied_lb =
+                        widen_implied_bound(implied_lb, Aik, &err, row, bounds, true,
+                                            *row->rhs, bounds[k].ub);
                 }
 
                 if ((is_lb_inf || implied_lb > bounds[k].lb) && !IS_HUGE(implied_lb))
@@ -429,7 +414,7 @@ bound_tightening_single_row_rhs(const ConstRowView *row, const Activity *act,
         if (!IS_HUGE(implied_bound))
         {
             implied_bound = widen_implied_bound(implied_bound, Aik, &err, row,
-                                                bounds, true, side);
+                                                bounds, true, side, INF);
         }
 
         if (Aik > 0)
@@ -541,8 +526,9 @@ bound_tightening_single_row_lhs(const ConstRowView *row, const Activity *act,
 
                 if ((is_lb_inf || implied_lb > bounds[k].lb) && !IS_HUGE(implied_lb))
                 {
-                    implied_lb = widen_implied_bound(implied_lb, Aik, &err, row,
-                                                     bounds, false, *row->lhs);
+                    implied_lb =
+                        widen_implied_bound(implied_lb, Aik, &err, row, bounds,
+                                            false, *row->lhs, bounds[k].ub);
                 }
 
                 if ((is_lb_inf || implied_lb > bounds[k].lb) && !IS_HUGE(implied_lb))
@@ -573,8 +559,9 @@ bound_tightening_single_row_lhs(const ConstRowView *row, const Activity *act,
 
                 if ((is_ub_inf || implied_ub < bounds[k].ub) && !IS_HUGE(implied_ub))
                 {
-                    implied_ub = widen_implied_bound(implied_ub, Aik, &err, row,
-                                                     bounds, false, *row->lhs);
+                    implied_ub =
+                        widen_implied_bound(implied_ub, Aik, &err, row, bounds,
+                                            false, *row->lhs, bounds[k].lb);
                 }
 
                 if ((is_ub_inf || implied_ub < bounds[k].ub) && !IS_HUGE(implied_ub))
@@ -649,7 +636,7 @@ bound_tightening_single_row_lhs(const ConstRowView *row, const Activity *act,
         if (!IS_HUGE(implied_bound))
         {
             implied_bound = widen_implied_bound(implied_bound, Aik, &err, row,
-                                                bounds, false, side);
+                                                bounds, false, side, INF);
         }
 
         if (Aik > 0)
@@ -762,13 +749,6 @@ PresolveStatus propagate_primal(Problem *prob, bool finite_bound_tightening)
 #ifndef NDEBUG
     bool *HAVE_ROWS_BEEN_PROP = (bool *) ps_calloc(A->m, sizeof(bool));
 #endif
-
-    /* Reset the cached positions of the largest entries in the columns. */
-    int *max_abs_pos = constraints->state->work->iwork_n_cols;
-    for (ii = 0; ii < A->n; ++ii)
-    {
-        max_abs_pos[ii] = -1;
-    }
 
     // -------------------------------------------------------------------------
     // Loop through and propagate the rows in order to tighten variable bounds.

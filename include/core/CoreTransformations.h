@@ -82,6 +82,11 @@ PresolveStatus change_lhs_of_ineq(struct RowView *row, double new_lhs,
                                   struct PostsolveInfo *postsolve_info,
                                   int other_row_idx, double ratio);
 
+/* True when fixing column col anywhere inside an interval of the given width
+   is negligible for every row the column appears in. */
+bool is_fixing_negligible(const struct Constraints *constraints, int col,
+                          double width);
+
 /* Uses activities of a row to deduce if a variable is implied free. */
 bool implied_free_from_above_by_row(double Aik, const struct ConstRowView *row,
                                     double lb, double ub, ColTag col_tag,
