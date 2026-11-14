@@ -149,13 +149,6 @@ Altered_Activity update_activity_coeff_change(Activity *act, double lb, double u
                                               double old_coeff, double new_coeff,
                                               ColTag cTag);
 
-/* Updates the activity struct when a bound changes. */
-Altered_Activity update_act_bound_change(Activity *act, double coeff,
-                                         double old_bound, double new_bound,
-                                         bool finite_bound, bool lower,
-                                         const double *vals, const int *cols,
-                                         int len, const struct Bound *bounds);
-
 void remove_finite_lb_from_activities(const struct ConstColView *col, Activity *acts,
                                       double bound);
 

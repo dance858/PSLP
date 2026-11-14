@@ -302,7 +302,7 @@ void verify_no_duplicates_ptr(const int *data, size_t len)
     }
 }
 
-void verify_nonnegative_iVec(const iVec *vec)
+static void verify_nonnegative_iVec(const iVec *vec)
 {
     for (size_t i = 0; i < vec->len; ++i)
     {

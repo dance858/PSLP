@@ -403,11 +403,12 @@ static inline void add_to_activity(double *act, double delta, bool is_min,
     }
 }
 
-Altered_Activity update_act_bound_change(Activity *act, double coeff,
-                                         double old_bound, double new_bound,
-                                         bool finite_bound, bool lower,
-                                         const double *vals, const int *cols,
-                                         int len, const Bound *bounds)
+/* Updates the activity struct when a bound changes. */
+static Altered_Activity update_act_bound_change(Activity *act, double coeff,
+                                                double old_bound, double new_bound,
+                                                bool finite_bound, bool lower,
+                                                const double *vals, const int *cols,
+                                                int len, const Bound *bounds)
 {
     // ---------------------------------------------------------------------
     //              If a lower bound has been updated
