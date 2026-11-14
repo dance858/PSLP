@@ -776,7 +776,13 @@ PresolveStatus remove_variables_with_close_bounds(Problem *prob)
         // Empty columns are fixed by remove_empty_cols (fix_col requires a
         // non-empty column); fixing them here as well would add their
         // objective contribution to the offset twice.
-        if (col_sizes[ii] > 0 && IS_EQUAL_FEAS_TOL(bounds[ii].lb, bounds[ii].ub))
+        // A column with close bounds is fixed when the bounds meet up to
+        // rounding, or when fixing it inside its interval is negligible for
+        // every row it appears in.
+        double width = bounds[ii].ub - bounds[ii].lb;
+        if (col_sizes[ii] > 0 && width <= FEAS_TOL &&
+            (width <= 0 || IS_EQUAL_REL(bounds[ii].lb, bounds[ii].ub) ||
+             is_fixing_negligible(constraints, (int) ii, width)))
         {
             // fix at integral bound or at midpoint
             double lb = bounds[ii].lb, ub = bounds[ii].ub;

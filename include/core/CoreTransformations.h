@@ -83,6 +83,8 @@ PresolveStatus change_lhs_of_ineq(struct RowView *row, double new_lhs,
                                   int other_row_idx, double ratio);
 
 /* Uses activities of a row to deduce if a variable is implied free. */
+bool is_fixing_negligible(const struct Constraints *constraints, int col,
+                          double width);
 bool implied_free_from_above_by_row(double Aik, const struct ConstRowView *row,
                                     double lb, double ub, ColTag col_tag,
                                     const struct Activity *act,

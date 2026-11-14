@@ -27,6 +27,53 @@
 #include "RowColViews.h"
 #include "State.h"
 
+/* True when fixing column col anywhere inside an interval of the given width
+   is negligible: the shift of each of its rows is below FEAS_TOL, both in
+   absolute terms and relative to every other coefficient of the row. A later
+   step that uses such a row for another column divides the shift by that
+   column's coefficient, so a shift that is small only in absolute terms can
+   become a large error. */
+bool is_fixing_negligible(const Constraints *constraints, int col, double width)
+{
+    if (width > FEAS_TOL)
+    {
+        return false;
+    }
+
+    const Matrix *A = constraints->A;
+    const Matrix *AT = constraints->AT;
+    const RowTag *row_tags = constraints->row_tags;
+    const ColTag *col_tags = constraints->col_tags;
+
+    for (int ii = AT->p[col].start; ii < AT->p[col].end; ++ii)
+    {
+        int row = AT->i[ii];
+        double shift = ABS(AT->x[ii]) * width;
+
+        if (HAS_TAG(row_tags[row], R_TAG_INACTIVE))
+        {
+            continue;
+        }
+
+        if (shift > FEAS_TOL)
+        {
+            return false;
+        }
+
+        for (int jj = A->p[row].start; jj < A->p[row].end; ++jj)
+        {
+            int j = A->i[jj];
+            if (j != col && !HAS_TAG(col_tags[j], C_TAG_INACTIVE) &&
+                shift > FEAS_TOL * ABS(A->x[jj]))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 PresolveStatus fix_col(Problem *prob, int col, double val)
 {
     Constraints *constraints = prob->constraints;
