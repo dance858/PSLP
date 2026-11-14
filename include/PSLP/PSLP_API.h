@@ -218,8 +218,12 @@ extern "C"
        for a variable at its lower bound, z <= 0 at its upper bound, y >= 0 for
        a row active at its lhs and y <= 0 at its rhs. The function populates
        presolver->sol, so if you're looking for the solution to the original
-       problem, you want to look there. */
-    void postsolve(Presolver *presolver, const double *x, const double *y,
+       problem, you want to look there.
+
+       Returns true on success. Returns false if memory runs out; presolver->sol
+       then does not hold the solution. With 'verbose' set, the reason for a
+       failure is printed (this holds for all functions below as well). */
+    bool postsolve(Presolver *presolver, const double *x, const double *y,
                    const double *z);
 
     /* Map a primal-dual point (x, y) of the original problem to the reduced
@@ -229,17 +233,21 @@ extern "C"
        x has length n and y has length m (original dimensions). On return, x_red
        (length reduced_prob->n) and y_red (length reduced_prob->m) hold the
        mapped point and z_red (length reduced_prob->n) holds z_red = c_red -
-       A_red^T y_red. Any output pointer may be NULL to skip that part; x_red
-       requires x, y_red requires y, and z_red requires y_red. The function does
-       not modify presolver->sol.
+       A_red^T y_red. Any output pointer may be NULL to skip that part. The
+       caller must pass x when x_red is requested, y when y_red is requested,
+       and y_red when z_red is requested. The function does not modify
+       presolver->sol.
 
        The semantics are as follows. If (x, y) is an optimal primal-dual point
        of the original problem and 'relax_bounds' is false, (x_red, y_red,
        z_red) is an optimal primal-dual point of the reduced problem.
 
-       This function is currently only implemented for LPs. For a QP it prints
-       an error and leaves x_red, y_red and z_red untouched. */
-    void map_original_sol_to_reduced(Presolver *presolver, const double *x,
+       Returns true on success and false otherwise. It fails
+         * for a QP (currently only implemented for LPs) or if memory runs out;
+           x_red, y_red and z_red are then left untouched;
+         * if z_red is requested after 'free_presolver_reduced_problem'; x_red
+           and y_red are then still computed and z_red is left untouched. */
+    bool map_original_sol_to_reduced(Presolver *presolver, const double *x,
                                      const double *y, double *x_red, double *y_red,
                                      double *z_red);
 
@@ -248,10 +256,13 @@ extern "C"
        to y_orig. It does not check whether y is a valid ray.
 
        y uses the Farkas sign convention, yi >= 0 when row i is active at its
-       rhs, the opposite of postsolve(). It matches Gurobi's FarkasDual. Not
-       available yet for a problem with cone blocks: an error is printed and y_orig
-       is left untouched. */
-    void postsolve_primal_infeas_ray(Presolver *presolver, const double *y,
+       rhs, the opposite of postsolve(). It matches Gurobi's FarkasDual.
+
+       Returns true on success. Returns false, and leaves y_orig untouched, for
+       a problem with cone blocks or with 'lp_fold' applied (not available
+       yet), if called after 'free_presolver_reduced_problem', or if memory
+       runs out. */
+    bool postsolve_primal_infeas_ray(Presolver *presolver, const double *y,
                                      double *y_orig);
 
     /* Postsolve a dual infeasibility ray x of the reduced problem.
@@ -260,9 +271,12 @@ extern "C"
 
        x is an unbounded direction: a recession direction of the constraint
        set with Px = 0 and c'x < 0 (for an LP simply c'x < 0); no sign
-       convention involved. Not available yet for a problem with cone
-       blocks: an error is printed and x_orig is left untouched. */
-    void postsolve_dual_infeas_ray(Presolver *presolver, const double *x,
+       convention involved.
+
+       Returns true on success. Returns false, and leaves x_orig untouched, for
+       a problem with cone blocks or with 'lp_fold' applied (not available
+       yet), or if memory runs out. */
+    bool postsolve_dual_infeas_ray(Presolver *presolver, const double *x,
                                    double *x_orig);
 
 #ifdef __cplusplus

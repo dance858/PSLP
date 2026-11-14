@@ -518,7 +518,7 @@ cleanup:
 static inline bool update_termination(size_t nnz_after_cycle,
                                       size_t nnz_before_cycle, Complexity complexity,
                                       PresolveStatus status, double max_time,
-                                      Timer outer_timer)
+                                      Timer outer_timer, bool verbose)
 {
     if (HAS_STATUS(status, UNBNDORINFEAS))
     {
@@ -535,7 +535,10 @@ static inline bool update_termination(size_t nnz_after_cycle,
 
     if (GET_ELAPSED_SECONDS(outer_timer) >= max_time)
     {
-        printf("Maximum time limit of %.2f seconds reached.\n", max_time);
+        if (verbose)
+        {
+            printf("Maximum time limit of %.2f seconds reached.\n", max_time);
+        }
         return true;
     }
 
@@ -941,7 +944,7 @@ PresolveStatus run_presolver(Presolver *presolver)
 
         terminate =
             update_termination(nnz_after_cycle, nnz_before_cycle, curr_complexity,
-                               status, stgs->max_time, outer_timer);
+                               status, stgs->max_time, outer_timer, stgs->verbose);
 
         if (curr_complexity == MEDIUM)
         {
@@ -1044,8 +1047,8 @@ void free_presolver_reduced_problem(Presolver *presolver)
     free_reduced_problem_arrays(reduced_prob);
 }
 
-/* Allocates presolver->sol on the first postsolve call. Returns false (and
-   prints an error) if the allocation fails. */
+/* Allocates presolver->sol on the first postsolve call. Returns false if the
+   allocation fails. */
 static bool ensure_solution(Presolver *presolver)
 {
     if (presolver->sol)
@@ -1057,21 +1060,21 @@ static bool ensure_solution(Presolver *presolver)
                                   presolver->stats->n_cols_original);
     if (!presolver->sol)
     {
-        fprintf(stderr, "PSLP error: out of memory when allocating the "
-                        "postsolved solution. Outputs are left untouched. \n");
+        PSLP_FAIL_MSG(presolver->stgs, "out of memory when allocating the "
+                                       "postsolved solution");
         return false;
     }
     return true;
 }
 
-void postsolve(Presolver *presolver, const double *x, const double *y,
+bool postsolve(Presolver *presolver, const double *x, const double *y,
                const double *z)
 {
     Timer timer;
     PresolveStats *stats = presolver->stats;
     if (!ensure_solution(presolver))
     {
-        return;
+        return false;
     }
     Solution *sol = presolver->sol;
     State *data = presolver->prob->constraints->state;
@@ -1096,6 +1099,7 @@ void postsolve(Presolver *presolver, const double *x, const double *y,
     {
         printf("PSLP postsolve time: %.4f seconds\n", stats->time_postsolve);
     }
+    return true;
 }
 
 static void compute_primal_infeas_ray_z(double *z, const double *Ax, const int *Ai,
@@ -1116,7 +1120,7 @@ static void compute_primal_infeas_ray_z(double *z, const double *Ax, const int *
     }
 }
 
-void postsolve_primal_infeas_ray(Presolver *presolver, const double *y,
+bool postsolve_primal_infeas_ray(Presolver *presolver, const double *y,
                                  double *y_orig)
 {
     Timer timer;
@@ -1129,32 +1133,37 @@ void postsolve_primal_infeas_ray(Presolver *presolver, const double *y,
     assert(reduced_prob != NULL);
     if (data->work->fold_maps)
     {
-        fprintf(stderr, "PSLP error: postsolve_primal_infeas_ray is not supported "
-                        "with lp_fold yet! y_orig is left untouched. \n");
-        return;
+        PSLP_FAIL_MSG(presolver->stgs, "postsolve_primal_infeas_ray is not "
+                                       "supported with lp_fold yet");
+        return false;
     }
     if (stats->n_cones_original > 0)
     {
-        fprintf(stderr, "PSLP error: postsolve_primal_infeas_ray is not supported "
-                        "for problems with cone blocks yet! y_orig is left "
-                        "untouched. \n");
-        return;
+        PSLP_FAIL_MSG(presolver->stgs,
+                      "postsolve_primal_infeas_ray is not "
+                      "supported for problems with cone blocks yet");
+        return false;
     }
     if (!reduced_prob || !reduced_prob->Ax)
     {
         // The reduced constraint matrix was released by
         // 'free_presolver_reduced_problem', so the ray cannot be recovered.
-        fprintf(stderr, "PSLP warning: postsolve_primal_infeas_ray called after "
-                        "free_presolver_reduced_problem! Don't do this! \n");
-        return;
+        PSLP_FAIL_MSG(presolver->stgs, "postsolve_primal_infeas_ray called after "
+                                       "free_presolver_reduced_problem");
+        return false;
     }
     if (!ensure_solution(presolver))
     {
-        return;
+        return false;
     }
     Solution *sol = presolver->sol;
     z = (double *) ps_malloc(len_z, sizeof(double));
-    assert(z != NULL);
+    if (!z)
+    {
+        PSLP_FAIL_MSG(presolver->stgs,
+                      "out of memory in postsolve_primal_infeas_ray");
+        return false;
+    }
 
     clock_gettime(CLOCK_MONOTONIC, &timer.start);
     compute_primal_infeas_ray_z(z, reduced_prob->Ax, reduced_prob->Ai,
@@ -1175,9 +1184,10 @@ void postsolve_primal_infeas_ray(Presolver *presolver, const double *y,
     {
         printf("PSLP postsolve time: %.4f seconds\n", stats->time_postsolve);
     }
+    return true;
 }
 
-void postsolve_dual_infeas_ray(Presolver *presolver, const double *x, double *x_orig)
+bool postsolve_dual_infeas_ray(Presolver *presolver, const double *x, double *x_orig)
 {
     Timer timer;
     PresolveStats *stats = presolver->stats;
@@ -1186,20 +1196,20 @@ void postsolve_dual_infeas_ray(Presolver *presolver, const double *x, double *x_
     assert(presolver->reduced_prob != NULL);
     if (data->work->fold_maps)
     {
-        fprintf(stderr, "PSLP error: postsolve_dual_infeas_ray is not supported "
-                        "with lp_fold yet! x_orig is left untouched. \n");
-        return;
+        PSLP_FAIL_MSG(presolver->stgs, "postsolve_dual_infeas_ray is not "
+                                       "supported with lp_fold yet");
+        return false;
     }
     if (stats->n_cones_original > 0)
     {
-        fprintf(stderr, "PSLP error: postsolve_dual_infeas_ray is not supported "
-                        "for problems with cone blocks yet! x_orig is left "
-                        "untouched. \n");
-        return;
+        PSLP_FAIL_MSG(presolver->stgs,
+                      "postsolve_dual_infeas_ray is not "
+                      "supported for problems with cone blocks yet");
+        return false;
     }
     if (!ensure_solution(presolver))
     {
-        return;
+        return false;
     }
     Solution *sol = presolver->sol;
 
@@ -1218,6 +1228,7 @@ void postsolve_dual_infeas_ray(Presolver *presolver, const double *x, double *x_
     {
         printf("PSLP postsolve time: %.4f seconds\n", stats->time_postsolve);
     }
+    return true;
 }
 
 void free_presolver(Presolver *presolver)
