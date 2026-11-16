@@ -322,7 +322,7 @@ static PresolveStatus dton_transfer_bounds_rec(Constraints *constraints,
 
     if (!HAS_TAG(col_tag_k, C_TAG_LB_INF))
     {
-        double bound = (rec->rhs - aik * bound_k->lb) / aij;
+        double bound = sub_snap(rec->rhs, aik * bound_k->lb) / aij;
         status = same_sign ? update_ub_with_row(constraints, j, bound, i, cols, vals,
                                                 2 HUGE_BOUND_IS_NOT_OK)
                            : update_lb_with_row(constraints, j, bound, i, cols, vals,
@@ -332,7 +332,7 @@ static PresolveStatus dton_transfer_bounds_rec(Constraints *constraints,
 
     if (!HAS_TAG(col_tag_k, C_TAG_UB_INF))
     {
-        double bound = (rec->rhs - aik * bound_k->ub) / aij;
+        double bound = sub_snap(rec->rhs, aik * bound_k->ub) / aij;
         status = same_sign ? update_lb_with_row(constraints, j, bound, i, cols, vals,
                                                 2 HUGE_BOUND_IS_NOT_OK)
                            : update_ub_with_row(constraints, j, bound, i, cols, vals,
