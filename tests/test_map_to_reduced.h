@@ -108,14 +108,17 @@ static char *test_map_ston_row()
 
     // mapping must not touch the solution obtained by postsolve above
     double x_only[7], y_only[2];
-    map_original_sol_to_reduced(presolver, x, y, x_only, y_only, NULL);
+    mu_assert("map ston row should succeed",
+              map_original_sol_to_reduced(presolver, x, y, x_only, y_only, NULL));
     mu_assert("map ston row must not modify presolver->sol",
               is_solution_correct(presolver->sol->x, x, presolver->sol->y, y,
                                   presolver->sol->z, z, n_rows, n_cols, MAP_TOL));
 
     // the primal and dual parts can be mapped independently
-    map_original_sol_to_reduced(presolver, x, NULL, x_only, NULL, NULL);
-    map_original_sol_to_reduced(presolver, NULL, y, NULL, y_only, NULL);
+    mu_assert("map ston row primal only should succeed",
+              map_original_sol_to_reduced(presolver, x, NULL, x_only, NULL, NULL));
+    mu_assert("map ston row dual only should succeed",
+              map_original_sol_to_reduced(presolver, NULL, y, NULL, y_only, NULL));
     for (int i = 0; i < 7; ++i)
     {
         mu_assert("map ston row primal only error",
@@ -125,16 +128,6 @@ static char *test_map_ston_row()
     {
         mu_assert("map ston row dual only error",
                   ABS(y_only[i] - y_red[i]) <= MAP_TOL);
-    }
-
-    // a missing input leaves the corresponding output untouched
-    double untouched[7] = {DUMMY_VALUE, DUMMY_VALUE, DUMMY_VALUE, DUMMY_VALUE,
-                           DUMMY_VALUE, DUMMY_VALUE, DUMMY_VALUE};
-    map_original_sol_to_reduced(presolver, NULL, y, untouched, y_only, NULL);
-    map_original_sol_to_reduced(presolver, x, NULL, x_only, untouched, NULL);
-    for (int i = 0; i < 7; ++i)
-    {
-        mu_assert("map ston row missing input error", untouched[i] == DUMMY_VALUE);
     }
 
     PS_FREE(stgs);
@@ -668,7 +661,10 @@ static char *test_map_after_free_reduced_problem()
 
     double x_red[4], y_red[2];
     double z_red[4] = {DUMMY_VALUE, DUMMY_VALUE, DUMMY_VALUE, DUMMY_VALUE};
-    map_original_sol_to_reduced(presolver, x, y, x_red, y_red, z_red);
+    mu_assert("map after free: z_red cannot be computed",
+              !map_original_sol_to_reduced(presolver, x, y, x_red, y_red, z_red));
+    mu_assert("map after free: x and y alone should succeed",
+              map_original_sol_to_reduced(presolver, x, y, x_red, y_red, NULL));
 
     for (int i = 0; i < 4; ++i)
     {
@@ -687,7 +683,7 @@ static char *test_map_after_free_reduced_problem()
     return 0;
 }
 
-/* The forward map is not implemented for QPs yet: it prints an error and
+/* The forward map is not implemented for QPs yet: it returns false and
    leaves its outputs untouched. Same QP as test_3_qp (x0 is fixed by the
    singleton equality row). */
 static char *test_map_refuses_qp()
@@ -732,7 +728,8 @@ static char *test_map_refuses_qp()
     double x_red[2] = {DUMMY_VALUE, DUMMY_VALUE};
     double y_red[1] = {DUMMY_VALUE};
     double z_red[2] = {DUMMY_VALUE, DUMMY_VALUE};
-    map_original_sol_to_reduced(presolver, x, y, x_red, y_red, z_red);
+    mu_assert("map QP: refused",
+              !map_original_sol_to_reduced(presolver, x, y, x_red, y_red, z_red));
     for (int i = 0; i < 2; ++i)
     {
         mu_assert("map QP: x_red untouched", x_red[i] == DUMMY_VALUE);

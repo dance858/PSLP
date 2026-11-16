@@ -499,13 +499,15 @@ static char *test_cones_refusals()
 
     double y_ray[] = {0, 0, 0};
     double y_orig[] = {7, 7, 7, 7};
-    postsolve_primal_infeas_ray(presolver, y_ray, y_orig);
+    mu_assert("primal ray refused",
+              !postsolve_primal_infeas_ray(presolver, y_ray, y_orig));
     mu_assert("primal ray untouched",
               y_orig[0] == 7 && y_orig[1] == 7 && y_orig[2] == 7 && y_orig[3] == 7);
 
     double x_ray[] = {0, 0, 0};
     double x_orig[] = {7, 7, 7, 7, 7};
-    postsolve_dual_infeas_ray(presolver, x_ray, x_orig);
+    mu_assert("dual ray refused",
+              !postsolve_dual_infeas_ray(presolver, x_ray, x_orig));
     mu_assert("dual ray untouched", x_orig[0] == 7 && x_orig[1] == 7 &&
                                         x_orig[2] == 7 && x_orig[3] == 7 &&
                                         x_orig[4] == 7);

@@ -34,6 +34,7 @@
 #include "Workspace.h"
 #include "dVec.h"
 #include "fold_postsolve.h"
+#include "glbopts.h"
 #include "iVec.h"
 #include "u16Vec.h"
 #include <assert.h>
@@ -215,7 +216,7 @@ static void compute_reduced_dual_slack(double *z, const ProblemData *prob,
     }
 }
 
-void map_original_sol_to_reduced(Presolver *presolver, const double *x,
+bool map_original_sol_to_reduced(Presolver *presolver, const double *x,
                                  const double *y, double *x_red, double *y_red,
                                  double *z_red)
 {
@@ -234,38 +235,19 @@ void map_original_sol_to_reduced(Presolver *presolver, const double *x,
     /* 'stats' survives 'free_presolver_reduced_problem', unlike the reduced P */
     if (presolver->stats->Pnnz_original > 0 || presolver->stats->Pnnz_reduced > 0)
     {
-        fprintf(stderr, "PSLP error: map_original_sol_to_reduced is not supported "
-                        "for QPs yet! Outputs are left untouched. \n");
-        return;
+        PSLP_FAIL_MSG(presolver->stgs, "map_original_sol_to_reduced is not "
+                                       "supported for QPs yet");
+        return false;
     }
 
-    if (x_red && !x)
-    {
-        fprintf(stderr,
-                "PSLP warning: map_original_sol_to_reduced needs x to compute "
-                "x_red! x_red is left untouched. \n");
-        x_red = NULL;
-    }
-
-    if (y_red && !y)
-    {
-        fprintf(stderr,
-                "PSLP warning: map_original_sol_to_reduced needs y to compute "
-                "y_red! y_red and z_red are left untouched. \n");
-        y_red = NULL;
-        z_red = NULL;
-    }
-
-    if (z_red && !y_red)
-    {
-        fprintf(stderr, "PSLP warning: map_original_sol_to_reduced needs y_red to "
-                        "compute z_red! z_red is left untouched. \n");
-        z_red = NULL;
-    }
+    /* an output needs its input */
+    assert(!x_red || x);
+    assert(!y_red || y);
+    assert(!z_red || y_red);
 
     if (!x_red && !y_red)
     {
-        return;
+        return true;
     }
 
     // scratch space for the replay and, with a fold, for the folded point (we
@@ -274,10 +256,9 @@ void map_original_sol_to_reduced(Presolver *presolver, const double *x,
     work = (double *) ps_malloc(n_fold * (fold_maps ? 2 : 1) + 1, sizeof(double));
     if (!work)
     {
-        fprintf(stderr,
-                "PSLP warning: map_original_sol_to_reduced failed to allocate "
-                "memory! Outputs are left untouched. \n");
-        return;
+        PSLP_FAIL_MSG(presolver->stgs,
+                      "out of memory in map_original_sol_to_reduced");
+        return false;
     }
 
     if (fold_maps)
@@ -310,18 +291,19 @@ void map_original_sol_to_reduced(Presolver *presolver, const double *x,
 
     if (!z_red)
     {
-        return;
+        return true;
     }
 
     if (!reduced_prob->Ax)
     {
         // The reduced problem data was released by
         // 'free_presolver_reduced_problem', so z_red cannot be computed.
-        fprintf(stderr, "PSLP warning: map_original_sol_to_reduced called after "
-                        "free_presolver_reduced_problem! z_red is left "
-                        "untouched. \n");
-        return;
+        PSLP_FAIL_MSG(presolver->stgs,
+                      "map_original_sol_to_reduced cannot compute z_red after "
+                      "free_presolver_reduced_problem");
+        return false;
     }
 
     compute_reduced_dual_slack(z_red, reduced_prob, y_red);
+    return true;
 }
