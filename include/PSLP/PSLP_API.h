@@ -87,12 +87,30 @@ extern "C"
                               s_0, s_1 >= 0, dim >= 2
          * PSLP_CONE_EXP      s_0 >= s_1 exp(s_2 / s_1) with s_1 > 0, and its
                               closure s_1 = 0, s_0 >= 0, s_2 <= 0; dim = 3
+         * PSLP_CONE_OPAQUE   any set the presolver does not model (a PSD cone,
+                              a power cone, ...), dim >= 1
+
+       The presolver may remove rows of an SOC or ROTATED block or the whole
+       block. An EXP block is currently passed through like an OPAQUE block,
+       but a later version may reduce it.
+
+       An OPAQUE block is never looked at: the reduced problem holds the same
+       block with the same 'dim' and the same order of its rows, and no
+       information is derived from its rows. The presolver only changes the
+       variables the rows are written in (it fixes a variable, substitutes one
+       out or merges parallel columns), so the entries of the rows and 'rhs'
+       may change and a row may lose all its entries, but s = A_B x - r_B has
+       the same value at a point of the reduced problem as at the postsolved
+       point (up to the feasibility tolerance when a variable with nearly equal
+       bounds is fixed). Postsolve returns the dual variables given for the
+       rows of the block unchanged.
      */
     typedef enum
     {
         PSLP_CONE_SOC = 1,
         PSLP_CONE_ROTATED = 2,
-        PSLP_CONE_EXP = 3
+        PSLP_CONE_EXP = 3,
+        PSLP_CONE_OPAQUE = 4
     } ConeType;
 
     typedef struct

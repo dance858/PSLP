@@ -336,6 +336,8 @@ static inline void cones_shrink(Constraints *constraints, const int *row_map,
         {
             dim += row_map[row] >= 0;
         }
+        /* no reduction removes a row of an OPAQUE block */
+        assert(block.type != PSLP_CONE_OPAQUE || dim == block.dim);
         if (dim == 0)
         {
             continue;
