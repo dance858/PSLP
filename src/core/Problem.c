@@ -160,16 +160,6 @@ bool P_row_has_diagonal(const Matrix *P, const int *P_row_sizes, int k)
     return sorted_find(P->i + P->p[k].start, P_row_sizes[k], k) >= 0;
 }
 
-/* c + upd, snapped to zero when the sum is rounding noise relative to its
-   terms. An exact cancellation leaves a residue whose sign is noise, and
-   downstream sign tests (e.g. the unboundedness check in process_colston_ineq)
-   must never see it. */
-static double add_cancelling(double c, double upd)
-{
-    double sum = c + upd;
-    return (ABS(sum) <= CANCEL_TOL_REL * MAX(ABS(c), ABS(upd))) ? 0.0 : sum;
-}
-
 void fix_var_in_obj(Problem *prob, int col, double value)
 {
     Objective *obj = prob->obj;

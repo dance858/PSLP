@@ -959,7 +959,7 @@ static char *test_dton_postsolve_cycle()
                                 1e9);
 }
 
-/* Exact cancellation of a substituted entry (dropped below ZERO_TOL). */
+/* Exact cancellation of a substituted entry (the entry is dropped). */
 static char *test_dton_postsolve_cancellation()
 {
     // r0: x0 + 2 x1 = 0, r1: 0.5 x0 + x1 + x2 <= 5, r2: x1 + x3 + x4 <= 7

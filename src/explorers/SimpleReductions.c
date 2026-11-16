@@ -89,12 +89,12 @@ void delete_fixed_cols_from_problem(Problem *prob)
 
             if (!HAS_TAG(row_tags[row], R_TAG_LHS_INF))
             {
-                lhs[row] = sub_snap(lhs[row], contribution);
+                lhs[row] = sub_cancelling(lhs[row], contribution);
             }
 
             if (!HAS_TAG(row_tags[row], R_TAG_RHS_INF))
             {
-                rhs[row] = sub_snap(rhs[row], contribution);
+                rhs[row] = sub_cancelling(rhs[row], contribution);
             }
 
             // not necessary to update n_inf_min and n_in_max since a fixed
