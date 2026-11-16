@@ -10,6 +10,7 @@
 #include "kkt.h"
 #include "minunit.h"
 #include "test_kkt.h"
+#include <limits.h>
 #include <stdio.h>
 
 static int counter_cones = 0;
@@ -23,6 +24,9 @@ static char *test_cone_table()
     const ConeTypeInfo *exp_info = cone_type_info(PSLP_CONE_EXP);
     mu_assert("EXP row",
               exp_info != NULL && exp_info->dim_min == 3 && exp_info->dim_max == 3);
+    const ConeTypeInfo *opaque = cone_type_info(PSLP_CONE_OPAQUE);
+    mu_assert("OPAQUE row",
+              opaque != NULL && opaque->dim_min == 1 && opaque->dim_max == INT_MAX);
     mu_assert("no row for 0", cone_type_info((ConeType) 0) == NULL);
     mu_assert("no row for 99", cone_type_info((ConeType) 99) == NULL);
     return 0;
@@ -75,6 +79,16 @@ static char *test_cones_valid()
 
     ConeBlock exp_and_soc[] = {{PSLP_CONE_EXP, 0, 3}, {PSLP_CONE_SOC, 3, 2}};
     mu_assert("EXP and SOC", cones_valid(exp_and_soc, 2, m, rhs));
+
+    ConeBlock opaque_dim_1[] = {{PSLP_CONE_OPAQUE, 4, 1}};
+    mu_assert("OPAQUE dim 1", cones_valid(opaque_dim_1, 1, m, rhs));
+
+    ConeBlock opaque_dim_0[] = {{PSLP_CONE_SOC, 0, 5}, {PSLP_CONE_OPAQUE, 5, 0}};
+    mu_assert("OPAQUE dim 0", !cones_valid(opaque_dim_0, 2, m, rhs));
+
+    ConeBlock opaque_between[] = {
+        {PSLP_CONE_SOC, 0, 1}, {PSLP_CONE_OPAQUE, 1, 2}, {PSLP_CONE_SOC, 3, 2}};
+    mu_assert("OPAQUE between SOC blocks", cones_valid(opaque_between, 3, m, rhs));
 
     double infinite_r[] = {1, 2, 3, 4, INF};
     mu_assert("infinite r", !cones_valid(one_soc, 1, m, infinite_r));
@@ -727,6 +741,146 @@ static char *test_cones_exp_constant_block()
     return 0;
 }
 
+/* s = A_B x - r_B on the rows of a block */
+static void cone_block_slack(const ProblemData *prob, const ConeBlock *block,
+                             const double *x, double *s)
+{
+    for (int k = 0; k < block->dim; ++k)
+    {
+        int row = block->start + k;
+        s[k] = -prob->rhs[row];
+        for (int jj = prob->Ap[row]; jj < prob->Ap[row + 1]; ++jj)
+        {
+            s[k] += prob->Ax[jj] * x[prob->Ai[jj]];
+        }
+    }
+}
+
+/*  An OPAQUE block of five rows whose rows invite the LP reductions:
+
+      min x0 + x2 + x3 + x4
+      s.t. row 0:  x0 + x1 = 2
+           row 1:  x1 + x2 <= 5
+           rows 2-6, OPAQUE:
+             row 2:  x0 + x3
+             row 3:  x1 + x2 - 1     parallel to row 1
+             row 4:  x4              singleton row with a column singleton
+             row 5:  x5 - 3          x5 is fixed at 2
+             row 6:  2 x3
+           0 <= x2 <= 3, x5 = 2, the other variables are free
+
+    As linear rows, row 4 would become a bound on x4 and row 3 would merge
+    with row 1; x3 and x4 have positive costs and appear in the block only, so
+    they stay only because the block locks them. Just the changes of variables
+    apply: the doubleton row 0 is substituted and x5 is fixed, which leaves
+    row 5 empty with r = 1. Any reduced point then postsolves to a point with
+    the same slack on the block and the same block multipliers. */
+static char *test_cones_opaque_untouched()
+{
+    double Ax[] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2};
+    int Ai[] = {0, 1, 1, 2, 0, 3, 1, 2, 4, 5, 3};
+    int Ap[] = {0, 2, 4, 6, 8, 9, 10, 11};
+    double lhs[] = {2, -INF, -INF, -INF, -INF, -INF, -INF};
+    double rhs[] = {2, 5, 0, 1, 0, 3, 0};
+    double lbs[] = {-INF, -INF, 0, -INF, -INF, 2};
+    double ubs[] = {INF, INF, 3, INF, INF, 2};
+    double c[] = {1, 0, 1, 1, 1, 0};
+    ConeBlock cones[] = {{PSLP_CONE_OPAQUE, 2, 5}};
+    ProblemData prob = problem_from_csr(Ax, Ai, Ap, 7, 6, 11, lhs, rhs, lbs, ubs, c);
+    prob.cones = cones;
+    prob.n_cones = 1;
+    Settings *stgs = default_settings();
+    stgs->verbose = false;
+
+    Presolver *presolver = new_presolver_from_problem(&prob, stgs);
+    mu_assert("init", presolver != NULL);
+    mu_assert("reduced", run_presolver(presolver) == REDUCED);
+    const ProblemData *reduced = presolver->reduced_prob;
+    mu_assert("reduced dims", reduced->m == 6 && reduced->n == 4);
+    mu_assert("block passed through",
+              reduced->n_cones == 1 && reduced->cones[0].type == PSLP_CONE_OPAQUE &&
+                  reduced->cones[0].start == 1 && reduced->cones[0].dim == 5);
+    int expected_len[] = {2, 2, 1, 0, 1};
+    for (int k = 0; k < 5; ++k)
+    {
+        mu_assert("block row lengths",
+                  reduced->Ap[2 + k] - reduced->Ap[1 + k] == expected_len[k]);
+    }
+    mu_assert("fixed column moved into r", reduced->rhs[4] == 1);
+    mu_assert("singleton row kept",
+              reduced->Ax[reduced->Ap[3]] == 1 && reduced->rhs[3] == 0);
+    mu_assert("cone stats", presolver->stats->n_cones_reduced == 1 &&
+                                presolver->stats->n_cone_rows_reduced == 5);
+
+    double x_red[] = {0.25, 0.5, 0.75, 1.25};
+    double y_red[] = {-0.5, 0.125, -2, 3, 0.375, -1.5};
+    double z_red[] = {0, 0, 0, 0};
+    postsolve(presolver, x_red, y_red, z_red);
+    const double *xs = presolver->sol->x, *ys = presolver->sol->y;
+    for (int k = 0; k < 5; ++k)
+    {
+        mu_assert("block multipliers returned as given", ys[2 + k] == y_red[1 + k]);
+    }
+    double s_red[5], s_orig[5];
+    cone_block_slack(reduced, reduced->cones, x_red, s_red);
+    cone_block_slack(&prob, cones, xs, s_orig);
+    for (int k = 0; k < 5; ++k)
+    {
+        mu_assert("block slack kept", ABS(s_red[k] - s_orig[k]) <= 1e-12);
+    }
+    mu_assert("linear rows hold", ABS(xs[0] + xs[1] - 2) <= 1e-12 && xs[5] == 2);
+
+    free_presolver(presolver);
+    free_settings(stgs);
+    return 0;
+}
+
+/*  min x0  s.t.  x0 >= 2,  a constant SOC block (1, 0, 0) and a constant
+    OPAQUE block with r = (1, 0, 0), which as an SOC would be infeasible
+    (test_cones_constant_block). The SOC block goes, the OPAQUE block is not
+    judged: it stays with its three empty rows as the only block. */
+static char *test_cones_opaque_constant_block()
+{
+    double Ax[] = {1};
+    int Ai[] = {0};
+    int Ap[] = {0, 1, 1, 1, 1, 1, 1, 1};
+    double lhs[] = {2, -INF, -INF, -INF, -INF, -INF, -INF};
+    double rhs[] = {INF, -1, 0, 0, 1, 0, 0};
+    double lbs[] = {-INF};
+    double ubs[] = {INF};
+    double c[] = {1};
+    ConeBlock cones[] = {{PSLP_CONE_SOC, 1, 3}, {PSLP_CONE_OPAQUE, 4, 3}};
+    ProblemData prob = problem_from_csr(Ax, Ai, Ap, 7, 1, 1, lhs, rhs, lbs, ubs, c);
+    prob.cones = cones;
+    prob.n_cones = 2;
+    Settings *stgs = default_settings();
+    stgs->verbose = false;
+
+    Presolver *presolver = new_presolver_from_problem(&prob, stgs);
+    mu_assert("init", presolver != NULL);
+    mu_assert("reduced", run_presolver(presolver) == REDUCED);
+    const ProblemData *reduced = presolver->reduced_prob;
+    mu_assert("only the opaque block left",
+              reduced->m == 3 && reduced->n == 0 && reduced->n_cones == 1 &&
+                  reduced->cones[0].type == PSLP_CONE_OPAQUE &&
+                  reduced->cones[0].start == 0 && reduced->cones[0].dim == 3);
+    mu_assert("constant rows", reduced->nnz == 0 && reduced->rhs[0] == 1 &&
+                                   reduced->rhs[1] == 0 && reduced->rhs[2] == 0);
+
+    double x_red[1];
+    double y_red[] = {0.5, -1, 2};
+    double z_red[1];
+    postsolve(presolver, x_red, y_red, z_red);
+    const double *y = presolver->sol->y;
+    mu_assert("x solved by presolve", presolver->sol->x[0] == 2);
+    mu_assert("SOC block multipliers", y[1] == 0 && y[2] == 0 && y[3] == 0);
+    mu_assert("opaque block multipliers", y[4] == 0.5 && y[5] == -1 && y[6] == 2);
+
+    free_presolver(presolver);
+    free_settings(stgs);
+    return 0;
+}
+
 static const char *all_tests_cones()
 {
     mu_run_test(test_cone_table, counter_cones);
@@ -744,6 +898,8 @@ static const char *all_tests_cones()
     mu_run_test(test_cones_hole, counter_cones);
     mu_run_test(test_cones_exp_flow, counter_cones);
     mu_run_test(test_cones_exp_constant_block, counter_cones);
+    mu_run_test(test_cones_opaque_untouched, counter_cones);
+    mu_run_test(test_cones_opaque_constant_block, counter_cones);
     return 0;
 }
 
