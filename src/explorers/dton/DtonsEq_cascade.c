@@ -75,7 +75,7 @@ static int dton_cascade_claim(Problem *prob, DtonWorkspace *dton_work, int s)
     {
         int col = acc->touched[ii];
         bool modified = acc->flags[col] == DTON_ACC_MODIFIED;
-        if (!modified || ABS(acc->value[col]) > ZERO_TOL)
+        if (!modified || acc->value[col] != 0.0)
         {
             if (n_kept < 2)
             {

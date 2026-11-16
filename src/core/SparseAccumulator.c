@@ -17,6 +17,7 @@
  */
 
 #include "SparseAccumulator.h"
+#include "Numerics.h"
 #include <string.h>
 
 void sparse_accumulator_init(SparseAccumulator *acc, int *stamp, double *value,
@@ -47,6 +48,6 @@ void sparse_accumulator_add(SparseAccumulator *acc, int col, double val,
         acc->flags[col] = 0;
         acc->touched[acc->n_touched++] = col;
     }
-    acc->value[col] += val;
+    acc->value[col] = add_cancelling(acc->value[col], val);
     acc->flags[col] |= flag;
 }

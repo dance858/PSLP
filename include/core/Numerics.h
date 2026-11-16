@@ -22,7 +22,6 @@
 #include <math.h>
 
 #define FEAS_TOL 1e-6
-#define ZERO_TOL 1e-10
 #define CANCEL_TOL_REL 1e-12
 /* relative tolerance under which an updated diagonal entry of P counts as zero
    (the 2x2 principal minors of an input P are only PSD up to rounding) */
@@ -64,10 +63,20 @@
 /* a - b, set to zero when it is rounding noise relative to the two operands.
    A difference that small carries no information, and once stored nothing can
    tell it from a real value. */
-static inline double sub_snap(double a, double b)
+static inline double sub_cancelling(double a, double b)
 {
     double d = a - b;
     return (ABS(d) <= CANCEL_TOL_REL * MAX(ABS(a), ABS(b))) ? 0.0 : d;
+}
+
+/* a + b, set to zero when it is rounding noise relative to the two operands.
+   An exact cancellation leaves a residue whose sign is noise, and downstream
+   sign tests (e.g. the unboundedness check in process_colston_ineq) must never
+   see it. */
+static inline double add_cancelling(double a, double b)
+{
+    double s = a + b;
+    return (ABS(s) <= CANCEL_TOL_REL * MAX(ABS(a), ABS(b))) ? 0.0 : s;
 }
 
 /* Tolerance of an infeasibility verdict: FEAS_TOL near zero, relative to the

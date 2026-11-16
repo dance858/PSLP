@@ -23,8 +23,9 @@
 #include <stdint.h>
 
 /* Builds a sparse vector of length n from (column, value) contributions.
-   Contributions to the same column are summed, and each column also keeps
-   the OR of its flag bits. The touched columns are listed in the order they
+   Contributions to the same column are summed, with a sum that is rounding
+   noise relative to its terms set to zero, and each column also keeps the OR
+   of its flag bits. The touched columns are listed in the order they
    were first added. */
 typedef struct SparseAccumulator
 {

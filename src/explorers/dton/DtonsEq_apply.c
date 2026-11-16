@@ -140,11 +140,13 @@ static void dton_sweep_row_finish(Problem *prob, int row, int old_len, int new_l
     {
         if (!HAS_TAG(row_tags[row], R_TAG_LHS_INF))
         {
-            constraints->lhs[row] = sub_snap(constraints->lhs[row], side_shift);
+            constraints->lhs[row] =
+                sub_cancelling(constraints->lhs[row], side_shift);
         }
         if (!HAS_TAG(row_tags[row], R_TAG_RHS_INF))
         {
-            constraints->rhs[row] = sub_snap(constraints->rhs[row], side_shift);
+            constraints->rhs[row] =
+                sub_cancelling(constraints->rhs[row], side_shift);
         }
     }
 
@@ -200,8 +202,8 @@ double dton_accumulate_row(DtonWorkspace *dton_work, const Matrix *A, int row)
 }
 
 /* Rewrites a row of A in place. Every entry of an eliminated column moves
-   onto the surviving column it is expressed in. A modified entry below
-   ZERO_TOL is dropped. The other entries are kept unchanged. */
+   onto the surviving column it is expressed in. A modified entry that
+   cancelled to zero is dropped. The other entries are kept unchanged. */
 static void dton_sweep_row(Problem *prob, DtonWorkspace *dton_work, int row,
                            int *deferred, int *n_deferred)
 {
@@ -223,7 +225,7 @@ static void dton_sweep_row(Problem *prob, DtonWorkspace *dton_work, int row,
         int col = acc->touched[ii];
         double val = acc->value[col];
         bool modified = acc->flags[col] == DTON_ACC_MODIFIED;
-        bool keep = !modified || ABS(val) > ZERO_TOL;
+        bool keep = !modified || val != 0.0;
         if (keep)
         {
             A->i[write_pos] = col;
