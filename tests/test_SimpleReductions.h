@@ -538,6 +538,48 @@ static char *test_20_simple()
     return 0;
 }
 
+/* A row whose terms are all tiny is not redundant just because its max
+   activity is within an absolute tolerance of its side: here the max activity
+   exceeds the rhs by 5e-7, which is the size of the row itself.
+
+    min.   -x1 + x2
+    s.t.   x1 - x2 <= 0
+           0 <= x1 <= 5e-7, 0 <= x2 <= 1e-7
+*/
+static char *test_21_simple()
+{
+    double Ax[] = {1, -1};
+    int Ai[] = {0, 1};
+    int Ap[] = {0, 2};
+    int nnz = 2;
+    int n_rows = 1;
+    int n_cols = 2;
+
+    double lhs[] = {-INF};
+    double rhs[] = {0};
+    double lbs[] = {0, 0};
+    double ubs[] = {5e-7, 1e-7};
+    double c[] = {-1, 1};
+
+    Settings *stgs = default_settings();
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, n_rows, n_cols, nnz, lhs, rhs, lbs, ubs, c, stgs);
+
+    Problem *prob = presolver->prob;
+    Constraints *constraints = prob->constraints;
+    PresolveStatus status = check_activities(prob);
+    mu_assert("error status", status != INFEASIBLE);
+    mu_assert("row kept", !HAS_TAG(constraints->row_tags[0], R_TAG_INACTIVE));
+    mu_assert("rhs kept", !HAS_TAG(constraints->row_tags[0], R_TAG_RHS_INF) &&
+                              constraints->rhs[0] == 0.0);
+    problem_clean(prob);
+
+    PS_FREE(stgs);
+    DEBUG(run_debugger(constraints, false));
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_simple()
 {
     mu_run_test(test_4_simple, counter_simple);
@@ -550,6 +592,7 @@ static const char *all_tests_simple()
     mu_run_test(test_18_simple, counter_simple);
     mu_run_test(test_19_simple, counter_simple);
     mu_run_test(test_20_simple, counter_simple);
+    mu_run_test(test_21_simple, counter_simple);
 
     return 0;
 }
