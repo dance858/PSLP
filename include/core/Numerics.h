@@ -61,6 +61,15 @@
    columns, which keeps only one of the two costs. */
 #define IS_EQUAL_REL(x, y) (ABS((x) - (y)) <= CANCEL_TOL_REL * MAX(ABS(x), ABS(y)))
 
+/* a - b, set to zero when it is rounding noise relative to the two operands.
+   A difference that small carries no information, and once stored nothing can
+   tell it from a real value. */
+static inline double sub_snap(double a, double b)
+{
+    double d = a - b;
+    return (ABS(d) <= CANCEL_TOL_REL * MAX(ABS(a), ABS(b))) ? 0.0 : d;
+}
+
 /* Tolerance of an infeasibility verdict: FEAS_TOL near zero, relative to the
    larger magnitude beyond one. */
 #define INFEAS_TOL(x, y) (FEAS_TOL * MAX(1.0, MAX(ABS(x), ABS(y))))

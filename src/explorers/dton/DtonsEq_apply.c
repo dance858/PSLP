@@ -140,11 +140,11 @@ static void dton_sweep_row_finish(Problem *prob, int row, int old_len, int new_l
     {
         if (!HAS_TAG(row_tags[row], R_TAG_LHS_INF))
         {
-            constraints->lhs[row] -= side_shift;
+            constraints->lhs[row] = sub_snap(constraints->lhs[row], side_shift);
         }
         if (!HAS_TAG(row_tags[row], R_TAG_RHS_INF))
         {
-            constraints->rhs[row] -= side_shift;
+            constraints->rhs[row] = sub_snap(constraints->rhs[row], side_shift);
         }
     }
 
