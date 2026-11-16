@@ -31,11 +31,12 @@ static const ConeTypeInfo cone_types[] = {
     [PSLP_CONE_SOC] = {1, INT_MAX},
     [PSLP_CONE_ROTATED] = {2, INT_MAX},
     [PSLP_CONE_EXP] = {3, 3},
+    [PSLP_CONE_OPAQUE] = {1, INT_MAX},
 };
 
 const ConeTypeInfo *cone_type_info(ConeType type)
 {
-    if (type != PSLP_CONE_SOC && type != PSLP_CONE_ROTATED && type != PSLP_CONE_EXP)
+    if (type < PSLP_CONE_SOC || type > PSLP_CONE_OPAQUE)
     {
         return NULL;
     }
@@ -102,7 +103,8 @@ PresolveStatus process_cones(Problem *prob, const Settings *stgs,
             continue;
         }
 
-        /* EXP blocks are passed through unchanged */
+        /* EXP and OPAQUE blocks are passed through unchanged. For an OPAQUE
+           block this is a guarantee of the API. */
         if (block->type == PSLP_CONE_SOC || block->type == PSLP_CONE_ROTATED)
         {
             RETURN_IF_INFEASIBLE(process_soc_block(prob, block, rotated_to_P));
