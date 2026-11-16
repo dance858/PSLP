@@ -475,7 +475,8 @@ static inline PresolveStatus process_single_bin(const Constraints *constraints,
         // -----------------------------------------------------------------------
         if (is_remaining_row_eq && is_other_row_eq)
         {
-            if (!IS_EQUAL_FEAS_TOL(remaining_row_new_rhs, other_row_rhs_scaled))
+            if (IS_INFEAS_GT(remaining_row_new_rhs, other_row_rhs_scaled) ||
+                IS_INFEAS_LT(remaining_row_new_rhs, other_row_rhs_scaled))
             {
                 return INFEASIBLE;
             }

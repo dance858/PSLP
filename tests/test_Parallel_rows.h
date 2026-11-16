@@ -1432,6 +1432,35 @@ static char *test_20_parallel_rows_eq_ineq_rounding_swapped()
     return 0;
 }
 
+/* Two parallel equalities with large sides that agree up to rounding:
+       x + y + z = 1e9
+       3x + 3y + 3z = 3e9 + 3e-5        x, y, z >= 0
+   The scaled sides differ by 1e-5, which is 1e-14 relative to the sides, so
+   the pair is not infeasible. The costs differ so that the fold does not merge
+   the columns first. */
+static char *test_21_parallel_rows_eq_eq_large_sides()
+{
+    double Ax[] = {1, 1, 1, 3, 3, 3};
+    int Ai[] = {0, 1, 2, 0, 1, 2};
+    int Ap[] = {0, 3, 6};
+    double lhs[] = {1e9, 3e9 + 3e-5};
+    double rhs[] = {1e9, 3e9 + 3e-5};
+    double lbs[] = {0, 0, 0};
+    double ubs[] = {INF, INF, INF};
+    double c[] = {1, 2, 3}; /* distinct, or the fold merges the three columns */
+
+    Settings *stgs = default_settings();
+    stgs->verbose = false;
+    Presolver *presolver =
+        new_presolver(Ax, Ai, Ap, 2, 3, 6, lhs, rhs, lbs, ubs, c, stgs);
+    PresolveStatus status = run_presolver(presolver);
+    mu_assert("feasible", (status & INFEASIBLE) == 0);
+
+    PS_FREE(stgs);
+    free_presolver(presolver);
+    return 0;
+}
+
 static const char *all_tests_parallel_rows()
 {
     mu_run_test(test_1_parallel_rows, counter_parallel_rows);
@@ -1455,6 +1484,7 @@ static const char *all_tests_parallel_rows()
     mu_run_test(test_19_parallel_rows_eq_ineq_rounding, counter_parallel_rows);
     mu_run_test(test_20_parallel_rows_eq_ineq_rounding_swapped,
                 counter_parallel_rows);
+    mu_run_test(test_21_parallel_rows_eq_eq_large_sides, counter_parallel_rows);
 
     return 0;
 }
