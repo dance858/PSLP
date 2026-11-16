@@ -240,7 +240,7 @@ PresolveStatus update_lb_with_row(Constraints *constraints, int col, double new_
     bool is_lb_inf = HAS_TAG(*col_tag, C_TAG_LB_INF);
 
     // update the lower bound if it is tighter
-    if (is_lb_inf || new_lb >= lb + FEAS_TOL)
+    if (is_lb_inf || new_lb > lb)
     {
         const Matrix *AT = constraints->AT;
         const double *vals = AT->x + AT->p[col].start;
@@ -302,7 +302,7 @@ PresolveStatus update_ub_with_row(Constraints *constraints, int col, double new_
     bool is_ub_inf = HAS_TAG(*col_tag, C_TAG_UB_INF);
 
     // update the upper bound if it is tighter
-    if (is_ub_inf || new_ub <= ub - FEAS_TOL)
+    if (is_ub_inf || new_ub < ub)
     {
         const Matrix *AT = constraints->AT;
         const double *vals = AT->x + AT->p[col].start;
