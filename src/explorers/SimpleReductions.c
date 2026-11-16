@@ -297,6 +297,22 @@ PresolveStatus remove_ston_rows(Problem *prob)
     return REDUCED;
 }
 
+/* Scale of a row for a comparison of an activity with a side: the largest
+   magnitude among the side and the finite activities. */
+static inline double act_scale(const Activity *act, double side)
+{
+    double scale = ABS(side);
+    if (act->n_inf_min == 0)
+    {
+        scale = MAX(scale, ABS(act->min));
+    }
+    if (act->n_inf_max == 0)
+    {
+        scale = MAX(scale, ABS(act->max));
+    }
+    return scale;
+}
+
 // If the returned row tag is R_TAG_INFEAS, then the constraint is feasible.
 // If HAS_TAG(return_tag, R_TAG_RHS_INF), then the rhs is finite and redundant.
 // If HAS_TAG(return_tag, R_TAG_LHS_INF), then the lhs is finite and redundant.
@@ -316,7 +332,8 @@ static inline RowTag check_activity(const Activity *act, double lhs, double rhs,
         {
             return R_TAG_INFEAS;
         }
-        else if (act->n_inf_max == 0 && act->max <= rhs + FEAS_TOL)
+        else if (act->n_inf_max == 0 &&
+                 act->max <= rhs + CANCEL_TOL_REL * act_scale(act, rhs))
         {
             UPDATE_TAG(return_tag, R_TAG_RHS_INF);
         }
@@ -332,7 +349,8 @@ static inline RowTag check_activity(const Activity *act, double lhs, double rhs,
         {
             return R_TAG_INFEAS;
         }
-        else if (act->n_inf_min == 0 && act->min >= lhs - FEAS_TOL)
+        else if (act->n_inf_min == 0 &&
+                 act->min >= lhs - CANCEL_TOL_REL * act_scale(act, lhs))
         {
             UPDATE_TAG(return_tag, R_TAG_LHS_INF);
         }
