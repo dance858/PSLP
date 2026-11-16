@@ -100,7 +100,7 @@ Settings *default_settings(void)
     stgs->relax_bounds = false;
     stgs->lp_fold = true;
     stgs->fold_min_reduction = LP_FOLD_MIN_REDUCTION;
-    stgs->max_time = 60.0;
+    stgs->max_time = INF;
     stgs->verbose = true;
     stgs->n_threads = 0;
     stgs->rotated_to_P = true;
