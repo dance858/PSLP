@@ -133,6 +133,13 @@ static inline int get_bin_size(int start, size_t n_rows, const int *rows,
     return i - start;
 }
 
+/* True when two coefficients agree up to PARALLEL_TOL_REL relative to the
+   larger one. */
+static inline bool is_parallel_coeff(double a, double b)
+{
+    return ABS(a - b) <= PARALLEL_TOL_REL * MAX(ABS(a), ABS(b));
+}
+
 #ifndef NDEBUG
 // make sure that the rows in the same bin have the same coefficient
 // hash value and the same sparsity ID
@@ -184,18 +191,16 @@ static void VERIFY_PARALLEL_ROWS(const Matrix *A, const RowTag *rows_tags,
             ARRAYS_EQUAL_INT(cols1, A->i + A->p[parallel_rows[j]].start, len1);
         }
 
-        // check that all rows have same normalized coefficients
-        double *vals1 = A->x + A->p[parallel_rows[start]].start;
-        for (j = start + 1; j < end; ++j)
+        // check that all rows have the same coefficients up to a multiple.
+        // Every row was accepted against the reference row, stored last.
+        double *vals1 = A->x + A->p[parallel_rows[end - 1]].start;
+        for (j = start; j < end - 1; ++j)
         {
             double *vals2 = A->x + A->p[parallel_rows[j]].start;
             double ratio = vals1[0] / vals2[0];
             for (k = 1; k < len1; ++k)
             {
-                // relative tolerance: rows with large coefficients are
-                // detected through hashes of normalized values
-                assert(ABS(vals1[k] - ratio * vals2[k]) <=
-                       FEAS_TOL * MAX(1.0, ABS(vals1[k])));
+                assert(is_parallel_coeff(vals1[k], ratio * vals2[k]));
             }
         }
     }
@@ -244,11 +249,8 @@ static inline int find_parallel_rows_in_bin(const Matrix *A, const int *bin,
         double ratio = vals1[0] / vals2[0];
         for (j = 0; j < len2; ++j)
         {
-            // if we run into numerical issues we might want to do
-            // diff = vals1[j] / vals2[j] - ratio
-            double diff = vals1[j] - ratio * vals2[j];
-
-            if (!IS_ZERO_FEAS_TOL(diff) || cols1[j] != cols2[j])
+            if (cols1[j] != cols2[j] ||
+                !is_parallel_coeff(vals1[j], ratio * vals2[j]))
             {
                 break;
             }

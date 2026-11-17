@@ -1461,6 +1461,61 @@ static char *test_21_parallel_rows_eq_eq_large_sides()
     return 0;
 }
 
+/* The rows (1, 1e-3) and (1, 1.0003e-3) are not parallel: their second
+   entries differ by 0.03%, although the difference is below 1e-6 in absolute
+   terms. */
+static char *test_22_parallel_rows_small_entry_not_parallel()
+{
+    double Ax[] = {1, 1e-3, 1, 1.0003e-3};
+    int Ai[] = {0, 1, 0, 1};
+    int Ap[] = {0, 2, 4};
+
+    Matrix *A = matrix_new(Ax, Ai, Ap, 2, 2, 4);
+    RowTag row_tags[] = {R_TAG_NONE, R_TAG_NONE};
+
+    iVec *group_start = iVec_new(10);
+    int parallel_rows[2];
+    int sparsity_IDs[2];
+    int coeff_hashes[2];
+    int radix_aux[2];
+
+    find_parallel_rows(A, row_tags, group_start, parallel_rows, sparsity_IDs,
+                       coeff_hashes, R_TAG_INACTIVE, radix_aux, NULL);
+
+    mu_assert("not grouped", group_start->len == 1);
+
+    free_matrix(A);
+    iVec_free(group_start);
+    return 0;
+}
+
+/* The rows (1e6, 2e6) and (1e6, 2e6 + 0.5) are parallel: they agree to 2.5e-7
+   relative, although the difference is 0.5 in absolute terms. */
+static char *test_23_parallel_rows_large_coeffs_parallel()
+{
+    double Ax[] = {1e6, 2e6, 1e6, 2e6 + 0.5};
+    int Ai[] = {0, 1, 0, 1};
+    int Ap[] = {0, 2, 4};
+
+    Matrix *A = matrix_new(Ax, Ai, Ap, 2, 2, 4);
+    RowTag row_tags[] = {R_TAG_NONE, R_TAG_NONE};
+
+    iVec *group_start = iVec_new(10);
+    int parallel_rows[2];
+    int sparsity_IDs[2];
+    int coeff_hashes[2];
+    int radix_aux[2];
+
+    find_parallel_rows(A, row_tags, group_start, parallel_rows, sparsity_IDs,
+                       coeff_hashes, R_TAG_INACTIVE, radix_aux, NULL);
+
+    mu_assert("grouped", group_start->len == 2 && group_start->data[1] == 2);
+
+    free_matrix(A);
+    iVec_free(group_start);
+    return 0;
+}
+
 static const char *all_tests_parallel_rows()
 {
     mu_run_test(test_1_parallel_rows, counter_parallel_rows);
@@ -1485,6 +1540,9 @@ static const char *all_tests_parallel_rows()
     mu_run_test(test_20_parallel_rows_eq_ineq_rounding_swapped,
                 counter_parallel_rows);
     mu_run_test(test_21_parallel_rows_eq_eq_large_sides, counter_parallel_rows);
+    mu_run_test(test_22_parallel_rows_small_entry_not_parallel,
+                counter_parallel_rows);
+    mu_run_test(test_23_parallel_rows_large_coeffs_parallel, counter_parallel_rows);
 
     return 0;
 }

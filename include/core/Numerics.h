@@ -23,6 +23,8 @@
 
 #define FEAS_TOL 1e-6
 #define CANCEL_TOL_REL 1e-12
+/* relative tolerance under which two rows (or two columns) count as parallel */
+#define PARALLEL_TOL_REL 1e-6
 /* relative tolerance under which an updated diagonal entry of P counts as zero
    (the 2x2 principal minors of an input P are only PSD up to rounding) */
 #define P_DIAG_CANCEL_TOL_REL 1e-9
