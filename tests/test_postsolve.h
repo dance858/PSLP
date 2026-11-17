@@ -1550,11 +1550,12 @@ static char *test_ston_row_bound_dual_approximate_solution()
          [1  1] x >= 6e4
          x0 free, 0 <= x1 <= 1e5
     The singleton row becomes the bound x0 <= 5e4 and is deleted. The reduced
-    point has x0 = 1e4, far from that bound, and z0 = -1e-3: noise of a
-    first-order solver, not a multiplier of the bound. Postsolve must not hand
-    z0 to the deleted row: y0 = -5e-4 on a row with slack 8e4 would add 40 to
-    the duality gap. z0 stays as a dual residual of the size it had on the
-    reduced problem. */
+    point has x0 = 1e4, far from that bound, and z0 = -1e-3, as an inexact
+    solver may return. x0 is free in the original problem, so z0 cannot stay
+    on the column: postsolve hands it to the deleted row whatever the distance
+    to the bound, y0 = z0 / 2 = -5e-4 and z0 = 0. The postsolved point is then
+    dual feasible, and the complementarity error |z0| * 4e4 of the reduced
+    point is carried over as it is. */
 static char *test_ston_row_bound_dual_inactive_bound()
 {
     double Ax[] = {2, 1, 1};
@@ -1585,10 +1586,9 @@ static char *test_ston_row_bound_dual_inactive_bound()
     double z[] = {-1e-3, 0};
     postsolve(presolver, x, y, z);
 
-    mu_assert("inactive bound dual handed to the singleton row",
-              presolver->sol->y[0] == 0.0);
-    mu_assert("bound dual of an inactive bound not kept",
-              presolver->sol->z[0] == -1e-3);
+    mu_assert("inactive bound dual not handed to the singleton row",
+              presolver->sol->y[0] == -5e-4);
+    mu_assert("bound dual kept on a free column", presolver->sol->z[0] == 0.0);
 
     PS_FREE(stgs);
     free_presolver(presolver);
