@@ -26,6 +26,7 @@
 #include "glbopts.h"
 #include "stdlib.h"
 #include "string.h"
+#include "thread_pool.h"
 #include <assert.h>
 #include <limits.h>
 
@@ -249,6 +250,127 @@ void transpose_into(const Matrix *A, Matrix *AT, int *work_n_cols)
             count[A->i[j]]++;
         }
     }
+}
+
+/* below this many nonzeros the transpose runs on the calling thread */
+#define PARALLEL_TRANSPOSE_THRESHOLD 1000000
+
+typedef struct
+{
+    const Matrix *A;
+    Matrix *AT;
+    int *count;
+    const int
+        *col_bounds; /* chunk c owns columns [col_bounds[c], col_bounds[c+1]) */
+} TransposeArgs;
+
+/* counts the entries of the columns of one chunk */
+static void transpose_count_chunk(void *context, int chunk, int thread)
+{
+    (void) thread;
+    const TransposeArgs *args = (const TransposeArgs *) context;
+    const Matrix *A = args->A;
+    int *count = args->count;
+    const unsigned lo = (unsigned) args->col_bounds[chunk];
+    const unsigned width = (unsigned) args->col_bounds[chunk + 1] - lo;
+    const int *cols = A->i;
+
+    for (size_t i = 0; i < A->m; ++i)
+    {
+        const int end = A->p[i].end;
+        for (int j = A->p[i].start; j < end; ++j)
+        {
+            if ((unsigned) cols[j] - lo < width)
+            {
+                count[cols[j]]++;
+            }
+        }
+    }
+}
+
+/* moves the entries of the columns of one chunk into AT */
+static void transpose_fill_chunk(void *context, int chunk, int thread)
+{
+    (void) thread;
+    const TransposeArgs *args = (const TransposeArgs *) context;
+    const Matrix *A = args->A;
+    Matrix *AT = args->AT;
+    int *count = args->count;
+    const unsigned lo = (unsigned) args->col_bounds[chunk];
+    const unsigned width = (unsigned) args->col_bounds[chunk + 1] - lo;
+    const int *cols = A->i;
+
+    for (size_t i = 0; i < A->m; ++i)
+    {
+        const int end = A->p[i].end;
+        for (int j = A->p[i].start; j < end; ++j)
+        {
+            const int col = cols[j];
+            if ((unsigned) col - lo < width)
+            {
+                const int pos = count[col]++;
+                AT->x[pos] = A->x[j];
+                AT->i[pos] = (int) i;
+            }
+        }
+    }
+}
+
+Matrix *transpose_parallel(const Matrix *A, int *work_n_cols, size_t tail,
+                           ThreadPool *pool)
+{
+    int n_chunks = pool ? thread_pool_n_threads(pool) : 1;
+    if (n_chunks < 2 || A->nnz < PARALLEL_TRANSPOSE_THRESHOLD ||
+        A->n < (size_t) n_chunks)
+    {
+        return transpose(A, work_n_cols, tail);
+    }
+    if (A->nnz + tail > (size_t) INT_MAX)
+    {
+        return NULL;
+    }
+    Matrix *AT = matrix_alloc(A->n, A->m, A->nnz + tail);
+    RETURN_PTR_IF_NULL(AT, NULL);
+    AT->nnz = A->nnz;
+
+    int col_bounds[THREAD_POOL_MAX_THREADS + 1];
+    int *count = work_n_cols;
+    TransposeArgs args = {A, AT, count, col_bounds};
+    const int n_cols = (int) A->n;
+
+    /* count: even column ranges, as the column sizes are not known yet */
+    memset(count, 0, A->n * sizeof(int));
+    thread_pool_chunk_bounds(n_cols, n_chunks, col_bounds);
+    thread_pool_run(pool, transpose_count_chunk, &args, n_chunks);
+
+    /* row pointers of AT */
+    int start;
+    AT->p[0].start = 0;
+    for (int i = 0; i < n_cols; ++i)
+    {
+        start = AT->p[i].start;
+        AT->p[i].end = start + count[i];
+        AT->p[i + 1].start = AT->p[i].end;
+        count[i] = start;
+    }
+    AT->p[n_cols].end = AT->p[n_cols].start; // == nnz: the tail arena begins here
+
+    /* fill: column ranges with about the same number of entries each */
+    int col = 0;
+    col_bounds[0] = 0;
+    for (int c = 1; c < n_chunks; ++c)
+    {
+        const size_t target = A->nnz * (size_t) c / (size_t) n_chunks;
+        while (col < n_cols && (size_t) AT->p[col].start < target)
+        {
+            col++;
+        }
+        col_bounds[c] = col;
+    }
+    col_bounds[n_chunks] = n_cols;
+    thread_pool_run(pool, transpose_fill_chunk, &args, n_chunks);
+
+    return AT;
 }
 
 void free_matrix(Matrix *A)

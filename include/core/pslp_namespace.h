@@ -34,6 +34,7 @@
 #define Activities_init pslp_Activities_init
 #define Activity_init pslp_Activity_init
 #define P_row_has_diagonal pslp_P_row_has_diagonal
+#define activities_init_rows pslp_activities_init_rows
 #define bound_tightening_single_row pslp_bound_tightening_single_row
 #define change_lhs_of_ineq pslp_change_lhs_of_ineq
 #define change_rhs_of_ineq pslp_change_rhs_of_ineq
@@ -157,6 +158,7 @@
 #define process_cones pslp_process_cones
 #define process_soc_block pslp_process_soc_block
 #define propagate_primal pslp_propagate_primal
+#define ps_hint_huge_pages pslp_ps_hint_huge_pages
 #define radix_sort_by_key pslp_radix_sort_by_key
 #define radix_sort_rows pslp_radix_sort_rows
 #define radix_sort_rows_chunked pslp_radix_sort_rows_chunked
@@ -225,6 +227,7 @@
 #define thread_pool_run pslp_thread_pool_run
 #define transpose pslp_transpose
 #define transpose_into pslp_transpose_into
+#define transpose_parallel pslp_transpose_parallel
 #define update_activities_bound_change pslp_update_activities_bound_change
 #define update_activities_fixed_col pslp_update_activities_fixed_col
 #define update_activity_coeff_change pslp_update_activity_coeff_change

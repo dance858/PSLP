@@ -22,6 +22,7 @@
 #include <stdbool.h>
 
 #include "debug_macros.h"
+#include "thread_pool.h"
 
 struct RowView;
 
@@ -79,6 +80,12 @@ Matrix *transpose(const Matrix *A, int *work_n_cols, size_t tail);
 /* Like transpose(), but writes into AT's existing allocation, which must have
    the transposed dimensions and room for A->nnz entries. */
 void transpose_into(const Matrix *A, Matrix *AT, int *work_n_cols);
+
+/* Like transpose(), but large matrices are transposed on the pool: every
+   thread owns a range of columns of A, scans A and moves the entries of its
+   own columns. The result equals that of transpose(). 'pool' may be NULL. */
+Matrix *transpose_parallel(const Matrix *A, int *work_n_cols, size_t tail,
+                           ThreadPool *pool);
 
 // frees all allocated memory
 void free_matrix(Matrix *A);

@@ -7,6 +7,7 @@
 #include "glbopts.h"
 #include "minunit.h"
 #include "test_macros.h"
+#include "thread_pool.h"
 #include <limits.h>
 #include <stdio.h>
 
@@ -16,6 +17,7 @@ int counter_matrix = 0;
 Test 0: matrix_new: allocation and free of a matrix.
 Test 1: transpose: transpose a matrix.
 Test 2: transpose_into: transpose into an over-allocated matrix, twice.
+transpose_parallel: same result as transpose for several pool sizes.
 Test 2-14:  shiftRow
 Then some adhoc tests.
 */
@@ -188,6 +190,43 @@ static char *test_diagonal_matrix()
     return 0;
 }
 
+/* transpose_parallel gives the same matrix as transpose, for a matrix above the
+   parallel threshold and pools of one, two and eight threads, and falls back
+   to transpose without a pool. */
+static char *test_transpose_parallel()
+{
+    Matrix *A = random_matrix_new(3000, 5000, 0.1);
+    mu_assert("random matrix", A != NULL && A->nnz >= 1000000);
+    int *work_n_cols = (int *) ps_malloc(A->n, sizeof(int));
+    const size_t tail = 7;
+    Matrix *ref = transpose(A, work_n_cols, tail);
+    mu_assert("reference transpose", ref != NULL);
+
+    const int n_workers[] = {-1, 0, 1, 7}; /* -1: no pool */
+    for (int k = 0; k < 4; ++k)
+    {
+        ThreadPool *pool = n_workers[k] < 0 ? NULL : thread_pool_new(n_workers[k]);
+        mu_assert("pool", n_workers[k] < 0 || pool != NULL);
+        Matrix *AT = transpose_parallel(A, work_n_cols, tail, pool);
+        mu_assert("parallel transpose", AT != NULL);
+        mu_assert("dimensions", AT->m == ref->m && AT->n == ref->n &&
+                                    AT->nnz == ref->nnz &&
+                                    AT->n_alloc == ref->n_alloc);
+        mu_assert("row pointers",
+                  memcmp(AT->p, ref->p, (ref->m + 1) * sizeof(RowRange)) == 0);
+        mu_assert("column indices",
+                  memcmp(AT->i, ref->i, ref->nnz * sizeof(int)) == 0);
+        mu_assert("values", memcmp(AT->x, ref->x, ref->nnz * sizeof(double)) == 0);
+        free_matrix(AT);
+        thread_pool_free(pool);
+    }
+
+    free_matrix(ref);
+    free_matrix(A);
+    PS_FREE(work_n_cols);
+    return 0;
+}
+
 static const char *all_tests_matrix()
 {
     mu_run_test(test_0_matrix, counter_matrix);
@@ -195,6 +234,7 @@ static const char *all_tests_matrix()
     mu_run_test(test_2_matrix, counter_matrix);
     mu_run_test(test_20_matrix, counter_matrix);
     mu_run_test(test_diagonal_matrix, counter_matrix);
+    mu_run_test(test_transpose_parallel, counter_matrix);
     return 0;
 }
 

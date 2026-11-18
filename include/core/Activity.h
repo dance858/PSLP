@@ -71,6 +71,12 @@ enum Altered_Activity
     MIN_ALTERED_RECOMPUTE = (1 << 4) | MIN_ALTERED
 };
 
+/* Initialises the activities of rows [row_begin, row_end) like new_activities
+   does. Rows are independent, so disjoint ranges can run in parallel. */
+void activities_init_rows(const struct Matrix *A, const ColTag *col_tags,
+                          const struct Bound *bounds, Activity *activities,
+                          int row_begin, int row_end);
+
 /* Constructor. Returns an activity struct. If the activity is valid and
    can be used for deduction of something useful, then min and max are
    computed. Otherwise, only n_inf_min and n_inf_max are updated. Indices
