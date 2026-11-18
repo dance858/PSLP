@@ -24,14 +24,26 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Allocations of at least this many bytes ask the kernel for transparent huge
+   pages (Linux, madvise). First touch of a large fresh block is then one
+   fault per 2 MB instead of one per 4 KB. */
+#define PS_HUGE_PAGE_MIN_BYTES ((size_t) 4 << 20)
+
+/* No-op where there is nothing to ask for. Never fails. */
+void ps_hint_huge_pages(void *p, size_t bytes);
+
 static inline void *ps_malloc(size_t n, size_t size)
 {
-    return malloc(n * size);
+    void *p = malloc(n * size);
+    if (n * size >= PS_HUGE_PAGE_MIN_BYTES) ps_hint_huge_pages(p, n * size);
+    return p;
 }
 
 static inline void *ps_calloc(size_t n, size_t size)
 {
-    return calloc(n, size);
+    void *p = calloc(n, size);
+    if (n * size >= PS_HUGE_PAGE_MIN_BYTES) ps_hint_huge_pages(p, n * size);
+    return p;
 }
 
 #define PS_FREE(p)                                                                  \
@@ -43,7 +55,9 @@ static inline void *ps_calloc(size_t n, size_t size)
 
 static inline void *ps_realloc(void *p, size_t n, size_t size)
 {
-    return realloc(p, n * size);
+    void *q = realloc(p, n * size);
+    if (n * size >= PS_HUGE_PAGE_MIN_BYTES) ps_hint_huge_pages(q, n * size);
+    return q;
 }
 
 /* Reallocates the array whose pointer lives at 'pp' (the address of the array

@@ -49,7 +49,6 @@
 #include "fold_postsolve.h"
 #include "glbopts.h"
 #include "iVec.h"
-#include "pslp_thread.h"
 #include "radix_sort.h"
 #include "thread_pool.h"
 #include <limits.h>
@@ -107,60 +106,96 @@ Settings *default_settings(void)
     return stgs;
 }
 
-// Helper struct for parallel initialization work
+/* Copies the variable bounds and tags the infinite ones, on the pool. */
+#define BOUNDS_COLS_PER_CHUNK 65536
+#define INIT_MAX_CHUNKS (8 * THREAD_POOL_MAX_THREADS)
 typedef struct
 {
-    Matrix *A;
-    Work *work;
-    size_t n_cols;
-    size_t n_rows;
     const double *lbs;
     const double *ubs;
-    double *lhs_copy;
-    double *rhs_copy;
     Bound *bounds;
     ColTag *col_tags;
-    RowTag *row_tags;
-    Lock *locks;
-    Activity *activities;
-    int *row_sizes;
-    bool derived_data; /* locks, activities and row sizes; false with the fold */
-} ParallelInitData;
+    int col_bounds[INIT_MAX_CHUNKS + 1];
+} BoundsArgs;
 
-// thread function for initializing data
-static void *init_thread_func(void *arg)
+static void init_bounds_chunk(void *context, int chunk, int thread)
 {
-    ParallelInitData *data = (ParallelInitData *) arg;
-
-    data->row_tags = new_rowtags(data->lhs_copy, data->rhs_copy, data->n_rows);
-
-    for (int i = 0; i < data->n_cols; i++)
+    (void) thread;
+    const BoundsArgs *args = (const BoundsArgs *) context;
+    const double *lbs = args->lbs;
+    const double *ubs = args->ubs;
+    for (int i = args->col_bounds[chunk]; i < args->col_bounds[chunk + 1]; i++)
     {
-        data->bounds[i].lb = data->lbs[i];
-        data->bounds[i].ub = data->ubs[i];
+        args->bounds[i].lb = lbs[i];
+        args->bounds[i].ub = ubs[i];
 
-        if (IS_NEG_INF(data->lbs[i]))
+        if (IS_NEG_INF(lbs[i]))
         {
-            UPDATE_TAG(data->col_tags[i], C_TAG_LB_INF);
+            UPDATE_TAG(args->col_tags[i], C_TAG_LB_INF);
         }
 
-        if (IS_POS_INF(data->ubs[i]))
+        if (IS_POS_INF(ubs[i]))
         {
-
-            UPDATE_TAG(data->col_tags[i], C_TAG_UB_INF);
+            UPDATE_TAG(args->col_tags[i], C_TAG_UB_INF);
         }
     }
+}
 
-    /* With the fold the matrix may still change; the caller builds these
-       afterwards. */
-    if (data->derived_data)
+static void init_bounds(const double *lbs, const double *ubs, size_t n_cols,
+                        Bound *bounds, ColTag *col_tags, ThreadPool *pool)
+{
+    BoundsArgs args = {lbs, ubs, bounds, col_tags, {0}};
+    int n_chunks = thread_pool_chunk_count(thread_pool_n_threads(pool), (int) n_cols,
+                                           BOUNDS_COLS_PER_CHUNK);
+    if (n_chunks > INIT_MAX_CHUNKS) n_chunks = INIT_MAX_CHUNKS;
+    thread_pool_chunk_bounds((int) n_cols, n_chunks, args.col_bounds);
+    thread_pool_run(pool, init_bounds_chunk, &args, n_chunks);
+}
+
+/* Locks and activities, built on the pool: chunk 0 builds the locks, every
+   other chunk the activities of a range of rows. */
+#define ACTIVITY_ROWS_PER_CHUNK 4096
+typedef struct
+{
+    const Matrix *A;
+    const RowTag *row_tags;
+    const ColTag *col_tags;
+    const Bound *bounds;
+    Activity *activities;
+    Lock *locks;
+    int row_bounds[INIT_MAX_CHUNKS + 1];
+} LocksActivitiesArgs;
+
+static void locks_activities_chunk(void *context, int chunk, int thread)
+{
+    (void) thread;
+    LocksActivitiesArgs *args = (LocksActivitiesArgs *) context;
+    if (chunk == 0)
     {
-        data->locks = new_locks(data->A, data->row_tags);
-        data->activities = new_activities(data->A, data->col_tags, data->bounds);
-        count_rows(data->A, data->row_sizes);
+        args->locks = new_locks(args->A, args->row_tags);
+        return;
     }
+    activities_init_rows(args->A, args->col_tags, args->bounds, args->activities,
+                         args->row_bounds[chunk - 1], args->row_bounds[chunk]);
+}
 
-    return NULL;
+/* Builds the locks and activities of A. False if out of memory. */
+static bool build_locks_and_activities(const Matrix *A, const RowTag *row_tags,
+                                       const ColTag *col_tags, const Bound *bounds,
+                                       ThreadPool *pool, Lock **locks,
+                                       Activity **activities)
+{
+    *activities = (Activity *) ps_malloc(A->m, sizeof(Activity));
+    if (!*activities) return false;
+    LocksActivitiesArgs args = {A,           row_tags, col_tags, bounds,
+                                *activities, NULL,     {0}};
+    int n_row_chunks = thread_pool_chunk_count(thread_pool_n_threads(pool),
+                                               (int) A->m, ACTIVITY_ROWS_PER_CHUNK);
+    if (n_row_chunks > INIT_MAX_CHUNKS) n_row_chunks = INIT_MAX_CHUNKS;
+    thread_pool_chunk_bounds((int) A->m, n_row_chunks, args.row_bounds);
+    thread_pool_run(pool, locks_activities_chunk, &args, n_row_chunks + 1);
+    *locks = args.locks;
+    return *locks != NULL;
 }
 
 void set_settings_true(Settings *stgs)
@@ -327,8 +362,9 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
         goto cleanup;
     }
 
-    /* The pool of the fold and of the parallel sort. Without the fold, a
-       problem below the sort's threshold never uses workers, so it gets none. */
+    /* The pool of the initialisation passes, the fold and the parallel sort.
+       Without the fold, a problem below the sort's threshold gets no workers
+       and its passes run on the calling thread. */
     bool needs_workers = stgs->lp_fold || n_rows >= PARALLEL_SORT_THRESHOLD ||
                          n_cols >= PARALLEL_SORT_THRESHOLD;
     work->pool = thread_pool_new(
@@ -369,39 +405,23 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
     bool lp_fold = stgs->lp_fold && P == NULL && n_cones == 0;
 
     // ---------------------------------------------------------------------------
-    //  Build bounds, row tags, A and AT. We first build A, then in parallel
-    //  we build AT (main thread) and some other things (second thread).
+    //  Build A, the row tags, the bounds with the column tags, and AT
     // ---------------------------------------------------------------------------
     A = matrix_new(Ax, Ai, Ap, n_rows, n_cols, nnz);
     if (!A) goto cleanup;
 
-    ps_thread_t thread_id;
-    ParallelInitData parallel_data = {A,    work,     n_cols,   n_rows,    lbs,
-                                      ubs,  lhs_copy, rhs_copy, bounds,    col_tags,
-                                      NULL, NULL,     NULL,     row_sizes, !lp_fold};
-
-    ps_thread_create(&thread_id, NULL, init_thread_func, &parallel_data);
-
-    // Main thread: Transpose A
-    AT = transpose(A, work->iwork_n_cols,
-                   stgs->dton_eq ? dton_extra_memory(A->nnz) : 0);
-    if (!AT)
-    {
-        ps_thread_join(&thread_id, NULL);
-        goto cleanup;
-    }
-
-    // sync threads
-    ps_thread_join(&thread_id, NULL);
-
-    row_tags = parallel_data.row_tags;
+    row_tags = new_rowtags(lhs_copy, rhs_copy, n_rows);
     if (!row_tags) goto cleanup;
     for (size_t i = first_cone_row; i < n_rows; ++i)
     {
         RESET_TAG(row_tags[i], R_TAG_CONE);
     }
-    locks = parallel_data.locks;
-    activities = parallel_data.activities;
+    init_bounds(lbs, ubs, n_cols, bounds, col_tags, work->pool);
+
+    AT = transpose_parallel(A, work->iwork_n_cols,
+                            stgs->dton_eq ? dton_extra_memory(A->nnz) : 0,
+                            work->pool);
+    if (!AT) goto cleanup;
 
     nnz_stripped = A->nnz; /* after the explicit zeros were dropped */
 
@@ -419,8 +439,9 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
                          c_copy, &fold_options, work->pool, &work->fold_maps, NULL))
         {
             free_matrix(AT);
-            AT = transpose(A, work->iwork_n_cols,
-                           stgs->dton_eq ? dton_extra_memory(A->nnz) : 0);
+            AT = transpose_parallel(A, work->iwork_n_cols,
+                                    stgs->dton_eq ? dton_extra_memory(A->nnz) : 0,
+                                    work->pool);
             if (!AT) goto cleanup;
             /* postsolve replays the records into the folded dimensions */
             work->folded_sol = new_solution(A->m, A->n);
@@ -428,13 +449,17 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
         }
         clock_gettime(CLOCK_MONOTONIC, &fold_timer.end);
         fold_time = GET_ELAPSED_SECONDS(fold_timer);
-
-        /* The init thread left these to us. */
-        locks = new_locks(A, row_tags);
-        activities = new_activities(A, col_tags, bounds);
-        count_rows(A, row_sizes);
     }
-    if (!locks || !activities) goto cleanup;
+
+    // ---------------------------------------------------------------------------
+    //  Locks, activities and row / column sizes of the (possibly folded) problem
+    // ---------------------------------------------------------------------------
+    if (!build_locks_and_activities(A, row_tags, col_tags, bounds, work->pool,
+                                    &locks, &activities))
+    {
+        goto cleanup;
+    }
+    count_rows(A, row_sizes);
     count_rows(AT, col_sizes);
 
     // ---------------------------------------------------------------------------

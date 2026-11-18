@@ -24,16 +24,15 @@
 #include "RowColViews.h"
 #include "glbopts.h"
 
-Activity *new_activities(const Matrix *A, const ColTag *col_tags,
-                         const Bound *bounds)
+void activities_init_rows(const Matrix *A, const ColTag *col_tags,
+                          const Bound *bounds, Activity *activities, int row_begin,
+                          int row_end)
 {
-    Activity *activities = (Activity *) ps_malloc(A->m, sizeof(Activity));
-    RETURN_PTR_IF_NULL(activities, NULL);
     int i, j, start, end;
     int *cols = A->i;
     double *vals = A->x;
 
-    for (i = 0; i < A->m; ++i)
+    for (i = row_begin; i < row_end; ++i)
     {
         Activity *act = activities + i;
         act->n_inf_min = 0;
@@ -126,7 +125,14 @@ Activity *new_activities(const Matrix *A, const ColTag *col_tags,
         }
 #endif
     }
+}
 
+Activity *new_activities(const Matrix *A, const ColTag *col_tags,
+                         const Bound *bounds)
+{
+    Activity *activities = (Activity *) ps_malloc(A->m, sizeof(Activity));
+    RETURN_PTR_IF_NULL(activities, NULL);
+    activities_init_rows(A, col_tags, bounds, activities, 0, (int) A->m);
     return activities;
 }
 
