@@ -163,6 +163,8 @@
 #define radix_sort_rows pslp_radix_sort_rows
 #define radix_sort_rows_chunked pslp_radix_sort_rows_chunked
 #define random_matrix_new pslp_random_matrix_new
+#define recompute_activity pslp_recompute_activity
+#define recompute_all_activities pslp_recompute_all_activities
 #define recompute_n_infs pslp_recompute_n_infs
 #define refine_apply_bucket pslp_refine_apply_bucket
 #define refine_group_bucket pslp_refine_group_bucket

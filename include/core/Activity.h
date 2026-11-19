@@ -98,6 +98,15 @@ void Activities_init(const struct Matrix *A, const ColTag *col_tags,
 void Activity_init(Activity *act, const double *vals, const int *cols, int len,
                    const struct Bound *bounds, const ColTag *col_tags);
 
+/* Recomputes the min and max of a single activity from the bounds, each only
+   if its n_inf count is zero. The counts and the status are left as they are. */
+void recompute_activity(Activity *act, const double *vals, const int *cols, int len,
+                        const struct Bound *bounds);
+
+/* recompute_activity for every active row. */
+void recompute_all_activities(const struct Matrix *A, const RowTag *row_tags,
+                              const struct Bound *bounds, Activity *activities);
+
 /* Recomputes n_inf_min and n_inf_max of a single activity. */
 void recompute_n_infs(Activity *act, const double *vals, const int *cols, int len,
                       const ColTag *coltags);

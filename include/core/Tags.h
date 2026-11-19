@@ -48,6 +48,10 @@ enum ColTag
     C_TAG_UB_HUGE = 1 << 3,
     C_TAG_FIXED = 1 << 4,
     C_TAG_SUBSTITUTED = 1 << 5,
+    // set only within a sweep of primal propagation: the finite bound has
+    // changed and the rows of the column have not been told yet
+    C_TAG_LB_CHANGED = 1 << 6,
+    C_TAG_UB_CHANGED = 1 << 7,
     // for parallel cols to work correctly it is important
     // that C_TAG_INACTIVE contains R_TAG_INACTIVE
     C_TAG_INACTIVE = (C_TAG_FIXED | C_TAG_SUBSTITUTED)
