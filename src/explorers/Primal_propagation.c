@@ -89,10 +89,108 @@ static inline double widen_implied_bound(double implied, double Aik, double *err
     return implied + (min_side ? *err : -*err) / Aik;
 }
 
+/* Tightening a finite bound walks the column to update the activity of every
+   row in it. A sweep can tighten the same bound many times, so these walks
+   can cost far more than the matrix has non-zeros. Once they have cost more
+   than PROP_RECOMPUTE_BUDGET times the non-zeros, updating has become more
+   expensive than recomputing every activity once, and the sweep switches:
+   a finite tightening only stores the bound and remembers the column, each
+   row computes its activities from the bounds when it is propagated, and
+   all activities are recomputed at the end of the sweep. The min and max of
+   the stored activities are not maintained in between. A sweep that never
+   switches runs as before. */
+#ifndef PROP_RECOMPUTE_BUDGET
+#define PROP_RECOMPUTE_BUDGET 1
+#endif
+
+typedef struct PropCtx
+{
+    bool finite;      // also tighten finite bounds
+    bool recompute;   // the sweep has switched
+    size_t work;      // column entries walked by finite tightenings
+    size_t budget;    // the switch happens when work exceeds it
+    size_t n_changed; // columns with a CHANGED tag, kept in work->iwork_n_cols
+} PropCtx;
+
+/* Called after a bound of col was tightened. Updates the activities of its
+   rows (vals, rows, len), or after the switch only remembers the column. */
+static inline void bound_tightened(PropCtx *ctx, Constraints *constraints, int col,
+                                   ColTag *cTag, const double *vals, const int *rows,
+                                   size_t len, double old_bound, double new_bound,
+                                   bool was_finite, bool lower)
+{
+    State *state = constraints->state;
+
+    if (was_finite && ctx->recompute)
+    {
+        if (!HAS_TAG(*cTag, C_TAG_LB_CHANGED | C_TAG_UB_CHANGED))
+        {
+            state->work->iwork_n_cols[ctx->n_changed++] = col;
+        }
+        UPDATE_TAG(*cTag, lower ? C_TAG_LB_CHANGED : C_TAG_UB_CHANGED);
+        return;
+    }
+
+    update_activities_bound_change(state->activities, constraints->A,
+                                   constraints->bounds, vals, rows, (int) len,
+                                   old_bound, new_bound, was_finite, lower,
+                                   state->updated_activities HUGE_BOUND_IS_NOT_OK);
+    if (was_finite)
+    {
+        ctx->work += len;
+        ctx->recompute = ctx->work > ctx->budget;
+    }
+}
+
+/* Queues the rows of the columns whose bounds changed after the switch, like
+   update_activities_bound_change does: a row whose valid activity a change
+   alters is propagated in this sweep if it has not been yet, and otherwise
+   in the next round. */
+static void queue_rows_of_changed_cols(Constraints *constraints, PropCtx *ctx)
+{
+    State *state = constraints->state;
+    const Matrix *AT = constraints->AT;
+    const int *cols = state->work->iwork_n_cols;
+
+    for (size_t ii = 0; ii < ctx->n_changed; ++ii)
+    {
+        ColTag *cTag = constraints->col_tags + cols[ii];
+        bool lb_changed = HAS_TAG(*cTag, C_TAG_LB_CHANGED);
+        bool ub_changed = HAS_TAG(*cTag, C_TAG_UB_CHANGED);
+        REMOVE_TAG(*cTag, C_TAG_LB_CHANGED | C_TAG_UB_CHANGED);
+
+        for (int jj = AT->p[cols[ii]].start; jj < AT->p[cols[ii]].end; ++jj)
+        {
+            Activity *act = state->activities + AT->i[jj];
+
+            // a lower bound enters the min activity when the coefficient is
+            // positive, an upper bound when it is negative
+            bool pos = AT->x[jj] > 0;
+            bool min_altered = pos ? lb_changed : ub_changed;
+            bool max_altered = pos ? ub_changed : lb_changed;
+
+            if ((act->n_inf_min == 0 && min_altered) ||
+                (act->n_inf_max == 0 && max_altered))
+            {
+                if (act->status == NOT_ADDED)
+                {
+                    act->status = ADDED;
+                    iVec_append(state->updated_activities, AT->i[jj]);
+                }
+                else if (act->status == PROPAGATED_THIS_ROUND)
+                {
+                    act->status = PROPAGATE_NEXT_ROUND;
+                    iVec_append(state->updated_activities, AT->i[jj]);
+                }
+            }
+        }
+    }
+    ctx->n_changed = 0;
+}
+
 static PresolveStatus update_lb_within_propagation(double new_lb, double *lb,
                                                    double ub, int col, ColTag *cTag,
-                                                   Problem *prob,
-                                                   bool *finite_bound_tightening)
+                                                   Problem *prob, PropCtx *ctx)
 {
     assert(!IS_ABS_INF(new_lb) && !HAS_TAG(*cTag, C_TAG_INACTIVE));
     assert((HAS_TAG(*cTag, C_TAG_LB_INF) || new_lb >= *lb) && !IS_HUGE(new_lb));
@@ -140,7 +238,7 @@ static PresolveStatus update_lb_within_propagation(double new_lb, double *lb,
     //  We always tighten infinite bounds, and like Gurobi we reject too small
     //  bound changes.
     // -----------------------------------------------------------------------
-    if (is_lb_inf || (*finite_bound_tightening && (new_lb - *lb > FEAS_TOL * 1e4) &&
+    if (is_lb_inf || (ctx->finite && (new_lb - *lb > FEAS_TOL * 1e4) &&
                       (new_lb - *lb > 1e-2 * ABS(*lb))))
     {
         REMOVE_TAG(*cTag, C_TAG_LB_INF);
@@ -148,10 +246,8 @@ static PresolveStatus update_lb_within_propagation(double new_lb, double *lb,
         double old_bound = *lb;
         *lb = new_lb;
 
-        update_activities_bound_change(
-            constraints->state->activities, constraints->A, constraints->bounds,
-            vals, rows, (int) len, old_bound, new_lb, !is_lb_inf, true,
-            constraints->state->updated_activities HUGE_BOUND_IS_NOT_OK);
+        bound_tightened(ctx, constraints, col, cTag, vals, rows, len, old_bound,
+                        new_lb, !is_lb_inf, true);
 
         save_retrieval_bound_change_no_row(constraints->state->postsolve_info, col,
                                            new_lb, ub, false);
@@ -164,8 +260,7 @@ static PresolveStatus update_lb_within_propagation(double new_lb, double *lb,
 
 static PresolveStatus update_ub_within_propagation(double new_ub, double *ub,
                                                    double lb, int col, ColTag *cTag,
-                                                   Problem *prob,
-                                                   bool *finite_bound_tightening)
+                                                   Problem *prob, PropCtx *ctx)
 {
     assert(!IS_ABS_INF(new_ub) && !HAS_TAG(*cTag, C_TAG_INACTIVE));
     assert((HAS_TAG(*cTag, C_TAG_UB_INF) || new_ub <= *ub) && !IS_HUGE(new_ub));
@@ -210,7 +305,7 @@ static PresolveStatus update_ub_within_propagation(double new_ub, double *ub,
     //  We always tighten infinite bounds, and like Gurobi we reject too small
     //  bound changes.
     // -----------------------------------------------------------------------
-    if (is_ub_inf || (*finite_bound_tightening && (*ub - new_ub > FEAS_TOL * 1e4) &&
+    if (is_ub_inf || (ctx->finite && (*ub - new_ub > FEAS_TOL * 1e4) &&
                       (*ub - new_ub > 1e-2 * ABS(*ub))))
     {
         REMOVE_TAG(*cTag, C_TAG_UB_INF);
@@ -218,10 +313,8 @@ static PresolveStatus update_ub_within_propagation(double new_ub, double *ub,
         double old_bound = *ub;
         *ub = new_ub;
 
-        update_activities_bound_change(
-            constraints->state->activities, constraints->A, constraints->bounds,
-            vals, rows, (int) len, old_bound, new_ub, !is_ub_inf, false,
-            constraints->state->updated_activities HUGE_BOUND_IS_NOT_OK);
+        bound_tightened(ctx, constraints, col, cTag, vals, rows, len, old_bound,
+                        new_ub, !is_ub_inf, false);
 
         save_retrieval_bound_change_no_row(constraints->state->postsolve_info, col,
                                            new_ub, lb, true);
@@ -689,7 +782,8 @@ PresolveStatus bound_tightening_single_row(const ConstRowView *row,
                                            const Activity *act, Problem *problem,
                                            Bound *bounds, ColTag *col_tags,
                                            void *arg1, BoundUpdater updater_lb,
-                                           BoundUpdater updater_ub)
+                                           BoundUpdater updater_ub,
+                                           const bool *recompute)
 {
     assert(!HAS_TAG(*row->tag, R_TAG_INACTIVE) &&
            (act->n_inf_min <= 1 || act->n_inf_max <= 1));
@@ -698,9 +792,29 @@ PresolveStatus bound_tightening_single_row(const ConstRowView *row,
 
     int num_of_bound_changes = 0;
 
+    // After the switch (primal propagation only) the min and max of act are
+    // not maintained, so the passes read a copy computed from the bounds.
+    // Each pass changes the activity that the other one reads, and the first
+    // pass can itself trigger the switch, hence the two computations.
+    const Activity *stored = act;
+    Activity fresh;
+    if (*recompute)
+    {
+        fresh = *stored;
+        recompute_activity(&fresh, row->vals, row->cols, *row->len, bounds);
+        act = &fresh;
+    }
+
     status |= bound_tightening_single_row_rhs(row, act, problem, bounds, col_tags,
                                               arg1, updater_lb, updater_ub,
                                               &num_of_bound_changes);
+
+    if (*recompute)
+    {
+        fresh = *stored;
+        recompute_activity(&fresh, row->vals, row->cols, *row->len, bounds);
+        act = &fresh;
+    }
 
     status |= bound_tightening_single_row_lhs(row, act, problem, bounds, col_tags,
                                               arg1, updater_lb, updater_ub,
@@ -760,6 +874,8 @@ PresolveStatus propagate_primal(Problem *prob, bool finite_bound_tightening)
     // double-loop below. The debug code below is used to verify that we
     // perform at most one round of domain propagation on each constraint.
     // -------------------------------------------------------------------------
+    PropCtx ctx = {finite_bound_tightening, false, 0,
+                   (size_t) PROP_RECOMPUTE_BUDGET * A->nnz, 0};
     ii = 0;
     while (ii < updated_activities->len)
     {
@@ -789,16 +905,24 @@ PresolveStatus propagate_primal(Problem *prob, bool finite_bound_tightening)
             acts[i].status = PROPAGATED_THIS_ROUND;
 
             status = bound_tightening_single_row(
-                &row, acts + i, prob, bounds, col_tags, &finite_bound_tightening,
+                &row, acts + i, prob, bounds, col_tags, &ctx,
                 (BoundUpdater) update_lb_within_propagation,
-                (BoundUpdater) update_ub_within_propagation);
+                (BoundUpdater) update_ub_within_propagation, &ctx.recompute);
 
             if (HAS_STATUS(status, INFEASIBLE))
             {
+                queue_rows_of_changed_cols(constraints, &ctx); // clears the tags
                 DEBUG(PS_FREE(HAVE_ROWS_BEEN_PROP););
                 return INFEASIBLE;
             }
         }
+
+        queue_rows_of_changed_cols(constraints, &ctx);
+    }
+
+    if (ctx.recompute)
+    {
+        recompute_all_activities(A, row_tags, bounds, acts);
     }
 
 #ifndef NDEBUG

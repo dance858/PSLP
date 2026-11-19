@@ -56,7 +56,8 @@ PresolveStatus propagate_primal(struct Problem *prob, bool finite_bound_tighteni
 
 /* This function uses the row defined by 'row' to tighten bounds of variables
    appearing in the row. The arguments arg1 and arg2 are passed to the bound
-   updaters.
+   updaters. If *recompute is true, the min and max of act are not read;
+   they are computed from the bounds instead.
 
     We expose this function because it is used in primal
     propagation and will be used dual propagation. In primal propagation we use
@@ -70,12 +71,10 @@ PresolveStatus propagate_primal(struct Problem *prob, bool finite_bound_tighteni
 
     and in dual propagation we'll use it differently.
 : */
-PresolveStatus bound_tightening_single_row(const struct ConstRowView *row,
-                                           const struct Activity *act,
-                                           struct Problem *problem,
-                                           struct Bound *bounds, ColTag *col_tags,
-                                           void *arg1, BoundUpdater updater_lb,
-                                           BoundUpdater updater_ub);
+PresolveStatus bound_tightening_single_row(
+    const struct ConstRowView *row, const struct Activity *act,
+    struct Problem *problem, struct Bound *bounds, ColTag *col_tags, void *arg1,
+    BoundUpdater updater_lb, BoundUpdater updater_ub, const bool *recompute);
 
 void remove_redundant_bounds(struct Constraints *constraints);
 #endif // PRIMAL_PROPAGATION_H

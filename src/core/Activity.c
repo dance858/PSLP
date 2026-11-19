@@ -822,6 +822,33 @@ void remove_finite_ub_from_activities(const ConstColView *col, Activity *acts,
     return;
 }
 
+void recompute_activity(Activity *act, const double *vals, const int *cols, int len,
+                        const Bound *bounds)
+{
+    if (act->n_inf_min == 0)
+    {
+        act->min = compute_min_act_no_tags(vals, cols, len, bounds);
+    }
+    if (act->n_inf_max == 0)
+    {
+        act->max = compute_max_act_no_tags(vals, cols, len, bounds);
+    }
+}
+
+void recompute_all_activities(const Matrix *A, const RowTag *row_tags,
+                              const Bound *bounds, Activity *activities)
+{
+    for (size_t i = 0; i < A->m; ++i)
+    {
+        if (!HAS_TAG(row_tags[i], R_TAG_INACTIVE))
+        {
+            recompute_activity(activities + i, A->x + A->p[i].start,
+                               A->i + A->p[i].start, A->p[i].end - A->p[i].start,
+                               bounds);
+        }
+    }
+}
+
 void recompute_n_infs(Activity *act, const double *vals, const int *cols, int len,
                       const ColTag *coltags)
 {
