@@ -28,7 +28,7 @@ typedef struct
 {
     double Ax[RD_NNZ + 2000];
     int Ai[RD_NNZ + 2000];
-    int Ap[RD_K + 40];
+    int Ap[RD_K + 40 + 1];
     double lhs[RD_K + 40], rhs[RD_K + 40];
     int m, nnz;
 } RdChain;
