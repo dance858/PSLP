@@ -36,6 +36,7 @@
 #include "Primal_propagation.h"
 #include "Problem.h"
 #include "RowColViews.h"
+#include "RowDifferencing.h"
 #include "SimpleReductions.h"
 #include "Simple_dual_fix.h"
 #include "State.h"
@@ -98,6 +99,7 @@ Settings *default_settings(void)
     stgs->finite_bound_tightening = true;
     stgs->relax_bounds = false;
     stgs->lp_fold = true;
+    stgs->row_differencing = true;
     stgs->fold_min_reduction = LP_FOLD_MIN_REDUCTION;
     stgs->max_time = INF;
     stgs->verbose = true;
@@ -237,6 +239,7 @@ void set_settings_true(Settings *stgs)
     stgs->finite_bound_tightening = true;
     stgs->relax_bounds = true;
     stgs->lp_fold = false;
+    stgs->row_differencing = true;
     stgs->verbose = true;
     stgs->rotated_to_P = true;
 }
@@ -252,6 +255,7 @@ void set_settings_false(Settings *stgs)
     stgs->finite_bound_tightening = false;
     stgs->relax_bounds = false;
     stgs->lp_fold = false;
+    stgs->row_differencing = false;
     stgs->verbose = false;
     stgs->rotated_to_P = false;
 }
@@ -367,6 +371,8 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
     Timer fold_timer;
     double fold_time = 0.0;
     size_t nnz_stripped;
+    Timer row_differencing_timer;
+    size_t nnz_row_differencing = 0;
 
     //  ---------------------------------------------------------------------------
     //   Copy data and allocate memory. For an exact specification of the
@@ -435,8 +441,18 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
     // ---------------------------------------------------------------------------
     //  Build A, the row tags, the bounds with the column tags, and AT
     // ---------------------------------------------------------------------------
-    A = matrix_new_parallel(Ax, Ai, Ap, n_rows, n_cols, nnz, work->pool);
+    clock_gettime(CLOCK_MONOTONIC, &row_differencing_timer.start);
+    if (stgs->row_differencing)
+    {
+        A = row_differencing_matrix_new(Ax, Ai, Ap, n_rows, first_cone_row, n_cols,
+                                        nnz, lhs_copy, rhs_copy,
+                                        &work->row_differencing);
+    }
+    clock_gettime(CLOCK_MONOTONIC, &row_differencing_timer.end);
+    if (!A) A = matrix_new_parallel(Ax, Ai, Ap, n_rows, n_cols, nnz, work->pool);
     if (!A) goto cleanup;
+    nnz_row_differencing =
+        work->row_differencing ? work->row_differencing->nnz_removed : 0;
 
     row_tags = new_rowtags(lhs_copy, rhs_copy, n_rows);
     if (!row_tags) goto cleanup;
@@ -519,7 +535,13 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
     presolver->stgs = stgs;
     presolver->prob = new_problem(constraints, obj);
     presolver->stats = init_stats(n_rows, n_cols, nnz);
-    presolver->stats->nnz_removed_trivial = nnz - nnz_stripped; /* explicit 0's */
+    presolver->stats->nnz_removed_trivial =
+        nnz - nnz_row_differencing - nnz_stripped;
+    presolver->stats->nnz_removed_row_differencing = nnz_row_differencing;
+    presolver->stats->n_rows_differenced =
+        work->row_differencing ? work->row_differencing->rows->len : 0;
+    presolver->stats->time_row_differencing =
+        GET_ELAPSED_SECONDS(row_differencing_timer);
     presolver->stats->nnz_removed_lp_fold = nnz_stripped - A->nnz;
     presolver->stats->n_rows_folded = A->m;
     presolver->stats->n_cols_folded = A->n;
@@ -1147,6 +1169,10 @@ bool postsolve(Presolver *presolver, const double *x, const double *y,
         fold_postsolve(fold_maps, (int) sol->dim_y, (int) sol->dim_x, target->x,
                        target->y, target->z, sol->x, sol->y, sol->z);
     }
+    if (data->work->row_differencing)
+    {
+        row_differencing_postsolve_duals(data->work->row_differencing, sol->y);
+    }
     clock_gettime(CLOCK_MONOTONIC, &timer.end);
     stats->time_postsolve = GET_ELAPSED_SECONDS(timer);
 
@@ -1227,6 +1253,10 @@ bool postsolve_primal_infeas_ray(Presolver *presolver, const double *y,
     postsolver_update(postsolve_info, stats->n_cols_reduced, stats->n_rows_reduced,
                       data->work->mappings->cols, data->work->mappings->rows);
     postsolver_run_primal_infeas_ray(postsolve_info, sol, y, z);
+    if (data->work->row_differencing)
+    {
+        row_differencing_postsolve_duals(data->work->row_differencing, sol->y);
+    }
     for (int i = 0; i < sol->dim_y; ++i)
     {
         y_orig[i] = sol->y[i];

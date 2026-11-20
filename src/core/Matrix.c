@@ -33,6 +33,11 @@
 /* forward declaration */
 static size_t remove_explicit_zeros(Matrix *A, int first, int last);
 
+void matrix_remove_explicit_zeros(Matrix *A)
+{
+    A->nnz -= remove_explicit_zeros(A, 0, (int) A->m);
+}
+
 Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, size_t n_rows,
                    size_t n_cols, size_t nnz)
 {

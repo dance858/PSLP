@@ -30,6 +30,7 @@
 #include "PSLP_stats.h"
 #include "Postsolver.h"
 #include "Problem.h"
+#include "RowDifferencing.h"
 #include "State.h"
 #include "Workspace.h"
 #include "dVec.h"
@@ -223,6 +224,7 @@ bool map_original_sol_to_reduced(Presolver *presolver, const double *x,
     State *data = presolver->prob->constraints->state;
     const Mapping *maps = data->work->mappings;
     const FoldMaps *fold_maps = data->work->fold_maps;
+    const RowDifferencing *row_differencing = data->work->row_differencing;
     const ProblemData *reduced_prob = presolver->reduced_prob;
     size_t n_cols_orig = presolver->stats->n_cols_original;
     size_t n_rows_orig = presolver->stats->n_rows_original;
@@ -253,12 +255,23 @@ bool map_original_sol_to_reduced(Presolver *presolver, const double *x,
     // scratch space for the replay and, with a fold, for the folded point (we
     // do not use presolver->sol or the folded scratch of postsolve since they
     // may hold a solution obtained by postsolve)
-    work = (double *) ps_malloc(n_fold * (fold_maps ? 2 : 1) + 1, sizeof(double));
+    size_t n_work = n_fold * (fold_maps ? 2 : 1) + 1;
+    work = (double *) ps_malloc(
+        n_work + (row_differencing && y_red ? n_rows_orig : 0), sizeof(double));
     if (!work)
     {
         PSLP_FAIL_MSG(presolver->stgs,
                       "out of memory in map_original_sol_to_reduced");
         return false;
+    }
+
+    if (row_differencing && y_red)
+    {
+        // the fold and the records live in the problem with differenced rows
+        double *y_diff = work + n_work;
+        memcpy(y_diff, y, n_rows_orig * sizeof(double));
+        row_differencing_map_duals(row_differencing, y_diff);
+        y = y_diff;
     }
 
     if (fold_maps)

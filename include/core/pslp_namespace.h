@@ -133,6 +133,7 @@
 #define matrix_is_symmetric pslp_matrix_is_symmetric
 #define matrix_new pslp_matrix_new
 #define matrix_new_parallel pslp_matrix_new_parallel
+#define matrix_remove_explicit_zeros pslp_matrix_remove_explicit_zeros
 #define matrix_update_row pslp_matrix_update_row
 #define matrix_valid_csr_input pslp_matrix_valid_csr_input
 #define new_activities pslp_new_activities
@@ -189,6 +190,10 @@
 #define retrieve_deleted_row pslp_retrieve_deleted_row
 #define retrieve_rotated_to_p pslp_retrieve_rotated_to_p
 #define rowTagPtr_shrink pslp_rowTagPtr_shrink
+#define row_differencing_free pslp_row_differencing_free
+#define row_differencing_map_duals pslp_row_differencing_map_duals
+#define row_differencing_matrix_new pslp_row_differencing_matrix_new
+#define row_differencing_postsolve_duals pslp_row_differencing_postsolve_duals
 #define row_slots_init pslp_row_slots_init
 #define run_debugger pslp_run_debugger
 #define run_debugger_problem pslp_run_debugger_problem

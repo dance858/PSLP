@@ -67,6 +67,9 @@ typedef struct Work
     struct FoldMaps *fold_maps;
     struct Solution *folded_sol; // scratch of the folded dimensions
 
+    // row differencing, kept for postsolve; NULL when no row was rewritten
+    struct RowDifferencing *row_differencing;
+
     // allocated when the doubleton explorer is on
     struct DtonWorkspace *dton;
 } Work;

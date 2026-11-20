@@ -62,6 +62,7 @@
                                                                                     \
     static inline void TYPE_NAME##Vec_free(TYPE_NAME##Vec *vec)                     \
     {                                                                               \
+        RETURN_IF_NULL(vec);                                                        \
         PS_FREE(vec->data);                                                         \
         PS_FREE(vec);                                                               \
     }                                                                               \

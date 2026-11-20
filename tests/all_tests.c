@@ -21,6 +21,7 @@
 #include "test_postsolve.h"
 #include "test_radix_sort.h"
 #include "test_ray_postsolve.h"
+#include "test_row_differencing.h"
 #include "test_ston.h"
 #include "test_thread_pool.h"
 
@@ -38,6 +39,7 @@ const char *run_all_tests()
     mu_assert("simple reductions error", test_simple());
     mu_assert("domain propagation error", test_domain());
     mu_assert("thread pool error", test_thread_pool());
+    mu_assert("row differencing error", test_row_differencing());
     mu_assert("colour refinement error", test_colour_refinement());
     mu_assert("fold error", test_fold());
     mu_assert("radix_sort error", test_radix_sort());
