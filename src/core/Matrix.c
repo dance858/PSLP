@@ -31,7 +31,7 @@
 #include <limits.h>
 
 /* forward declaration */
-static inline void remove_explicit_zeros(Matrix *A);
+static size_t remove_explicit_zeros(Matrix *A, int first, int last);
 
 Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, size_t n_rows,
                    size_t n_cols, size_t nnz)
@@ -51,8 +51,63 @@ Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, size_t n_rows
     A->p[n_rows].end = Ap[n_rows];
 
     /* the presolver assumes that only nonzero entries are stored */
-    remove_explicit_zeros(A);
+    A->nnz -= remove_explicit_zeros(A, 0, (int) n_rows);
 
+    return A;
+}
+
+/* A chunk of matrix_new_parallel is a range of rows with about the same
+   number of entries as the others. */
+#define MATRIX_NEW_NNZ_PER_CHUNK 65536
+#define MATRIX_NEW_MAX_CHUNKS (8 * THREAD_POOL_MAX_THREADS)
+typedef struct
+{
+    const double *Ax;
+    const int *Ai;
+    const int *Ap;
+    Matrix *A;
+    size_t n_zeros[MATRIX_NEW_MAX_CHUNKS];
+    int row_bounds[MATRIX_NEW_MAX_CHUNKS + 1];
+} MatrixNewArgs;
+
+static void matrix_new_chunk(void *context, int chunk, int thread)
+{
+    (void) thread;
+    MatrixNewArgs *args = (MatrixNewArgs *) context;
+    const int *Ap = args->Ap;
+    Matrix *A = args->A;
+    int first = args->row_bounds[chunk];
+    int last = args->row_bounds[chunk + 1];
+    size_t len = (size_t) (Ap[last] - Ap[first]);
+    memcpy(A->x + Ap[first], args->Ax + Ap[first], len * sizeof(double));
+    memcpy(A->i + Ap[first], args->Ai + Ap[first], len * sizeof(int));
+    for (int row = first; row < last; ++row)
+    {
+        A->p[row].start = Ap[row];
+        A->p[row].end = Ap[row + 1];
+    }
+    args->n_zeros[chunk] = remove_explicit_zeros(A, first, last);
+}
+
+Matrix *matrix_new_parallel(const double *Ax, const int *Ai, const int *Ap,
+                            size_t n_rows, size_t n_cols, size_t nnz,
+                            ThreadPool *pool)
+{
+    Matrix *A = matrix_alloc(n_rows, n_cols, nnz);
+    RETURN_PTR_IF_NULL(A, NULL);
+    MatrixNewArgs args = {Ax, Ai, Ap, A, {0}, {0}};
+    int n_chunks = thread_pool_chunk_count(thread_pool_n_threads(pool), (int) nnz,
+                                           MATRIX_NEW_NNZ_PER_CHUNK);
+    if (n_chunks > MATRIX_NEW_MAX_CHUNKS) n_chunks = MATRIX_NEW_MAX_CHUNKS;
+    if ((size_t) n_chunks > n_rows) n_chunks = n_rows > 0 ? (int) n_rows : 1;
+    thread_pool_chunk_bounds_by_prefix(Ap, (int) n_rows, n_chunks, args.row_bounds);
+    thread_pool_run(pool, matrix_new_chunk, &args, n_chunks);
+    A->p[n_rows].start = Ap[n_rows];
+    A->p[n_rows].end = Ap[n_rows];
+    for (int chunk = 0; chunk < n_chunks; ++chunk)
+    {
+        A->nnz -= args.n_zeros[chunk];
+    }
     return A;
 }
 
@@ -171,10 +226,14 @@ bool matrix_valid_csr_input(const int *Ai, const int *Ap, size_t n_rows,
     return Ap[n_rows] >= 0 && (size_t) Ap[n_rows] == nnz;
 }
 
-static inline void remove_explicit_zeros(Matrix *A)
+/* Drops the explicit zeros of the rows [first, last) and returns how many
+   there were. Does not update A->nnz, so that ranges of rows can be handled
+   on different threads. */
+static size_t remove_explicit_zeros(Matrix *A, int first, int last)
 {
     int i, j, shift;
-    for (i = 0; i < A->m; ++i)
+    size_t n_zeros = 0;
+    for (i = first; i < last; ++i)
     {
         shift = 0;
         for (j = A->p[i].start; j < A->p[i].end; ++j)
@@ -190,8 +249,9 @@ static inline void remove_explicit_zeros(Matrix *A)
             }
         }
         A->p[i].end -= shift;
-        A->nnz -= (size_t) shift;
+        n_zeros += (size_t) shift;
     }
+    return n_zeros;
 }
 
 Matrix *transpose(const Matrix *A, int *work_n_cols, size_t tail)
@@ -202,14 +262,21 @@ Matrix *transpose(const Matrix *A, int *work_n_cols, size_t tail)
     }
     Matrix *AT = matrix_alloc(A->n, A->m, A->nnz + tail);
     RETURN_PTR_IF_NULL(AT, NULL);
-    transpose_into(A, AT, work_n_cols);
+    transpose_into(A, AT, work_n_cols, NULL);
     return AT;
 }
 
-void transpose_into(const Matrix *A, Matrix *AT, int *work_n_cols)
+static bool transpose_on_pool(const Matrix *A, Matrix *AT, int *work_n_cols,
+                              ThreadPool *pool);
+
+void transpose_into(const Matrix *A, Matrix *AT, int *work_n_cols, ThreadPool *pool)
 {
     assert(AT->m == A->n && AT->n == A->m && AT->n_alloc >= A->nnz);
     AT->nnz = A->nnz;
+    if (transpose_on_pool(A, AT, work_n_cols, pool))
+    {
+        return;
+    }
 
     int i, j, start;
     int *count = work_n_cols;
@@ -261,7 +328,8 @@ typedef struct
     Matrix *AT;
     int *count;
     const int
-        *col_bounds; /* chunk c owns columns [col_bounds[c], col_bounds[c+1]) */
+        *col_bounds;  /* chunk c owns columns [col_bounds[c], col_bounds[c+1]) */
+    int *chunk_start; /* entries in the columns before those of chunk c */
 } TransposeArgs;
 
 /* counts the entries of the columns of one chunk */
@@ -274,7 +342,9 @@ static void transpose_count_chunk(void *context, int chunk, int thread)
     const unsigned lo = (unsigned) args->col_bounds[chunk];
     const unsigned width = (unsigned) args->col_bounds[chunk + 1] - lo;
     const int *cols = A->i;
+    int total = 0;
 
+    memset(count + lo, 0, width * sizeof(int));
     for (size_t i = 0; i < A->m; ++i)
     {
         const int end = A->p[i].end;
@@ -283,8 +353,30 @@ static void transpose_count_chunk(void *context, int chunk, int thread)
             if ((unsigned) cols[j] - lo < width)
             {
                 count[cols[j]]++;
+                total++;
             }
         }
+    }
+    args->chunk_start[chunk] = total;
+}
+
+/* row pointers of AT for the columns of one chunk, from their counts and the
+   position of the chunk's first entry; the count of a column becomes its
+   start */
+static void transpose_pointers_chunk(void *context, int chunk, int thread)
+{
+    (void) thread;
+    const TransposeArgs *args = (const TransposeArgs *) context;
+    RowRange *p = args->AT->p;
+    int *count = args->count;
+    int start = args->chunk_start[chunk];
+    const int end_col = args->col_bounds[chunk + 1];
+    for (int i = args->col_bounds[chunk]; i < end_col; ++i)
+    {
+        p[i].start = start;
+        p[i].end = start + count[i];
+        count[i] = start;
+        start = p[i].end;
     }
 }
 
@@ -316,60 +408,75 @@ static void transpose_fill_chunk(void *context, int chunk, int thread)
     }
 }
 
-Matrix *transpose_parallel(const Matrix *A, int *work_n_cols, size_t tail,
-                           ThreadPool *pool)
+/* Transposes a large matrix on the pool. False, with nothing done, when the
+   matrix is small or there is no pool with workers. */
+static bool transpose_on_pool(const Matrix *A, Matrix *AT, int *work_n_cols,
+                              ThreadPool *pool)
 {
     int n_chunks = pool ? thread_pool_n_threads(pool) : 1;
     if (n_chunks < 2 || A->nnz < PARALLEL_TRANSPOSE_THRESHOLD ||
         A->n < (size_t) n_chunks)
     {
-        return transpose(A, work_n_cols, tail);
+        return false;
     }
+
+    int col_bounds[THREAD_POOL_MAX_THREADS + 1];
+    int chunk_start[THREAD_POOL_MAX_THREADS + 1];
+    int *count = work_n_cols;
+    TransposeArgs args = {A, AT, count, col_bounds, chunk_start};
+    const int n_cols = (int) A->n;
+
+    /* count: even column ranges, as the column sizes are not known yet */
+    thread_pool_chunk_bounds(n_cols, n_chunks, col_bounds);
+    thread_pool_run(pool, transpose_count_chunk, &args, n_chunks);
+
+    /* row pointers of AT, on the same column ranges */
+    int start = 0;
+    for (int c = 0; c < n_chunks; ++c)
+    {
+        int total = chunk_start[c];
+        chunk_start[c] = start;
+        start += total;
+    }
+    thread_pool_run(pool, transpose_pointers_chunk, &args, n_chunks);
+    AT->p[n_cols].start = start; // == nnz: the tail arena begins here
+    AT->p[n_cols].end = start;
+
+    /* fill: column ranges with about the same number of entries each */
+    col_bounds[0] = 0;
+    for (int c = 1; c < n_chunks; ++c)
+    {
+        const int target = (int) (A->nnz * (size_t) c / (size_t) n_chunks);
+        int lo = col_bounds[c - 1], hi = n_cols;
+        while (lo < hi)
+        {
+            int mid = lo + (hi - lo) / 2;
+            if (AT->p[mid].start < target)
+            {
+                lo = mid + 1;
+            }
+            else
+            {
+                hi = mid;
+            }
+        }
+        col_bounds[c] = lo;
+    }
+    col_bounds[n_chunks] = n_cols;
+    thread_pool_run(pool, transpose_fill_chunk, &args, n_chunks);
+    return true;
+}
+
+Matrix *transpose_parallel(const Matrix *A, int *work_n_cols, size_t tail,
+                           ThreadPool *pool)
+{
     if (A->nnz + tail > (size_t) INT_MAX)
     {
         return NULL;
     }
     Matrix *AT = matrix_alloc(A->n, A->m, A->nnz + tail);
     RETURN_PTR_IF_NULL(AT, NULL);
-    AT->nnz = A->nnz;
-
-    int col_bounds[THREAD_POOL_MAX_THREADS + 1];
-    int *count = work_n_cols;
-    TransposeArgs args = {A, AT, count, col_bounds};
-    const int n_cols = (int) A->n;
-
-    /* count: even column ranges, as the column sizes are not known yet */
-    memset(count, 0, A->n * sizeof(int));
-    thread_pool_chunk_bounds(n_cols, n_chunks, col_bounds);
-    thread_pool_run(pool, transpose_count_chunk, &args, n_chunks);
-
-    /* row pointers of AT */
-    int start;
-    AT->p[0].start = 0;
-    for (int i = 0; i < n_cols; ++i)
-    {
-        start = AT->p[i].start;
-        AT->p[i].end = start + count[i];
-        AT->p[i + 1].start = AT->p[i].end;
-        count[i] = start;
-    }
-    AT->p[n_cols].end = AT->p[n_cols].start; // == nnz: the tail arena begins here
-
-    /* fill: column ranges with about the same number of entries each */
-    int col = 0;
-    col_bounds[0] = 0;
-    for (int c = 1; c < n_chunks; ++c)
-    {
-        const size_t target = A->nnz * (size_t) c / (size_t) n_chunks;
-        while (col < n_cols && (size_t) AT->p[col].start < target)
-        {
-            col++;
-        }
-        col_bounds[c] = col;
-    }
-    col_bounds[n_chunks] = n_cols;
-    thread_pool_run(pool, transpose_fill_chunk, &args, n_chunks);
-
+    transpose_into(A, AT, work_n_cols, pool);
     return AT;
 }
 

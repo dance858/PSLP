@@ -32,8 +32,12 @@ typedef struct Lock
     int down;
 } Lock;
 
-/* Contructor that counts locks by traversing the rows of A */
-Lock *new_locks(const struct Matrix *A, const RowTag *row_tags);
+/* Counts the locks of the columns [start, end) from the transpose AT of the
+   constraint matrix: an entry locks its column up if it is positive in a row
+   with a finite rhs or negative in a row with a finite lhs, and down in the
+   two other cases. Ranges of columns can be counted on different threads. */
+void locks_init_cols(const struct Matrix *AT, const RowTag *row_tags, Lock *locks,
+                     int start, int end);
 void free_locks(Lock *locks);
 
 /* Updates locks when an equality constraint is transformed to an

@@ -152,50 +152,78 @@ static void init_bounds(const double *lbs, const double *ubs, size_t n_cols,
     thread_pool_run(pool, init_bounds_chunk, &args, n_chunks);
 }
 
-/* Locks and activities, built on the pool: chunk 0 builds the locks, every
-   other chunk the activities of a range of rows. */
+/* Locks and activities, built on the pool: the first chunks build the locks
+   of a range of columns each, from AT, and the other chunks the activities of
+   a range of rows. */
 #define ACTIVITY_ROWS_PER_CHUNK 4096
+#define LOCK_COLS_PER_CHUNK 4096
 typedef struct
 {
     const Matrix *A;
+    const Matrix *AT;
     const RowTag *row_tags;
     const ColTag *col_tags;
     const Bound *bounds;
     Activity *activities;
     Lock *locks;
+    int n_col_chunks;
+    int col_bounds[INIT_MAX_CHUNKS + 1];
     int row_bounds[INIT_MAX_CHUNKS + 1];
 } LocksActivitiesArgs;
+
+/* Lines per chunk for a pass over the entries of 'n_lines' lines: at most
+   'max_lines', fewer when the lines are long, so that a chunk has about
+   INIT_NNZ_PER_CHUNK entries and a matrix of a few long lines is still
+   split. */
+#define INIT_NNZ_PER_CHUNK 65536
+static int lines_per_chunk(size_t nnz, size_t n_lines, int max_lines)
+{
+    size_t line_len = n_lines > 0 ? nnz / n_lines : 0;
+    size_t lines = INIT_NNZ_PER_CHUNK / (line_len + 1) + 1;
+    return lines < (size_t) max_lines ? (int) lines : max_lines;
+}
 
 static void locks_activities_chunk(void *context, int chunk, int thread)
 {
     (void) thread;
     LocksActivitiesArgs *args = (LocksActivitiesArgs *) context;
-    if (chunk == 0)
+    if (chunk < args->n_col_chunks)
     {
-        args->locks = new_locks(args->A, args->row_tags);
+        locks_init_cols(args->AT, args->row_tags, args->locks,
+                        args->col_bounds[chunk], args->col_bounds[chunk + 1]);
         return;
     }
+    chunk -= args->n_col_chunks;
     activities_init_rows(args->A, args->col_tags, args->bounds, args->activities,
-                         args->row_bounds[chunk - 1], args->row_bounds[chunk]);
+                         args->row_bounds[chunk], args->row_bounds[chunk + 1]);
 }
 
 /* Builds the locks and activities of A. False if out of memory. */
-static bool build_locks_and_activities(const Matrix *A, const RowTag *row_tags,
+static bool build_locks_and_activities(const Matrix *A, const Matrix *AT,
+                                       const RowTag *row_tags,
                                        const ColTag *col_tags, const Bound *bounds,
                                        ThreadPool *pool, Lock **locks,
                                        Activity **activities)
 {
     *activities = (Activity *) ps_malloc(A->m, sizeof(Activity));
-    if (!*activities) return false;
-    LocksActivitiesArgs args = {A,           row_tags, col_tags, bounds,
-                                *activities, NULL,     {0}};
-    int n_row_chunks = thread_pool_chunk_count(thread_pool_n_threads(pool),
-                                               (int) A->m, ACTIVITY_ROWS_PER_CHUNK);
+    *locks = (Lock *) ps_malloc(A->n, sizeof(Lock));
+    if (!*activities || !*locks) return false;
+    LocksActivitiesArgs args = {A,           AT,     row_tags, col_tags, bounds,
+                                *activities, *locks, 0,        {0},      {0}};
+    int n_threads = thread_pool_n_threads(pool);
+    int n_row_chunks = thread_pool_chunk_count(
+        n_threads, (int) A->m,
+        lines_per_chunk(A->nnz, A->m, ACTIVITY_ROWS_PER_CHUNK));
+    int n_col_chunks = thread_pool_chunk_count(
+        n_threads, (int) A->n, lines_per_chunk(A->nnz, A->n, LOCK_COLS_PER_CHUNK));
     if (n_row_chunks > INIT_MAX_CHUNKS) n_row_chunks = INIT_MAX_CHUNKS;
+    if (n_col_chunks > INIT_MAX_CHUNKS) n_col_chunks = INIT_MAX_CHUNKS;
+    args.n_col_chunks = n_col_chunks;
+    thread_pool_chunk_bounds((int) A->n, n_col_chunks, args.col_bounds);
     thread_pool_chunk_bounds((int) A->m, n_row_chunks, args.row_bounds);
-    thread_pool_run(pool, locks_activities_chunk, &args, n_row_chunks + 1);
-    *locks = args.locks;
-    return *locks != NULL;
+    thread_pool_run(pool, locks_activities_chunk, &args,
+                    n_col_chunks + n_row_chunks);
+    return true;
 }
 
 void set_settings_true(Settings *stgs)
@@ -407,7 +435,7 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
     // ---------------------------------------------------------------------------
     //  Build A, the row tags, the bounds with the column tags, and AT
     // ---------------------------------------------------------------------------
-    A = matrix_new(Ax, Ai, Ap, n_rows, n_cols, nnz);
+    A = matrix_new_parallel(Ax, Ai, Ap, n_rows, n_cols, nnz, work->pool);
     if (!A) goto cleanup;
 
     row_tags = new_rowtags(lhs_copy, rhs_copy, n_rows);
@@ -454,7 +482,7 @@ Presolver *new_presolver_from_problem(const ProblemData *problem,
     // ---------------------------------------------------------------------------
     //  Locks, activities and row / column sizes of the (possibly folded) problem
     // ---------------------------------------------------------------------------
-    if (!build_locks_and_activities(A, row_tags, col_tags, bounds, work->pool,
+    if (!build_locks_and_activities(A, AT, row_tags, col_tags, bounds, work->pool,
                                     &locks, &activities))
     {
         goto cleanup;
