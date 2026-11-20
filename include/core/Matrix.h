@@ -69,6 +69,9 @@ bool matrix_is_symmetric(const Matrix *A);
    input-validation issue); covered by test_Matrix.h. */
 bool matrix_valid_csr_input(const int *Ai, const int *Ap, size_t n_rows,
                             size_t n_cols, size_t nnz);
+/* Drops the explicit zeros of a matrix whose rows are stored in index order. */
+void matrix_remove_explicit_zeros(Matrix *A);
+
 // Allocates a matrix with the given dimensions and room for nnz entries.
 Matrix *matrix_alloc(size_t n_rows, size_t n_cols, size_t nnz);
 

@@ -21,6 +21,7 @@
 #include "Memory_wrapper.h"
 #include "Numerics.h"
 #include "PSLP_sol.h"
+#include "RowDifferencing.h"
 #include "fold.h"
 #include "thread_pool.h"
 #include <stdio.h>
@@ -46,6 +47,7 @@ Work *new_work(size_t n_rows, size_t n_cols, bool dton_eq)
     work->mappings->rows = (int *) ps_malloc(n_rows, sizeof(int));
     work->fold_maps = NULL;
     work->folded_sol = NULL;
+    work->row_differencing = NULL;
     work->pool = NULL;
 
     if (!work->iwork_n_cols || !work->iwork_n_rows ||
@@ -91,6 +93,7 @@ void free_work(Work *work)
     PS_FREE(work->mappings);
     fold_maps_free(work->fold_maps);
     free_solution(work->folded_sol);
+    row_differencing_free(work->row_differencing);
     PS_FREE(work);
 }
 

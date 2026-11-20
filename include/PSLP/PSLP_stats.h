@@ -58,6 +58,8 @@ extern "C"
         size_t nnz_removed_parallel_cols;
         size_t nnz_removed_lp_fold;
         size_t nnz_removed_cones;
+        size_t nnz_removed_row_differencing;
+        size_t n_rows_differenced;
 
         /* time stats */
         double time_init;
@@ -72,6 +74,7 @@ extern "C"
         double time_cones;
         double time_presolve;
         double time_postsolve;
+        double time_row_differencing; /* part of time_init */
 
     } PresolveStats;
 
