@@ -233,24 +233,32 @@ static char *test_matrix_new_parallel()
 {
     Matrix *R = random_matrix_new(1000, 2000, 0.2);
     mu_assert("random matrix", R != NULL && R->nnz >= 300000);
+    /* pack R into plain CSR arrays: matrix_new has dropped the zeros that
+       rand() produced, so the rows of R need not be contiguous */
     size_t nnz = R->nnz;
+    double *Ax = (double *) ps_malloc(nnz, sizeof(double));
+    int *Ai = (int *) ps_malloc(nnz, sizeof(int));
     int *Ap = (int *) ps_malloc(R->m + 1, sizeof(int));
-    for (size_t i = 0; i <= R->m; ++i)
+    Ap[0] = 0;
+    for (size_t i = 0; i < R->m; ++i)
     {
-        Ap[i] = R->p[i].start;
+        size_t len = (size_t) (R->p[i].end - R->p[i].start);
+        memcpy(Ax + Ap[i], R->x + R->p[i].start, len * sizeof(double));
+        memcpy(Ai + Ap[i], R->i + R->p[i].start, len * sizeof(int));
+        Ap[i + 1] = Ap[i] + (int) len;
     }
-    mu_assert("contiguous rows", Ap[0] == 0 && (size_t) Ap[R->m] == nnz);
+    mu_assert("packed rows", (size_t) Ap[R->m] == nnz);
     for (size_t j = 0; j < nnz; j += 7)
     {
-        R->x[j] = 0.0;
+        Ax[j] = 0.0;
     }
     /* a row of zeros only */
     for (int j = Ap[500]; j < Ap[501]; ++j)
     {
-        R->x[j] = 0.0;
+        Ax[j] = 0.0;
     }
 
-    Matrix *ref = matrix_new(R->x, R->i, Ap, R->m, R->n, nnz);
+    Matrix *ref = matrix_new(Ax, Ai, Ap, R->m, R->n, nnz);
     mu_assert("reference", ref != NULL && ref->nnz < nnz);
 
     const int n_workers[] = {0, 1, 7};
@@ -258,7 +266,7 @@ static char *test_matrix_new_parallel()
     {
         ThreadPool *pool = thread_pool_new(n_workers[k]);
         mu_assert("pool", pool != NULL);
-        Matrix *A = matrix_new_parallel(R->x, R->i, Ap, R->m, R->n, nnz, pool);
+        Matrix *A = matrix_new_parallel(Ax, Ai, Ap, R->m, R->n, nnz, pool);
         mu_assert("parallel copy", A != NULL);
         mu_assert("dimensions", A->m == ref->m && A->n == ref->n &&
                                     A->nnz == ref->nnz &&
@@ -280,6 +288,8 @@ static char *test_matrix_new_parallel()
 
     free_matrix(ref);
     free_matrix(R);
+    PS_FREE(Ax);
+    PS_FREE(Ai);
     PS_FREE(Ap);
     return 0;
 }
