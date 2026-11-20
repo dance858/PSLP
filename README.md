@@ -17,7 +17,7 @@ $$
 \end{array}
 $$
 
-with $P$ symmetric positive semidefinite ($P = 0$ for an LP).
+with $P$ symmetric positive semidefinite ($P = 0$ for an LP). It also supports cone programs (see `PSLP_API.h` for details).
 
 **PSLP** simplifies LPs and QPs before they are passed to a solver by detecting redundant
 constraints and fixing variables etc. It is written in C99 and is lightweight with no external
