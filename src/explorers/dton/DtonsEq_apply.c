@@ -370,7 +370,8 @@ void dton_rebuild_AT(Problem *prob, DtonWorkspace *dton_work)
 {
     Constraints *constraints = prob->constraints;
     Matrix *AT = constraints->AT;
-    transpose_into(constraints->A, AT, constraints->state->work->iwork_n_cols);
+    transpose_into(constraints->A, AT, constraints->state->work->iwork_n_cols,
+                   constraints->state->work->pool);
     dton_work->AT_slots_valid = false;
 }
 

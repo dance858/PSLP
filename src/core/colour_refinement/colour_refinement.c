@@ -60,6 +60,7 @@
 #include <string.h>
 
 #define LINES_PER_CHUNK 4096
+#define ENTRIES_PER_CHUNK (1 << 16)
 #define LINES_PER_BUCKET (1 << 14)
 /* Frontiers up to this size are collected by the calling thread. */
 #define SMALL_FRONTIER (1 << 15)
@@ -290,8 +291,18 @@ static void collect_candidates(RegroupPass *pass, ThreadPool *pool)
     //          split the lines (or the frontier) into chunks
     // --------------------------------------------------------------------------
     int n_source = pass->mode == REGROUP_FRONTIER ? side->n_frontier : side->n_lines;
+    int lines_per_chunk = LINES_PER_CHUNK;
+    if (pass->mode == REGROUP_DENSE)
+    {
+        /* a dense half-round reads the entries: fewer lines per chunk when
+           the lines are long */
+        int line_len = side->p[side->n_lines].start / (side->n_lines + 1);
+        int by_entries = ENTRIES_PER_CHUNK / (line_len + 1) + 1;
+        lines_per_chunk =
+            by_entries < LINES_PER_CHUNK ? by_entries : LINES_PER_CHUNK;
+    }
     int n_chunks =
-        thread_pool_chunk_count(work->n_threads, n_source, LINES_PER_CHUNK);
+        thread_pool_chunk_count(work->n_threads, n_source, lines_per_chunk);
     thread_pool_chunk_bounds(n_source, n_chunks, work->chunk_bounds);
 
     // ---------------------------------------------------------------------------
@@ -615,8 +626,8 @@ static RefineWorkspace *workspace_new(int max_lines, int n_threads)
     work->max_buckets = max_bucket_count(max_lines);
     work->buckets =
         (RefineBucket *) ps_malloc((size_t) work->max_buckets, sizeof(RefineBucket));
-    work->max_chunks =
-        thread_pool_chunk_count(n_threads, max_lines, LINES_PER_CHUNK);
+    /* the most chunks of a pass over the lines, however short the chunks */
+    work->max_chunks = thread_pool_chunk_count(n_threads, max_lines, 1);
     work->chunk_bounds =
         (int *) ps_malloc((size_t) work->max_chunks + 1, sizeof(int));
     work->chunk_entries = (int *) ps_malloc((size_t) work->max_chunks, sizeof(int));

@@ -51,6 +51,13 @@ typedef struct Matrix
 Matrix *matrix_new(const double *Ax, const int *Ai, const int *Ap, size_t n_rows,
                    size_t n_cols, size_t nnz);
 
+/* Like matrix_new(), but the entries are copied and the explicit zeros
+   dropped on the pool, in ranges of rows. The result equals that of
+   matrix_new(). */
+Matrix *matrix_new_parallel(const double *Ax, const int *Ai, const int *Ap,
+                            size_t n_rows, size_t n_cols, size_t nnz,
+                            ThreadPool *pool);
+
 /* True if A is square and exactly symmetric (A_kl and A_lk both present with
    the same value). Rows must be sorted. */
 bool matrix_is_symmetric(const Matrix *A);
@@ -78,8 +85,9 @@ void matrix_add_to_diagonal(Matrix *M, int k, double v);
 Matrix *transpose(const Matrix *A, int *work_n_cols, size_t tail);
 
 /* Like transpose(), but writes into AT's existing allocation, which must have
-   the transposed dimensions and room for A->nnz entries. */
-void transpose_into(const Matrix *A, Matrix *AT, int *work_n_cols);
+   the transposed dimensions and room for A->nnz entries. A large matrix is
+   transposed on 'pool' (see transpose_parallel) unless it is NULL. */
+void transpose_into(const Matrix *A, Matrix *AT, int *work_n_cols, ThreadPool *pool);
 
 /* Like transpose(), but large matrices are transposed on the pool: every
    thread owns a range of columns of A, scans A and moves the entries of its

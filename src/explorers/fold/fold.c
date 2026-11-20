@@ -124,21 +124,65 @@ void fold_maps_free(FoldMaps *maps)
     PS_FREE(maps);
 }
 
-/* Initialise the start colours for the fold. */
+/* Initialise the start colours for the fold, on the pool: a chunk is a range
+   of rows or, after the row chunks, a range of columns. */
+#define COLOUR_LINES_PER_CHUNK 4096
+#define COLOUR_MAX_CHUNKS (8 * THREAD_POOL_MAX_THREADS)
+typedef struct
+{
+    FoldWorkspace *work;
+    const double *lhs;
+    const double *rhs;
+    const Bound *bounds;
+    const double *c;
+    int n_row_chunks;
+    int row_bounds[COLOUR_MAX_CHUNKS + 1];
+    int col_bounds[COLOUR_MAX_CHUNKS + 1];
+} StartColoursArgs;
+
+static void start_colours_chunk(void *context, int chunk, int thread)
+{
+    (void) thread;
+    const StartColoursArgs *args = (const StartColoursArgs *) context;
+    if (chunk < args->n_row_chunks)
+    {
+        uint64_t *row_colours = args->work->row_colours;
+        int end = args->row_bounds[chunk + 1];
+        for (int row = args->row_bounds[chunk]; row < end; row++)
+        {
+            row_colours[row] = hash_two_values(args->lhs[row], args->rhs[row]);
+        }
+        return;
+    }
+
+    chunk -= args->n_row_chunks;
+    uint64_t *col_colours = args->work->col_colours;
+    const Bound *bounds = args->bounds;
+    int end = args->col_bounds[chunk + 1];
+    for (int col = args->col_bounds[chunk]; col < end; col++)
+    {
+        col_colours[col] =
+            hash_three_values(bounds[col].lb, bounds[col].ub, args->c[col]);
+    }
+}
+
 void fold_start_colours(FoldWorkspace *work, int n_rows, int n_cols,
                         const double *lhs, const double *rhs, const Bound *bounds,
                         const double *c)
 {
-    for (int row = 0; row < n_rows; row++)
-    {
-        work->row_colours[row] = hash_two_values(lhs[row], rhs[row]);
-    }
-
-    for (int col = 0; col < n_cols; col++)
-    {
-        work->col_colours[col] =
-            hash_three_values(bounds[col].lb, bounds[col].ub, c[col]);
-    }
+    StartColoursArgs args = {work, lhs, rhs, bounds, c, 0, {0}, {0}};
+    int n_threads = work->pool ? thread_pool_n_threads(work->pool) : 1;
+    int n_row_chunks =
+        thread_pool_chunk_count(n_threads, n_rows, COLOUR_LINES_PER_CHUNK);
+    int n_col_chunks =
+        thread_pool_chunk_count(n_threads, n_cols, COLOUR_LINES_PER_CHUNK);
+    if (n_row_chunks > COLOUR_MAX_CHUNKS) n_row_chunks = COLOUR_MAX_CHUNKS;
+    if (n_col_chunks > COLOUR_MAX_CHUNKS) n_col_chunks = COLOUR_MAX_CHUNKS;
+    args.n_row_chunks = n_row_chunks;
+    thread_pool_chunk_bounds(n_rows, n_row_chunks, args.row_bounds);
+    thread_pool_chunk_bounds(n_cols, n_col_chunks, args.col_bounds);
+    thread_pool_run(work->pool, start_colours_chunk, &args,
+                    n_row_chunks + n_col_chunks);
 }
 
 /* Numbers the classes 0, 1, 2, ... in the order of their representatives,

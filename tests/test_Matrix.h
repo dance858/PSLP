@@ -94,7 +94,7 @@ static char *test_2_matrix()
         AT->i[p] = -7;
         AT->x[p] = -7.0;
     }
-    transpose_into(A, AT, work_n_cols);
+    transpose_into(A, AT, work_n_cols, NULL);
 
     double AT_vals_correct[] = {1, 3, -1, 1, 1, 2, 1, 1, 1, 1, 1};
     int AT_cols_correct[] = {0, 3, 0, 1, 3, 0, 1, 4, 5, 1, 2};
@@ -113,7 +113,7 @@ static char *test_2_matrix()
     // row 0 of A loses its last entry (column 2); transpose again in place
     A->p[0].end -= 1;
     A->nnz -= 1;
-    transpose_into(A, AT, work_n_cols);
+    transpose_into(A, AT, work_n_cols, NULL);
 
     double AT_vals_2[] = {1, 3, -1, 1, 1, 1, 1, 1, 1, 1};
     int AT_cols_2[] = {0, 3, 0, 1, 3, 1, 4, 5, 1, 2};
@@ -227,6 +227,63 @@ static char *test_transpose_parallel()
     return 0;
 }
 
+/* matrix_new_parallel gives the same matrix as matrix_new on input with
+   explicit zeros, for pools of one, two and eight threads. */
+static char *test_matrix_new_parallel()
+{
+    Matrix *R = random_matrix_new(1000, 2000, 0.2);
+    mu_assert("random matrix", R != NULL && R->nnz >= 300000);
+    size_t nnz = R->nnz;
+    int *Ap = (int *) ps_malloc(R->m + 1, sizeof(int));
+    for (size_t i = 0; i <= R->m; ++i)
+    {
+        Ap[i] = R->p[i].start;
+    }
+    mu_assert("contiguous rows", Ap[0] == 0 && (size_t) Ap[R->m] == nnz);
+    for (size_t j = 0; j < nnz; j += 7)
+    {
+        R->x[j] = 0.0;
+    }
+    /* a row of zeros only */
+    for (int j = Ap[500]; j < Ap[501]; ++j)
+    {
+        R->x[j] = 0.0;
+    }
+
+    Matrix *ref = matrix_new(R->x, R->i, Ap, R->m, R->n, nnz);
+    mu_assert("reference", ref != NULL && ref->nnz < nnz);
+
+    const int n_workers[] = {0, 1, 7};
+    for (int k = 0; k < 3; ++k)
+    {
+        ThreadPool *pool = thread_pool_new(n_workers[k]);
+        mu_assert("pool", pool != NULL);
+        Matrix *A = matrix_new_parallel(R->x, R->i, Ap, R->m, R->n, nnz, pool);
+        mu_assert("parallel copy", A != NULL);
+        mu_assert("dimensions", A->m == ref->m && A->n == ref->n &&
+                                    A->nnz == ref->nnz &&
+                                    A->n_alloc == ref->n_alloc);
+        mu_assert("row pointers",
+                  memcmp(A->p, ref->p, (ref->m + 1) * sizeof(RowRange)) == 0);
+        for (size_t i = 0; i < ref->m; ++i)
+        {
+            int start = ref->p[i].start;
+            size_t len = (size_t) (ref->p[i].end - start);
+            mu_assert("column indices",
+                      memcmp(A->i + start, ref->i + start, len * sizeof(int)) == 0);
+            mu_assert("values", memcmp(A->x + start, ref->x + start,
+                                       len * sizeof(double)) == 0);
+        }
+        free_matrix(A);
+        thread_pool_free(pool);
+    }
+
+    free_matrix(ref);
+    free_matrix(R);
+    PS_FREE(Ap);
+    return 0;
+}
+
 static const char *all_tests_matrix()
 {
     mu_run_test(test_0_matrix, counter_matrix);
@@ -235,6 +292,7 @@ static const char *all_tests_matrix()
     mu_run_test(test_20_matrix, counter_matrix);
     mu_run_test(test_diagonal_matrix, counter_matrix);
     mu_run_test(test_transpose_parallel, counter_matrix);
+    mu_run_test(test_matrix_new_parallel, counter_matrix);
     return 0;
 }
 

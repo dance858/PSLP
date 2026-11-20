@@ -81,15 +81,12 @@ static inline uint32_t hash_double_array_with_scale(const double *arr, int size)
     return hash;
 }
 
-#ifndef TESTING
-static inline
-#endif
-    void compute_supp_and_coeff_hash(const Matrix *A, const RowTag *rowtags,
+/* The hashes of the rows [start, end). */
+static void supp_and_coeff_hash_rows(const Matrix *A, const RowTag *rowtags,
                                      int *sparsity_IDs, int *coeff_hashes,
-                                     RowTag INACTIVE_TAG)
+                                     RowTag INACTIVE_TAG, int start, int end)
 {
-
-    for (int i = 0; i < A->m; i++)
+    for (int i = start; i < end; i++)
     {
         if (HAS_TAG(rowtags[i], INACTIVE_TAG))
         {
@@ -108,6 +105,60 @@ static inline
         coeff_hashes[i] =
             (int) hash_double_array_with_scale(A->x + A->p[i].start, len);
     }
+}
+
+#ifndef TESTING
+static inline
+#endif
+    void compute_supp_and_coeff_hash(const Matrix *A, const RowTag *rowtags,
+                                     int *sparsity_IDs, int *coeff_hashes,
+                                     RowTag INACTIVE_TAG)
+{
+    supp_and_coeff_hash_rows(A, rowtags, sparsity_IDs, coeff_hashes, INACTIVE_TAG, 0,
+                             (int) A->m);
+}
+
+/* The hashes of the rows on the pool. A chunk is a range of rows. */
+#define HASH_ROWS_PER_CHUNK 256
+#define HASH_PARALLEL_MIN_NNZ (1 << 17)
+#define HASH_MAX_CHUNKS (8 * THREAD_POOL_MAX_THREADS)
+typedef struct
+{
+    const Matrix *A;
+    const RowTag *rowtags;
+    int *sparsity_IDs;
+    int *coeff_hashes;
+    RowTag INACTIVE_TAG;
+    int bounds[HASH_MAX_CHUNKS + 1];
+} HashArgs;
+
+static void hash_chunk(void *context, int chunk, int thread)
+{
+    (void) thread;
+    const HashArgs *args = (const HashArgs *) context;
+    supp_and_coeff_hash_rows(args->A, args->rowtags, args->sparsity_IDs,
+                             args->coeff_hashes, args->INACTIVE_TAG,
+                             args->bounds[chunk], args->bounds[chunk + 1]);
+}
+
+static void
+compute_supp_and_coeff_hash_parallel(const Matrix *A, const RowTag *rowtags,
+                                     int *sparsity_IDs, int *coeff_hashes,
+                                     RowTag INACTIVE_TAG, ThreadPool *pool)
+{
+    int n_threads = pool ? thread_pool_n_threads(pool) : 1;
+    if (n_threads < 2 || A->nnz < HASH_PARALLEL_MIN_NNZ)
+    {
+        compute_supp_and_coeff_hash(A, rowtags, sparsity_IDs, coeff_hashes,
+                                    INACTIVE_TAG);
+        return;
+    }
+    HashArgs args = {A, rowtags, sparsity_IDs, coeff_hashes, INACTIVE_TAG, {0}};
+    int n_chunks =
+        thread_pool_chunk_count(n_threads, (int) A->m, HASH_ROWS_PER_CHUNK);
+    if (n_chunks > HASH_MAX_CHUNKS) n_chunks = HASH_MAX_CHUNKS;
+    thread_pool_chunk_bounds((int) A->m, n_chunks, args.bounds);
+    thread_pool_run(pool, hash_chunk, &args, n_chunks);
 }
 
 static void sort_rows(int *rows, size_t n, const int *sparsity_IDs,
@@ -341,7 +392,8 @@ void find_parallel_rows(const Matrix *A, const RowTag *r_Tags, iVec *group_start
     // ------------------------------------------------------------------------
     //             compute sparsity_IDs and coeff_hashes
     // ------------------------------------------------------------------------
-    compute_supp_and_coeff_hash(A, r_Tags, sparsity_IDs, coeff_hashes, INACTIVE_TAG);
+    compute_supp_and_coeff_hash_parallel(A, r_Tags, sparsity_IDs, coeff_hashes,
+                                         INACTIVE_TAG, pool);
 
     // ------------------------------------------------------------------------
     // Make rows in the same bin appear next to each other. The sort makes sure

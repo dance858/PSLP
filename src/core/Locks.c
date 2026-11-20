@@ -22,47 +22,32 @@
 #include "RowColViews.h"
 #include <assert.h>
 
-Lock *new_locks(const Matrix *A, const RowTag *row_tags)
+void locks_init_cols(const Matrix *AT, const RowTag *row_tags, Lock *locks,
+                     int start, int end)
 {
-    Lock *locks = (Lock *) ps_calloc(A->n, sizeof(Lock));
-    RETURN_PTR_IF_NULL(locks, NULL);
-    int i, j, start, end;
-
-    for (i = 0; i < A->m; ++i)
+    for (int col = start; col < end; ++col)
     {
-        start = A->p[i].start;
-        end = A->p[i].end;
-
-        for (j = start; j < end; ++j)
+        int up = 0, down = 0;
+        int col_end = AT->p[col].end;
+        for (int idx = AT->p[col].start; idx < col_end; ++idx)
         {
-            if (A->x[j] > 0)
+            RowTag tag = row_tags[AT->i[idx]];
+            int rhs_finite = !HAS_TAG(tag, R_TAG_RHS_INF);
+            int lhs_finite = !HAS_TAG(tag, R_TAG_LHS_INF);
+            if (AT->x[idx] > 0)
             {
-                if (!HAS_TAG(row_tags[i], R_TAG_RHS_INF))
-                {
-                    locks[A->i[j]].up++;
-                }
-
-                if (!HAS_TAG(row_tags[i], R_TAG_LHS_INF))
-                {
-                    locks[A->i[j]].down++;
-                }
+                up += rhs_finite;
+                down += lhs_finite;
             }
             else
             {
-                if (!HAS_TAG(row_tags[i], R_TAG_RHS_INF))
-                {
-                    locks[A->i[j]].down++;
-                }
-
-                if (!HAS_TAG(row_tags[i], R_TAG_LHS_INF))
-                {
-                    locks[A->i[j]].up++;
-                }
+                down += rhs_finite;
+                up += lhs_finite;
             }
         }
+        locks[col].up = up;
+        locks[col].down = down;
     }
-
-    return locks;
 }
 
 void free_locks(Lock *locks)
