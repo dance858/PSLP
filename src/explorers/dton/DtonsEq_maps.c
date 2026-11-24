@@ -57,13 +57,20 @@ int dton_choose_subst(const double *row_vals, int col_size0, int col_size1)
 }
 
 /* Which entry (0 or 1) of a doubleton equality row to substitute, or -1 when
-   the row cannot be eliminated. A column absent from P is always preferred. A
-   column in P is substituted only when the other column is in P too and its
-   row of P is a positive diagonal alone that folds into the other column's
-   diagonal without fill-in (sub0/sub1). */
+   the row cannot be eliminated. A row whose coefficients differ by more than
+   1 / DTON_REJECT_RATIO is not eliminated. A column absent from P is always
+   preferred. A column in P is substituted only when the other column is in P
+   too and its row of P is a positive diagonal alone that folds into the other
+   column's diagonal without fill-in (sub0/sub1). */
 int dton_choose_subst_qp(const double *row_vals, int col_size0, int col_size1,
                          bool in_P0, bool in_P1, bool sub0, bool sub1)
 {
+    double abs0 = ABS(row_vals[0]);
+    double abs1 = ABS(row_vals[1]);
+    if (MIN(abs0, abs1) < DTON_REJECT_RATIO * MAX(abs0, abs1))
+    {
+        return -1;
+    }
     if (in_P0 != in_P1)
     {
         return in_P0 ? 1 : 0;

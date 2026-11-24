@@ -148,13 +148,18 @@ void dton_workspace_init(DtonWorkspace *dton_work, struct Work *work);
    |dir_mult| = |aij / aik| by 1 / DTON_PIVOT_RATIO per link. */
 #define DTON_PIVOT_RATIO 1e-1
 
+/* A doubleton equality row stays in the problem when its smaller coefficient
+   is below this fraction of the larger one. */
+#define DTON_REJECT_RATIO 1e-5
+
 /* Which entry (0 or 1) of a doubleton equality row to substitute. */
 int dton_choose_subst(const double *row_vals, int col_size0, int col_size1);
 
 /* QP version of dton_choose_subst. A column with entries in P can only be
    substituted into another column in P, and only if that causes no fill-in
    in P, i.e. its row of P is a single positive diagonal (sub0/sub1).
-   Returns -1 if the row cannot be eliminated. */
+   Returns -1 if the row cannot be eliminated, which includes a row whose
+   coefficients differ by more than 1 / DTON_REJECT_RATIO. */
 int dton_choose_subst_qp(const double *row_vals, int col_size0, int col_size1,
                          bool in_P0, bool in_P1, bool sub0, bool sub1);
 
